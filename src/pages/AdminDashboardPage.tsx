@@ -1,4 +1,5 @@
-import { ShieldCheck, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Building2, Landmark, ShieldCheck, TrendingUp, Users } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
 import { adminStats, chartSeries } from '../data/mockData';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from 'recharts';
@@ -13,6 +14,25 @@ export function AdminDashboardPage() {
             <p className="mt-2 text-2xl font-semibold text-white">{item.value}</p>
           </div>
         ))}
+      </div>
+      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: 'Organization tree', to: '/admin/organization-hierarchy', icon: Building2 },
+          { label: 'Franchise ops', to: '/admin/franchises', icon: Landmark },
+          { label: 'Locations', to: '/admin/locations', icon: Users },
+          { label: 'Roles & access', to: '/admin/roles', icon: ShieldCheck },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link key={item.label} to={item.to} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 shadow-lg shadow-slate-950/20 transition hover:border-blue-400/40">
+              <div className="flex items-center gap-3 text-blue-200">
+                <Icon className="h-5 w-5" />
+                <p className="text-sm font-semibold uppercase tracking-[0.2em]">{item.label}</p>
+              </div>
+              <p className="mt-4 text-sm text-slate-400">Mock ERP foundation for organization and franchise governance.</p>
+            </Link>
+          );
+        })}
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-[28px] border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/30">

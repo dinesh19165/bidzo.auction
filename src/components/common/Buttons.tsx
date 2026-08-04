@@ -9,7 +9,7 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'chi
 
 export function PrimaryButton({ children, icon, fullWidth = false, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 font-medium text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 ${fullWidth ? 'w-full' : ''} ${className}`} {...props}>
+    <button className={`inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 font-medium text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 ${fullWidth ? 'w-full' : ''} ${className}`} {...props}>
       {icon}
       {children}
     </button>
@@ -18,7 +18,7 @@ export function PrimaryButton({ children, icon, fullWidth = false, className = '
 
 export function SecondaryButton({ children, icon, fullWidth = false, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 font-medium text-slate-200 transition hover:bg-white/10 ${fullWidth ? 'w-full' : ''} ${className}`} {...props}>
+    <button className={`inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 font-medium text-slate-200 transition hover:bg-white/10 ${fullWidth ? 'w-full' : ''} ${className}`} {...props}>
       {icon}
       {children}
     </button>
@@ -27,7 +27,7 @@ export function SecondaryButton({ children, icon, fullWidth = false, className =
 
 export function IconButton({ children, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10 ${className}`} {...props}>
+    <button className={`inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10 ${className}`} {...props}>
       {children}
     </button>
   );

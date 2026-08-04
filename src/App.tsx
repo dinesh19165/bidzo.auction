@@ -1,6 +1,8 @@
 import { Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Layout } from './components/Layout';
+import { AuthProvider } from './context/AuthContext';
+import { UserProvider, CartProvider, WalletProvider, NotificationProvider, ThemeProvider } from './context';
 import { HomePage } from './pages/HomePage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
@@ -15,6 +17,8 @@ import { WishlistPage } from './pages/WishlistPage';
 import { AuctionsPage } from './pages/AuctionsPage';
 import { AuctionDetailPage } from './pages/AuctionDetailPage';
 import { LoginPage, RegisterPage, CustomerRegisterPage, VendorRegisterPage, OTPPage, ForgotPasswordPage, ResetPasswordPage, KYCPage, RegistrationFeePage } from './pages/AuthPages';
+import OnboardingWizard from './pages/OnboardingWizard';
+import { CustomerWelcome, VendorWelcome } from './pages/WelcomePages';
 import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
 import { VendorDashboardPage } from './pages/VendorDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
@@ -55,13 +59,21 @@ import { SupportTicketsPage, InvoicesPage, DownloadsPage } from './pages/extra/D
 import { CommissionSettingsPage, RefundsPage, RolesPage } from './pages/extra/AdminExtras';
 import { AddMoneyPage, WithdrawPage } from './pages/extra/WalletExtras';
 import { AdminChatPage, SupportChatPage } from './pages/extra/ChatExtras';
+import { OrganizationHierarchyPage, FranchiseManagementPage, LocationManagementPage, RolePermissionPage, FranchiseDashboardPage } from './pages/extra/OrganizationExtras';
+import { SuperAdminDashboardPage, FranchiseDashboardAdminPage, RolePermissionMatrixPage, ApprovalCenterPage, SystemSettingsPage, CMSPage, ReportsPage } from './pages/extra/EnterpriseAdminPages';
 import { CustomerProfilePage, CustomerOrdersPage, CustomerAuctionsPage, CustomerBidsPage, CustomerWonAuctionsPage, CustomerRecentlyViewedPage, CustomerWatchlistPage, CustomerSavedSearchesPage, CustomerTransactionsPage, CustomerAddressesPage, CustomerMessagesPage, CustomerReviewsPage, CustomerSupportPage, CustomerInvoicesPage, CustomerSettingsPage, VendorBusinessInfoPage, VendorGstPage, VendorBankPage, VendorIdentityPage, VendorStoreVerificationPage, VendorStoreProfilePage, VendorStoreSettingsPage, VendorSubscriptionPage, VendorWalletPage, VendorWithdrawPage, VendorSalesAnalyticsPage, VendorOrdersPage, VendorCustomersPage, VendorInventoryPage, VendorProductsPage, VendorProductVariantsPage, VendorCreateProductPage, VendorEditProductPage, VendorDeleteProductPage, VendorCreateAuctionPage, VendorEditAuctionPage, VendorAuctionAnalyticsPage, VendorMessagesPage, VendorNotificationsPage, VendorReviewsPage, VendorSupportTicketsPage, VendorReportsPage } from './pages/extra/CustomerVendorExtras';
 
 function App() {
   return (
-    <Layout>
-      <AnimatePresence mode="wait">
-        <Routes>
+    <AuthProvider>
+    <UserProvider>
+      <CartProvider>
+        <WalletProvider>
+          <NotificationProvider>
+            <ThemeProvider>
+              <Layout>
+                <AnimatePresence mode="wait">
+                  <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
@@ -75,13 +87,18 @@ function App() {
             <Route path="/auction-rules" element={<PolicyPage title="Auction Rules" subtitle="Rules governing bidding" body="Users must review reserve prices, bid increments, and auction timing before placing a bid or entering a live auction." />} />
             <Route path="/help" element={<PolicyPage title="Help Center" subtitle="Support and assistance" body="The help center provides guidance for account setup, order issues, disputes, and seller onboarding." />} />
             <Route path="/marketplace" element={<MarketplacePage />} />
+            <Route path="/product/:id" element={<ProductDetailPage />} />
             <Route path="/marketplace/:id" element={<ProductDetailPage />} />
+            <Route path="/auction/:id" element={<AuctionDetailPage />} />
             <Route path="/seller/:id" element={<SellerProfilePage />} />
             <Route path="/wishlist" element={<WishlistPage />} />
             <Route path="/auctions" element={<AuctionsPage />} />
             <Route path="/auctions/:id" element={<AuctionDetailPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/onboarding" element={<OnboardingWizard />} />
+            <Route path="/welcome/customer" element={<CustomerWelcome />} />
+            <Route path="/welcome/vendor" element={<VendorWelcome />} />
             <Route path="/register/customer" element={<CustomerRegisterPage />} />
             <Route path="/register/vendor" element={<VendorRegisterPage />} />
             <Route path="/otp" element={<OTPPage />} />
@@ -90,9 +107,11 @@ function App() {
             <Route path="/kyc" element={<KYCPage />} />
             <Route path="/registration-fee" element={<RegistrationFeePage />} />
             <Route path="/dashboards/customer" element={<CustomerDashboardPage />} />
+            <Route path="/customer/dashboard" element={<CustomerDashboardPage />} />
             <Route path="/customer/profile" element={<CustomerProfilePage />} />
             <Route path="/customer/orders" element={<CustomerOrdersPage />} />
             <Route path="/customer/auctions" element={<CustomerAuctionsPage />} />
+            <Route path="/customer/wallet" element={<WalletPage />} />
             <Route path="/customer/bids" element={<CustomerBidsPage />} />
             <Route path="/customer/won" element={<CustomerWonAuctionsPage />} />
             <Route path="/customer/wishlist" element={<CustomerWatchlistPage />} />
@@ -128,6 +147,7 @@ function App() {
             <Route path="/customer/delivered" element={<CustomerDeliveredPage />} />
             <Route path="/customer/review" element={<CustomerReviewPage />} />
             <Route path="/dashboards/vendor" element={<VendorDashboardPage />} />
+            <Route path="/vendor/dashboard" element={<VendorDashboardPage />} />
             <Route path="/vendor/business-info" element={<VendorBusinessInfoPage />} />
             <Route path="/vendor/gst" element={<VendorGstPage />} />
             <Route path="/vendor/bank" element={<VendorBankPage />} />
@@ -143,6 +163,8 @@ function App() {
             <Route path="/vendor/customers" element={<VendorCustomersPage />} />
             <Route path="/vendor/inventory" element={<VendorInventoryPage />} />
             <Route path="/vendor/products" element={<VendorProductsPage />} />
+            <Route path="/vendor/create-product" element={<VendorCreateProductPage />} />
+            <Route path="/vendor/edit-product" element={<VendorEditProductPage />} />
             <Route path="/vendor/variants" element={<VendorProductVariantsPage />} />
             <Route path="/vendor/create-product" element={<VendorCreateProductPage />} />
             <Route path="/vendor/edit-product" element={<VendorEditProductPage />} />
@@ -155,10 +177,25 @@ function App() {
             <Route path="/vendor/auction-analytics" element={<VendorAuctionAnalyticsPage />} />
             <Route path="/vendor/messages" element={<VendorMessagesPage />} />
             <Route path="/vendor/notifications" element={<VendorNotificationsPage />} />
+            <Route path="/vendor/wallet" element={<WalletPage />} />
+            <Route path="/vendor/reports" element={<VendorReportsPage />} />
+            <Route path="/vendor/settings" element={<VendorStoreSettingsPage />} />
             <Route path="/vendor/reviews" element={<VendorReviewsPage />} />
             <Route path="/vendor/support" element={<VendorSupportTicketsPage />} />
             <Route path="/vendor/reports" element={<VendorReportsPage />} />
             <Route path="/dashboards/admin" element={<AdminDashboardPage />} />
+            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/organization-hierarchy" element={<OrganizationHierarchyPage />} />
+            <Route path="/admin/franchises" element={<FranchiseManagementPage />} />
+            <Route path="/admin/locations" element={<LocationManagementPage />} />
+            <Route path="/admin/roles" element={<RolePermissionPage />} />
+            <Route path="/admin/franchise-dashboard" element={<FranchiseDashboardPage />} />
+            <Route path="/admin/super-dashboard" element={<SuperAdminDashboardPage />} />
+            <Route path="/admin/permissions" element={<RolePermissionMatrixPage />} />
+            <Route path="/admin/approvals" element={<ApprovalCenterPage />} />
+            <Route path="/admin/settings" element={<SystemSettingsPage />} />
+            <Route path="/admin/cms" element={<CMSPage />} />
+            <Route path="/admin/reports" element={<ReportsPage />} />
             <Route path="/delivery" element={<DeliveryPage />} />
             <Route path="/wallet" element={<WalletPage />} />
             <Route path="/wallet/add-money" element={<AddMoneyPage />} />
@@ -186,9 +223,15 @@ function App() {
             <Route path="/maintenance" element={<MaintenancePage />} />
             <Route path="/coming-soon" element={<ComingSoonPage />} />
             <Route path="/*" element={<NotFoundPage />} />
-          </Routes>
-      </AnimatePresence>
-    </Layout>
+                  </Routes>
+                </AnimatePresence>
+              </Layout>
+            </ThemeProvider>
+          </NotificationProvider>
+        </WalletProvider>
+      </CartProvider>
+    </UserProvider>
+    </AuthProvider>
   );
 }
 

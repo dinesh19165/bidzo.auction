@@ -10,7 +10,7 @@ export function ProductGrid({ children }: { children: ReactNode }) {
 }
 
 export function ProductGallery({ images }: { images: string[] }) {
-  return <div className="grid gap-3 md:grid-cols-2">{images.map((image) => <img key={image} src={image} alt="gallery" className="h-44 w-full rounded-[20px] object-cover" />)}</div>;
+  return <div className="grid gap-3 md:grid-cols-2">{images.map((image) => <img key={image} src={image} alt="gallery" loading="lazy" decoding="async" className="h-44 w-full rounded-[20px] object-cover" />)}</div>;
 }
 
 export function ProductSpecification({ specs }: { specs: Array<{ label: string; value: string }> }) {

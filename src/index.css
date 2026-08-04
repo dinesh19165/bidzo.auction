@@ -17,6 +17,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: #020617;
+  overflow-x: hidden;
 }
 
 * {
@@ -28,6 +29,46 @@ html {
 }
 
 button,
-a {
+a,
+[role="button"],
+input,
+select,
+textarea {
   font: inherit;
+}
+
+button,
+a,
+[role="button"],
+input,
+select,
+textarea {
+  min-height: 48px;
+}
+
+button,
+a,
+[role="button"] {
+  min-width: 44px;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+}
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }

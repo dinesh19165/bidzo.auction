@@ -113,11 +113,11 @@ export function ProductCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Link to={actionLink ?? `/marketplace/${id}`} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500">
+          <Link to={actionLink ?? `/customer/product/${id}`} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
             {actionLabel || (currentBid ? 'Bid now' : 'Buy now')}
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
-          <button className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:border-white/20 hover:bg-white/10">
+          <button className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:border-white/20 hover:bg-white/10 sm:w-auto">
             <Share2 className="h-4 w-4" /> Share
           </button>
         </div>
@@ -151,11 +151,11 @@ export function AuctionCard({ id, title, image, status, currentBid, endsIn }: Au
         <h3 className="text-lg font-semibold text-white">{title}</h3>
         <p className="mt-3 text-sm text-slate-400">Current bid {currentBid}</p>
         <div className="mt-5 flex items-center justify-between gap-3">
-          <Link to={`/auctions/${id}`} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500">
+          <Link to={`/auctions/${id}`} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
             View auction
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
-          <button className="rounded-full bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">Watch</button>
+          <button className="min-h-[48px] rounded-full bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">Watch</button>
         </div>
       </div>
     </motion.article>

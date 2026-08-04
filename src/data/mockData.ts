@@ -511,3 +511,41 @@ export const verificationSteps = [
 ];
 
 export const paymentMethods = ['UPI', 'Cards', 'Net banking', 'Wallet'];
+
+export const organizationHierarchy = [
+  { entity: 'Bidzo Group', level: 'Super Admin', region: 'Global', status: 'Active' },
+  { entity: 'India Operations', level: 'Country', region: 'India', status: 'Active' },
+  { entity: 'South Zone', level: 'Region', region: 'Karnataka, Tamil Nadu, Kerala', status: 'Active' },
+  { entity: 'Bengaluru District', level: 'District', region: 'Bengaluru Urban', status: 'Live' },
+  { entity: 'Bengaluru City', level: 'City', region: 'Bengaluru', status: 'Live' },
+  { entity: 'Bengaluru Franchise', level: 'Franchise Admin', region: 'Bengaluru', status: 'Onboarding' },
+  { entity: 'Nova Tech', level: 'Vendor', region: 'Bengaluru', status: 'Verified' },
+  { entity: 'RapidRoute Logistics', level: 'Delivery Partner', region: 'Bengaluru', status: 'Active' },
+];
+
+export const franchiseDirectory = [
+  { name: 'Bengaluru Franchise', code: 'BLR-01', city: 'Bengaluru', region: 'South', admin: 'Asha Rao', health: '92%', status: 'Healthy' },
+  { name: 'Mumbai Franchise', code: 'MUM-02', city: 'Mumbai', region: 'West', admin: 'Nilesh V.', health: '84%', status: 'Stable' },
+  { name: 'Delhi Franchise', code: 'DEL-03', city: 'Delhi', region: 'North', admin: 'Riya Sen', health: '79%', status: 'Review' },
+];
+
+export const locationDirectory = [
+  { type: 'Country', name: 'India', code: 'IN', parent: 'Global', activeNodes: 28 },
+  { type: 'State', name: 'Karnataka', code: 'KA', parent: 'India', activeNodes: 6 },
+  { type: 'District', name: 'Bengaluru Urban', code: 'BLR', parent: 'Karnataka', activeNodes: 4 },
+  { type: 'City', name: 'Bengaluru', code: 'BLR-01', parent: 'Bengaluru Urban', activeNodes: 12 },
+];
+
+export const rolePermissions = [
+  { role: 'Super Admin', scope: 'Group-wide', users: 3, status: 'Active', permissions: ['User management', 'Finance', 'Policy control'] },
+  { role: 'Country Admin', scope: 'Country', users: 8, status: 'Active', permissions: ['Location management', 'Franchise oversight', 'Reporting'] },
+  { role: 'Franchise Admin', scope: 'City', users: 24, status: 'Live', permissions: ['Vendor onboarding', 'Delivery oversight', 'Support triage'] },
+  { role: 'Vendor Manager', scope: 'Vendor', users: 118, status: 'Live', permissions: ['Inventory', 'Orders', 'KYC review'] },
+];
+
+export const franchiseDashboardKpis = [
+  { label: 'Active franchises', value: '24' },
+  { label: 'Verified vendors', value: '1,280' },
+  { label: 'Orders processed', value: '18.2k' },
+  { label: 'Pending reviews', value: '42' },
+];

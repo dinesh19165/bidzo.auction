@@ -82,7 +82,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55 }}
-            className="relative z-10"
+            className="relative z-10 text-center lg:text-left"
           >
             <Badge className="inline-flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
@@ -97,12 +97,12 @@ export function HomePage() {
               </p>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link to={heroSlides[activeSlide].link}>
-                <PrimaryButton icon={<ArrowRight className="h-4 w-4" />}>{heroSlides[activeSlide].cta}</PrimaryButton>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Link to={heroSlides[activeSlide].link} className="w-full sm:w-auto">
+                <PrimaryButton icon={<ArrowRight className="h-4 w-4" />} className="w-full sm:w-auto">{heroSlides[activeSlide].cta}</PrimaryButton>
               </Link>
-              <Link to="/marketplace">
-                <SecondaryButton>Shop now</SecondaryButton>
+              <Link to="/marketplace" className="w-full sm:w-auto">
+                <SecondaryButton className="w-full sm:w-auto">Shop now</SecondaryButton>
               </Link>
             </div>
 
@@ -148,9 +148,9 @@ export function HomePage() {
                   <Mic className="h-4 w-4" /> Voice search
                 </button>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-nowrap gap-2 overflow-x-auto pb-1">
                 {['Electronics', 'Vehicles', 'Real Estate', 'Fashion', 'Furniture', 'Agriculture'].map((tag) => (
-                  <span key={tag} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300">{tag}</span>
+                  <span key={tag} className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300">{tag}</span>
                 ))}
               </div>
             </div>
@@ -161,7 +161,7 @@ export function HomePage() {
               ))}
             </div>
 
-            <div className="mt-6 flex items-center gap-3">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
               <button
                 type="button"
                 onClick={() => setActiveSlide((value) => (value - 1 + heroSlides.length) % heroSlides.length)}
@@ -190,10 +190,10 @@ export function HomePage() {
             </div>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }} className="relative z-10">
+          <motion.div initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }} className="relative z-10 mt-8 lg:mt-0">
             <div className="grid gap-4">
               <div className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30">
-                <img src="https://images.unsplash.com/photo-1602524812462-95d6be3ee5ee?auto=format&fit=crop&w=1200&q=80" alt="Premium marketplace" className="h-96 w-full object-cover" />
+                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQevjFv6rwDct46h-zyBopLvmZhsmyFtBLH6UjMyPCyww&s=10" alt="Premium marketplace" loading="lazy" decoding="async" className="h-72 w-full object-cover sm:h-96" />
                 <div className="space-y-4 p-6">
                   <div className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-blue-200">Auction spotlight</div>
                   <div>

@@ -1,6 +1,8 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, BadgeCheck, CheckCircle2, ShieldCheck, Smartphone, Wallet } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
+import { useAuth } from '../context/AuthContext';
+import { useState } from 'react';
 
 const verificationSteps = [
   { title: 'Email verification', done: true },
@@ -9,6 +11,16 @@ const verificationSteps = [
 ];
 
 export function LoginPage() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [identifier, setIdentifier] = useState('');
+
+  const handleLogin = async () => {
+    await login(identifier || 'guest');
+    // redirect based on mock user
+    navigate('/');
+  };
+
   return (
     <SectionShell title="Authentication" subtitle="Welcome back to Bidzo">
       <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
@@ -16,15 +28,15 @@ export function LoginPage() {
           <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Customer & vendor access</p>
           <h3 className="mt-3 text-2xl font-semibold text-white">Secure sign-in for buyers and sellers</h3>
           <div className="mt-6 space-y-4">
-            <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email or phone" />
+            <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email or phone" />
             <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Password" />
             <div className="flex items-center justify-between text-sm text-slate-400">
               <Link to="/forgot-password" className="hover:text-white">Forgot password?</Link>
               <Link to="/register" className="hover:text-white">Create account</Link>
             </div>
-            <Link to="/dashboards/customer" className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">
+            <button onClick={handleLogin} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">
               Sign in <ArrowRight className="h-4 w-4" />
-            </Link>
+            </button>
           </div>
         </div>
         <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-8">
@@ -47,34 +59,29 @@ export function LoginPage() {
 }
 
 export function RegisterPage() {
-  return (
-    <SectionShell title="Register" subtitle="Choose your account type">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Link to="/register/customer" className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-white transition hover:border-blue-500/40">
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Customer</p>
-          <h3 className="mt-3 text-xl font-semibold">Buy products and bid in auctions</h3>
-          <p className="mt-3 text-sm text-slate-400">Create a buyer profile, complete KYC, and unlock secure checkout.</p>
-        </Link>
-        <Link to="/register/vendor" className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-white transition hover:border-emerald-500/40">
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-emerald-300">Vendor</p>
-          <h3 className="mt-3 text-xl font-semibold">Launch a storefront and sell with confidence</h3>
-          <p className="mt-3 text-sm text-slate-400">Register your business, verify documents, and manage inventory and auctions.</p>
-        </Link>
-      </div>
-    </SectionShell>
-  );
+  // Redirect entry to the full onboarding wizard
+  return <SectionShell title="Register" subtitle="Choose account"><div className="mx-auto max-w-3xl"><Link to="/onboarding" className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-white">Start onboarding <ArrowRight className="h-4 w-4" /></Link></div></SectionShell>;
 }
 
 export function CustomerRegisterPage() {
+  const navigate = useNavigate();
+  const { registerCustomer } = useAuth();
+  const [form, setForm] = useState({ name: '', email: '', phone: '' });
+
+  const submit = async () => {
+    await registerCustomer(form);
+    navigate('/otp');
+  };
+
   return (
     <SectionShell title="Customer registration" subtitle="Create your buyer profile">
       <div className="mx-auto grid max-w-3xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
-          <input className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Full name" />
-          <input className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email" />
-          <input className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Phone" />
+          <input value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Full name" />
+          <input value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email" />
+          <input value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Phone" />
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">We’ll verify your email and phone before activation.</div>
-          <Link to="/otp" className="mt-5 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to OTP</Link>
+          <button onClick={submit} className="mt-5 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to OTP</button>
         </div>
         <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-8">
           <h3 className="text-xl font-semibold text-white">Benefits for buyers</h3>
@@ -90,15 +97,26 @@ export function CustomerRegisterPage() {
 }
 
 export function VendorRegisterPage() {
+  const navigate = useNavigate();
+  const { registerVendor } = useAuth();
+  const [form, setForm] = useState({ businessName: '', ownerName: '', email: '', phone: '', gst: '' });
+
+  const submit = async () => {
+    await registerVendor(form);
+    navigate('/kyc');
+  };
+
   return (
     <SectionShell title="Vendor registration" subtitle="Create your seller storefront">
       <div className="mx-auto grid max-w-3xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
-          <input className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Business name" />
-          <input className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email" />
-          <input className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="GST / PAN" />
+          <input value={form.businessName} onChange={(e) => setForm((s) => ({ ...s, businessName: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Business name" />
+          <input value={form.ownerName} onChange={(e) => setForm((s) => ({ ...s, ownerName: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Owner name" />
+          <input value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email" />
+          <input value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Phone" />
+          <input value={form.gst} onChange={(e) => setForm((s) => ({ ...s, gst: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="GST (Optional)" />
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Business verification unlocks inventory, auction tools and seller analytics.</div>
-          <Link to="/kyc" className="mt-5 inline-flex rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white">Continue to verification</Link>
+          <button onClick={submit} className="mt-5 inline-flex rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white">Continue to verification</button>
         </div>
         <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-emerald-600/15 to-blue-500/10 p-8">
           <h3 className="text-xl font-semibold text-white">Vendor onboarding checklist</h3>
@@ -114,6 +132,15 @@ export function VendorRegisterPage() {
 }
 
 export function OTPPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const verify = () => {
+    // mock verify and redirect
+    if (user?.type === 'vendor') navigate('/registration-fee');
+    else navigate('/dashboards/customer');
+  };
+
   return (
     <SectionShell title="OTP verification" subtitle="Enter the code sent to your phone">
       <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-8 text-center">
@@ -121,7 +148,7 @@ export function OTPPage() {
         <div className="mt-4 flex justify-center gap-3">
           {['1', '2', '3', '4', '5', '6'].map((digit) => <div key={digit} className="h-12 w-10 rounded-2xl border border-white/10 bg-slate-950/50 text-center text-lg font-semibold leading-[3rem] text-white">{digit}</div>)}
         </div>
-        <Link to="/registration-fee" className="mt-6 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Verify</Link>
+        <button onClick={verify} className="mt-6 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Verify</button>
       </div>
     </SectionShell>
   );
