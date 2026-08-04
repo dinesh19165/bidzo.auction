@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, Clock3, Globe, Heart, MapPin, Microphone, Package, Search, ShieldCheck, Smartphone, Sparkles, Store, TrendingUp, Truck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Globe, Heart, MapPin, Mic, Package, Search, ShieldCheck, Smartphone, Sparkles, Store, TrendingUp, Truck } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
   featuredProducts,
@@ -145,7 +145,7 @@ export function HomePage() {
                   <input className="w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500" placeholder="Search premium products, auctions or vendors" />
                 </div>
                 <button className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10">
-                  <Microphone className="h-4 w-4" /> Voice search
+                  <Mic className="h-4 w-4" /> Voice search
                 </button>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">

@@ -1,5 +1,5 @@
 import { Link, NavLink } from 'react-router-dom';
-import { Bell, ChevronDown, Globe, Heart, MapPin, Microphone, Search, ShoppingBag, Store } from 'lucide-react';
+import { Bell, ChevronDown, Globe, Heart, MapPin, Mic, Search, ShoppingBag, Store } from 'lucide-react';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -49,7 +49,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
             <button className="inline-flex items-center justify-center rounded-full bg-white/5 p-2 text-slate-300 transition hover:bg-white/10">
-              <Microphone className="h-4 w-4" />
+              <Mic className="h-4 w-4" />
             </button>
           </div>
 

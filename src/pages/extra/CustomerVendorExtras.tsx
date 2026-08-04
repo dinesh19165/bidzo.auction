@@ -498,7 +498,7 @@ export function VendorSalesAnalyticsPage() {
   return (
     <SectionShell title="Sales analytics" subtitle="Revenue, conversion and repeat buyer trends">
       <div className="grid gap-4 md:grid-cols-3">
-        {vendorReports.map((report) => (
+        {vendorReports.metrics.map((report) => (
           <div key={report.label} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4">
             <p className="text-sm text-slate-400">{report.label}</p>
             <p className="mt-2 text-xl font-semibold text-white">{report.value}</p>
