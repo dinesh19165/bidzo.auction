@@ -35,7 +35,15 @@ const pieData = [
 ];
 
 export function HomePage() {
-  const [activeSlide, setActiveSlide] = useState(0);
+  const [searchCategory, setSearchCategory] = useState('All Categories');
+  const [activeTestimonial, setActiveTestimonial] = useState(0);
+  const [counterValues, setCounterValues] = useState({ activeAuctions: 0, buyers: 0, sellers: 0, sold: 0 });
+
+  const categoryIcons = [
+    <Smartphone className="h-5 w-5" />, <Truck className="h-5 w-5" />, <Store className="h-5 w-5" />, <Heart className="h-5 w-5" />,
+    <Package className="h-5 w-5" />, <TrendingUp className="h-5 w-5" />, <ShieldCheck className="h-5 w-5" />, <MapPin className="h-5 w-5" />,
+    <Search className="h-5 w-5" />, <Globe className="h-5 w-5" />,
+  ];
 
   const heroSlides = [
     {
@@ -58,173 +66,161 @@ export function HomePage() {
     },
   ];
 
-  const categoryIcons = [
-    <Smartphone className="h-5 w-5" />, <Truck className="h-5 w-5" />, <Store className="h-5 w-5" />, <Heart className="h-5 w-5" />,
-    <Package className="h-5 w-5" />, <TrendingUp className="h-5 w-5" />, <ShieldCheck className="h-5 w-5" />, <MapPin className="h-5 w-5" />,
-    <Search className="h-5 w-5" />, <Globe className="h-5 w-5" />, <Truck className="h-5 w-5" />, <ShieldCheck className="h-5 w-5" />,
-  ];
-
-  const endingSoonAuctions = auctionItems.filter((item) => item.status === 'Live').slice(0, 3);
-  const recentlyAdded = products.slice(0, 4);
-  const recommendedProducts = products.slice(1, 7);
+  const featuredAuctions = auctionItems.slice(0, 3);
+  const featuredProductsList = featuredProducts.slice(0, 4);
+  const trendingAuctions = auctionItems.slice(0, 6);
+  const popularCategories = marketplaceCategories.slice(0, 6);
+  const sellerHighlights = verifiedVendors.slice(0, 3);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setActiveSlide((value) => (value + 1) % heroSlides.length), 8000);
+    const interval = window.setInterval(() => setActiveTestimonial((value) => (value + 1) % testimonials.length), 8000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const targets = { activeAuctions: 214, buyers: 86000, sellers: 1400, sold: 48000 };
+    const steps = 70;
+    const increments = {
+      activeAuctions: Math.ceil(targets.activeAuctions / steps),
+      buyers: Math.ceil(targets.buyers / steps),
+      sellers: Math.ceil(targets.sellers / steps),
+      sold: Math.ceil(targets.sold / steps),
+    };
+
+    let current = { activeAuctions: 0, buyers: 0, sellers: 0, sold: 0 };
+    const timer = window.setInterval(() => {
+      current = {
+        activeAuctions: Math.min(targets.activeAuctions, current.activeAuctions + increments.activeAuctions),
+        buyers: Math.min(targets.buyers, current.buyers + increments.buyers),
+        sellers: Math.min(targets.sellers, current.sellers + increments.sellers),
+        sold: Math.min(targets.sold, current.sold + increments.sold),
+      };
+      setCounterValues(current);
+      if (
+        current.activeAuctions === targets.activeAuctions &&
+        current.buyers === targets.buyers &&
+        current.sellers === targets.sellers &&
+        current.sold === targets.sold
+      ) {
+        window.clearInterval(timer);
+      }
+    }, 30);
+
     return () => window.clearInterval(timer);
-  }, [heroSlides.length]);
+  }, []);
 
   return (
     <>
-      <section className="relative overflow-hidden pb-16 pt-10">
-        <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(245,158,11,0.12),_transparent_30%)]" />
-        <div className="relative mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[1.25fr_0.85fr] lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55 }}
-            className="relative z-10 text-center lg:text-left"
-          >
-            {/* Hero: logo removed to keep hero focused on content */}
-            <Badge className="inline-flex max-w-full flex-wrap items-center gap-2 break-words px-3 py-1 text-[11px] sm:text-xs">
-              <Sparkles className="h-4 w-4" />
-              Verified marketplace experience
-            </Badge>
-            <div className="mt-6 max-w-2xl space-y-6">
-              <h1 className="text-3xl font-semibold leading-tight text-white sm:text-4xl md:text-5xl lg:text-6xl">
-                {heroSlides[activeSlide].title}
-              </h1>
-              <p className="text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
-                {heroSlides[activeSlide].description}
-              </p>
-            </div>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link to={heroSlides[activeSlide].link} className="w-full sm:w-auto">
-                <PrimaryButton icon={<ArrowRight className="h-4 w-4" />} fullWidth className="w-full sm:w-auto">{heroSlides[activeSlide].cta}</PrimaryButton>
-              </Link>
-              <Link to="/marketplace" className="w-full sm:w-auto">
-                <SecondaryButton fullWidth className="w-full sm:w-auto">Shop now</SecondaryButton>
-              </Link>
-            </div>
-
-            <div className="mt-10 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.24em] text-amber-300">Auction promotion</p>
-                    <h2 className="mt-3 text-xl font-semibold text-white">Luxury SUV closing soon</h2>
-                    <p className="mt-2 text-sm text-slate-400">Live bidding ends in under 2 hours with verified inspection available.</p>
-                  </div>
-                  <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-emerald-300">Live</span>
-                </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Link to="/auctions" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500">Bid now</Link>
-                  <Link to="/auctions/102" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">View auction</Link>
-                </div>
+      <section className="relative overflow-hidden bg-slate-950 text-white">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_35%),radial-gradient(circle_at_20%_30%,_rgba(56,189,248,0.12),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(251,191,36,0.10),_transparent_20%)]" />
+        <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+          <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
+            <div className="space-y-8">
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10">
+                <Sparkles className="h-4 w-4 text-amber-300" />
+                Trusted premium auctions and verified sellers
+              </div>
+              <div className="space-y-5">
+                <p className="text-sm uppercase tracking-[0.32em] text-cyan-300">Premium marketplace</p>
+                <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
+                  <span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-amber-300 bg-clip-text text-transparent">Buy luxury inventory</span>
+                  and win verified auctions with confidence.
+                </h1>
+                <p className="max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">
+                  Discover curated listings, live auctions, and premium sellers backed by secure payments, AI recommendations, and 24/7 support.
+                </p>
               </div>
 
-              <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.24em] text-blue-300">Today’s deals</p>
-                    <h2 className="mt-3 text-xl font-semibold text-white">Top picks with high discounts</h2>
-                    <p className="mt-2 text-sm text-slate-400">Browse premium buys, instant savings, and fast delivery across categories.</p>
-                  </div>
-                  <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-blue-200">Up to 30% off</span>
-                </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <div className="rounded-3xl bg-white/5 px-4 py-3 text-sm text-slate-200">MacBook Pro M3</div>
-                  <div className="rounded-3xl bg-white/5 px-4 py-3 text-sm text-slate-200">Italian Leather Sofa</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-10 rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex flex-1 items-center gap-3 rounded-3xl border border-white/10 bg-slate-950/60 px-4 py-3">
-                  <Search className="h-5 w-5 text-slate-400" />
-                  <input className="w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500" placeholder="Search premium products, auctions or vendors" />
-                </div>
-                <button className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10">
-                  <Mic className="h-4 w-4" /> Voice search
-                </button>
-              </div>
-              <div className="mt-4 flex flex-nowrap gap-2 overflow-x-auto whitespace-nowrap pb-1 scrollbar-hidden">
-                {['Electronics', 'Vehicles', 'Real Estate', 'Fashion', 'Furniture', 'Agriculture'].map((tag) => (
-                  <span key={tag} className="shrink-0 snap-start rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300">{tag}</span>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-10 grid gap-3 sm:grid-cols-3">
-              {appStats.map((item) => (
-                <StatisticCard key={item.label} label={item.label} value={item.value} />
-              ))}
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-              <button
-                type="button"
-                onClick={() => setActiveSlide((value) => (value - 1 + heroSlides.length) % heroSlides.length)}
-                className="rounded-full border border-white/10 bg-slate-950/80 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveSlide((value) => (value + 1) % heroSlides.length)}
-                className="rounded-full border border-white/10 bg-slate-950/80 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
-              >
-                Next
-              </button>
-              <div className="flex items-center gap-2">
-                {heroSlides.map((_, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => setActiveSlide(index)}
-                    className={`h-2.5 w-2.5 rounded-full ${activeSlide === index ? 'bg-white' : 'bg-white/30'}`}
-                    aria-label={`Slide ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }} className="relative z-10 mt-8 lg:mt-0">
-            <div className="grid gap-4">
-              <div className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30">
-                {/* Removed large banner image to avoid displaying oversized logo on homepage */}
-                <div className="space-y-4 p-6">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-blue-200">Auction spotlight</div>
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Featured offer</p>
-                    <h2 className="mt-2 text-2xl font-semibold text-white">Premium audio studio set</h2>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm text-slate-400">Current bid</p>
-                      <p className="text-xl font-semibold text-white">₹1,86,000</p>
+              <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.8)]">
+                  <div className="mb-4 text-sm font-medium uppercase tracking-[0.24em] text-slate-400">Search inventory</div>
+                  <div className="grid gap-3 sm:grid-cols-[1.5fr_0.8fr]">
+                    <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-slate-950/70 px-4 py-3">
+                      <Search className="h-5 w-5 text-slate-400" />
+                      <input type="search" placeholder="Search auctions, products, sellers" className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" />
                     </div>
-                    <Link to="/auctions/102" className="rounded-full bg-amber-500 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-amber-400">Bid now</Link>
+                    <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-slate-950/70 px-4 py-3">
+                      <span className="text-sm text-slate-400">Category</span>
+                      <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} className="w-full rounded-lg bg-transparent text-sm text-white outline-none">
+                        <option>All Categories</option>
+                        {marketplaceCategories.slice(0, 6).map((item) => (
+                          <option key={item.title} className="bg-slate-900 text-white">{item.title}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <Link to="/auctions" className="inline-flex min-h-[56px] items-center justify-center rounded-3xl bg-gradient-to-r from-cyan-400 to-sky-500 px-6 text-sm font-semibold text-slate-950 transition hover:brightness-110">
+                    Start Bidding
+                  </Link>
+                  <Link to="/marketplace" className="inline-flex min-h-[56px] items-center justify-center rounded-3xl border border-white/10 bg-slate-900/80 px-6 text-sm font-semibold text-white transition hover:bg-slate-900">
+                    Explore Marketplace
+                  </Link>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">
-                  <p className="text-sm uppercase tracking-[0.24em] text-blue-300">Seller spotlight</p>
-                  <h3 className="mt-3 text-xl font-semibold text-white">Verified vendors with premium ratings</h3>
-                  <p className="mt-3 text-sm text-slate-400">Top sellers trusted for fast delivery and verified listings.</p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 text-center shadow-xl shadow-slate-950/20">
+                  <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Live auctions</p>
+                  <p className="mt-4 text-3xl font-semibold text-white">214</p>
+                  <p className="mt-2 text-sm text-slate-400">Active auctions right now</p>
                 </div>
-                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">
-                  <p className="text-sm uppercase tracking-[0.24em] text-blue-300">Shipping promise</p>
-                  <h3 className="mt-3 text-xl font-semibold text-white">Fast delivery available</h3>
-                  <p className="mt-3 text-sm text-slate-400">Priority logistics for high-value products and auction winners.</p>
+                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 text-center shadow-xl shadow-slate-950/20">
+                  <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Registered buyers</p>
+                  <p className="mt-4 text-3xl font-semibold text-white">86k+</p>
+                  <p className="mt-2 text-sm text-slate-400">Premium buyers on Bidzo</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 text-center shadow-xl shadow-slate-950/20">
+                  <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Verified sellers</p>
+                  <p className="mt-4 text-3xl font-semibold text-white">1.4k</p>
+                  <p className="mt-2 text-sm text-slate-400">Curated seller network</p>
                 </div>
               </div>
             </div>
-          </motion.div>
+
+            <div className="grid gap-5">
+              <div className="rounded-[32px] border border-white/10 bg-slate-900/80 p-6 shadow-[0_40px_120px_-70px_rgba(15,23,42,0.8)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Auction spotlight</p>
+                    <h2 className="mt-3 text-3xl font-semibold text-white">Rolex Oyster Reserve</h2>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs uppercase tracking-[0.18em] text-emerald-300">Live</span>
+                </div>
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-[28px] bg-slate-950/70 p-4">
+                    <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Current bid</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">₹3,12,000</p>
+                  </div>
+                  <div className="rounded-[28px] bg-slate-950/70 p-4">
+                    <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Bidders</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">24</p>
+                  </div>
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link to="/auctions/101" className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">View auction</Link>
+                  <span className="inline-flex items-center rounded-full bg-white/5 px-4 py-3 text-sm text-slate-300">Verified seller</span>
+                </div>
+              </div>
+              <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-950/90 to-slate-900/80 p-6 shadow-xl shadow-slate-950/20">
+                <p className="text-sm uppercase tracking-[0.24em] text-blue-300">Fast access</p>
+                <h2 className="mt-3 text-3xl font-semibold text-white">Premium listings, refined for you</h2>
+                <p className="mt-5 text-sm leading-7 text-slate-300">Explore curated products and live auctions that match your premium buying criteria.</p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-3xl bg-white/5 p-4">
+                    <p className="text-sm text-slate-400">Trusted sellers</p>
+                    <p className="mt-2 text-lg font-semibold text-white">1.4k</p>
+                  </div>
+                  <div className="rounded-3xl bg-white/5 p-4">
+                    <p className="text-sm text-slate-400">Fast delivery</p>
+                    <p className="mt-2 text-lg font-semibold text-white">24h+</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -236,9 +232,16 @@ export function HomePage() {
           </div>
           <Link to="/categories" className="text-sm font-medium text-slate-300 transition hover:text-white">View all categories</Link>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {marketplaceCategories.map((item, index) => (
-            <CategoryCard key={item.title} title={item.title} description={item.description} icon={categoryIcons[index]} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {popularCategories.map((item, index) => (
+            <div key={item.title} className="group rounded-[28px] border border-white/10 bg-slate-900/80 p-6 transition hover:-translate-y-1 hover:border-cyan-400/20 hover:bg-slate-950/90">
+              <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-slate-950/70 text-cyan-300 transition group-hover:bg-cyan-500/10">
+                {categoryIcons[index]}
+              </div>
+              <p className="mt-6 text-sm uppercase tracking-[0.24em] text-slate-400">{item.title}</p>
+              <p className="mt-3 text-2xl font-semibold text-white">{item.count}</p>
+              <p className="mt-4 text-sm leading-6 text-slate-400">Premium listings curated for buyers seeking quality.</p>
+            </div>
           ))}
         </div>
       </section>
@@ -246,75 +249,39 @@ export function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Premium auctions</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Curated auctions with verified inventory</h2>
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Trending auctions</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Don’t miss today’s hottest bids</h2>
           </div>
-          <Link to="/auctions" className="text-sm font-medium text-slate-300 transition hover:text-white">Browse auctions</Link>
+          <Link to="/auctions" className="text-sm font-medium text-slate-300 transition hover:text-white">Browse all live auctions</Link>
         </div>
-        <div className="grid gap-5 xl:grid-cols-3">
-          {premiumAuctions.map((item) => (
-            <AuctionCard key={item.title} id={item.title} title={item.title} image={item.image} status={item.status} currentBid={item.currentBid} endsIn={item.endsIn} />
+        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hidden">
+          {trendingAuctions.map((item) => (
+            <div key={item.id} className="min-w-[320px] rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] ${item.status === 'Live' ? 'bg-emerald-500/15 text-emerald-300' : item.status === 'Upcoming' ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-700/80 text-slate-300'}`}>{item.status}</span>
+                <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{item.endsIn}</span>
+              </div>
+              <div className="mb-4 h-44 overflow-hidden rounded-[20px] bg-slate-950/50">
+                <img src={item.image} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+              <p className="mt-3 text-sm text-slate-400">Current bid <span className="font-semibold text-white">{item.currentBid}</span></p>
+              <p className="mt-2 text-sm text-slate-400">{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
+            </div>
           ))}
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.24em] text-amber-300">Sponsored products</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Featured product picks</h2>
-              </div>
-              <span className="rounded-full bg-blue-500/10 px-3 py-1 text-sm text-blue-200">Sponsored</span>
-            </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {sponsoredProducts.map((item) => (
-                <ProductCard
-                  key={item.id}
-                  id={item.id}
-                  title={item.title}
-                  description={item.category}
-                  image={item.image}
-                  price={item.price}
-                  oldPrice={item.oldPrice}
-                  discount={item.discount}
-                  category={item.category}
-                  condition={`${item.reviews} reviews`}
-                  seller={item.seller}
-                  rating={item.rating}
-                  reviews={item.reviews}
-                  verified={item.verified}
-                  badge={item.badge}
-                  location={item.location}
-                  actionLabel="Buy now"
-                  actionLink={`/marketplace/${item.id}`}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Ending soon</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Auctions closing in under 3 hours</h2>
-            <div className="mt-6 space-y-4">
-              {endingSoonAuctions.map((item) => (
-                <AuctionCard key={item.id} id={item.id} title={item.title} image={item.image} status={item.status} currentBid={item.currentBid} endsIn={item.endsIn} />
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-end justify-between gap-4">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Recently added</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Fresh premium listings</h2>
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Marketplace products</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Premium listings ready to buy or bid</h2>
           </div>
-          <Link to="/marketplace" className="text-sm font-medium text-slate-300 transition hover:text-white">See all new arrivals</Link>
+          <Link to="/marketplace" className="text-sm font-medium text-slate-300 transition hover:text-white">Explore the full marketplace</Link>
         </div>
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {recentlyAdded.map((item) => (
+          {featuredProductsList.map((item) => (
             <ProductCard
               key={item.id}
               id={item.id}
@@ -328,123 +295,84 @@ export function HomePage() {
               rating={item.rating}
               reviews={item.reviews}
               verified={item.verified}
-              location={item.location}
               badge={item.badge}
+              location={item.location}
+              actionLabel={item.badge === 'Auction' ? 'Bid now' : 'Buy now'}
+              actionLink={`/marketplace/${item.id}`}
             />
           ))}
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-end justify-between gap-4">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Top categories</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Most searched categories this week</h2>
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Why choose Bidzo</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Premium features for modern auctions</h2>
           </div>
-          <Link to="/categories" className="text-sm font-medium text-slate-300 transition hover:text-white">Explore categories</Link>
+          <Link to="/faq" className="text-sm font-medium text-slate-300 transition hover:text-white">Learn more</Link>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {topCategories.map((item) => (
-            <div key={item.title} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/20">
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-400">{item.title}</p>
-              <p className="mt-4 text-3xl font-semibold text-white">{item.count}</p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[
+            { icon: <ShieldCheck className="h-5 w-5" />, title: 'Verified Sellers', description: 'Every listing is vetted before approval.' },
+            { icon: <ArrowRight className="h-5 w-5" />, title: 'Secure Payments', description: 'Escrow support with verified checkout flows.' },
+            { icon: <Clock3 className="h-5 w-5" />, title: 'Live Auctions', description: 'Real-time bidding with immediate notifications.' },
+            { icon: <Package className="h-5 w-5" />, title: 'Fast Delivery', description: 'Priority logistics for premium orders.' },
+            { icon: <Globe className="h-5 w-5" />, title: 'AI Recommendations', description: 'Smart matching for buyers and sellers.' },
+            { icon: <Heart className="h-5 w-5" />, title: '24/7 Support', description: 'Marketplace support whenever you need it.' },
+          ].map((item) => (
+            <div key={item.title} className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition hover:-translate-y-1 hover:bg-slate-900/90">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-3xl bg-slate-950/70 text-cyan-300">{item.icon}</div>
+              <h3 className="mt-5 text-lg font-semibold text-white">{item.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-400">{item.description}</p>
             </div>
           ))}
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[0.95fr_0.9fr]">
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Verified vendors</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Trusted seller network</h2>
-              </div>
-            </div>
-            <div className="mt-6 grid gap-4">
-              {verifiedVendors.map((vendor) => (
-                <SellerCard key={vendor.name} name={vendor.name} specialty={vendor.specialty} rating={vendor.rating} />
-              ))}
-            </div>
-          </div>
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Trusted marketplace</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Why customers choose Bidzo</h2>
-            <div className="mt-6 grid gap-4">
-              {trustStatements.map((item) => (
-                <div key={item.label} className="rounded-3xl border border-white/10 bg-slate-950/80 p-5">
-                  <div className="flex items-center gap-2 text-amber-300">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <p className="font-semibold text-white">{item.label}</p>
-                  </div>
-                  <p className="mt-3 text-sm text-slate-400">{item.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-end justify-between gap-4">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Marketplace statistics</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Trusted performance metrics</h2>
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Testimonials</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Trusted by buyers and sellers</h2>
           </div>
-          <Link to="/about" className="text-sm font-medium text-slate-300 transition hover:text-white">Learn more</Link>
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <button onClick={() => setActiveTestimonial((value) => (value - 1 + testimonials.length) % testimonials.length)} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-2 transition hover:bg-slate-900">Prev</button>
+            <button onClick={() => setActiveTestimonial((value) => (value + 1) % testimonials.length)} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-2 transition hover:bg-slate-900">Next</button>
+          </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {statsOverview.map((item) => (
-            <StatisticCard key={item.label} label={item.label} value={item.value} />
+        <div className="grid gap-5 lg:grid-cols-3">
+          {testimonials.map((item, index) => (
+            <div key={item.author} className={index === activeTestimonial ? 'block' : 'hidden lg:block'}>
+              <ReviewCard quote={item.quote} author={`${item.author} • ${item.role}`} rating={5} />
+            </div>
           ))}
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Testimonials</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Customer and vendor success stories</h2>
-              </div>
-            </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {testimonials.map((item) => (
-                <ReviewCard key={item.author} quote={item.quote} author={`${item.author} • ${item.role}`} rating={5} />
-              ))}
-            </div>
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">How it works</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">A premium process for buyers and sellers</h2>
           </div>
-
-          <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-6">
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-200">Download app</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Stay connected on the go</h2>
-            <p className="mt-4 text-sm text-slate-300">Download the Bidzo app to track bids, orders and seller messages in one place.</p>
-            <div className="mt-6 grid gap-4">
-              {downloadCards.map((card) => (
-                <div key={card.platform} className="flex items-center justify-between rounded-3xl border border-white/10 bg-slate-950/70 px-4 py-4">
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.18em] text-slate-400">{card.platform}</p>
-                    <p className="mt-1 text-lg font-semibold text-white">{card.label}</p>
-                  </div>
-                  <button className="rounded-full bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/20">{card.action}</button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Link to="/onboarding" className="text-sm font-medium text-slate-300 transition hover:text-white">Get started</Link>
         </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="rounded-[28px] border border-white/10 bg-slate-900/70 p-8 text-center text-slate-200">
-          <p className="text-sm uppercase tracking-[0.24em] text-blue-300">Newsletter</p>
-          <h2 className="mt-3 text-3xl font-semibold text-white">Get marketplace alerts and exclusive drops</h2>
-          <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-400">Subscribe for weekly updates on new auctions, premium product launches, and seller promotions.</p>
-          <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <input type="email" placeholder="Your email address" className="w-full max-w-xl rounded-full border border-white/10 bg-slate-950/60 px-5 py-3 text-sm text-white outline-none placeholder:text-slate-500 sm:flex-1" />
-            <button className="rounded-full bg-blue-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-blue-500">Subscribe</button>
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[
+            { step: '01', title: 'Register', description: 'Create your account and complete onboarding.' },
+            { step: '02', title: 'Verify', description: 'Finish KYC and seller verification quickly.' },
+            { step: '03', title: 'Start Selling', description: 'List premium inventory or launch auctions.' },
+            { step: '04', title: 'Place Bids', description: 'Join live auctions with confidence.' },
+            { step: '05', title: 'Win Auction', description: 'Secure the best deals with transparent bidding.' },
+            { step: '06', title: 'Delivery', description: 'Track fast delivery and secure fulfillment.' },
+          ].map((item) => (
+            <div key={item.step} className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition hover:-translate-y-1">
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-3xl bg-cyan-500/10 text-cyan-300">{item.step}</div>
+              <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-400">{item.description}</p>
+            </div>
+          ))}
         </div>
       </section>
     </>
