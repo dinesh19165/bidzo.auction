@@ -1,4 +1,5 @@
 import { Link, NavLink } from 'react-router-dom';
+import Logo from '../Logo';
 import type { ReactNode } from 'react';
 import { Activity, Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, LayoutGrid, Megaphone, Search, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
 
@@ -33,15 +34,9 @@ export function AdminShell({ title, subtitle, breadcrumbs = [], children, active
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_25%),linear-gradient(135deg,_#020617,_#0f172a)] text-slate-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row lg:px-8">
-        <aside className="w-full shrink-0 rounded-[30px] border border-white/10 bg-slate-950/70 p-4 backdrop-blur-xl lg:w-72">
+          <aside className="w-full shrink-0 rounded-[30px] border border-white/10 bg-slate-950/70 p-4 backdrop-blur-xl lg:w-72">
           <div className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-white/5 p-3">
-            <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 p-2.5">
-              <Activity className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white">Bidzo ERP</p>
-              <p className="text-xs text-slate-400">Enterprise admin core</p>
-            </div>
+            <Link to="/" className="inline-flex items-center"><Logo /></Link>
           </div>
 
           <nav className="mt-5 space-y-1">

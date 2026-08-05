@@ -47,9 +47,11 @@ export function ProductCard({
   actionLink,
 }: ProductCardProps) {
   return (
-    <motion.article whileHover={{ y: -4, scale: 1.01 }} className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300">
+    <motion.article whileHover={{ y: -4, scale: 1.01 }} className="group relative w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300">
       <div className="relative overflow-hidden">
-        <img src={image} alt={title} className="h-52 w-full object-cover transition duration-500 group-hover:scale-105" />
+        <div className="thumbnail-wrapper" style={{ width: 280, height: 180, maxWidth: '100%', overflow: 'hidden', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+          <img src={image} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="transition duration-500 group-hover:scale-105" />
+        </div>
         <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3">
           {badge ? (
             <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">{badge}</span>
@@ -113,11 +115,11 @@ export function ProductCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Link to={actionLink ?? `/customer/product/${id}`} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
+          <Link to={actionLink ?? `/customer/product/${id}`} className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
             {actionLabel || (currentBid ? 'Bid now' : 'Buy now')}
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
-          <button className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:border-white/20 hover:bg-white/10 sm:w-auto">
+          <button className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:border-white/20 hover:bg-white/10 sm:w-auto">
             <Share2 className="h-4 w-4" /> Share
           </button>
         </div>
@@ -137,9 +139,12 @@ interface AuctionCardProps {
 
 export function AuctionCard({ id, title, image, status, currentBid, endsIn }: AuctionCardProps) {
   return (
-    <motion.article whileHover={{ y: -4, scale: 1.01 }} className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300">
+    <motion.article whileHover={{ y: -4, scale: 1.01 }} className="w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300">
       <div className="relative overflow-hidden">
-        <img src={image} alt={title} className="h-52 w-full object-cover transition duration-500 group-hover:scale-105" />
+        {/* Auction image: render a constrained thumbnail (responsive) */}
+        <div className="thumbnail-wrapper" style={{ width: 280, height: 180, maxWidth: '100%', overflow: 'hidden', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+          <img src={image} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="bg-slate-800" />
+        </div>
         <div className="absolute inset-x-4 top-4 flex items-center justify-between">
           <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${status === 'Live' ? 'bg-emerald-500/15 text-emerald-300' : status === 'Upcoming' ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-700/80 text-slate-300'}`}>{status}</span>
           <div className="inline-flex items-center gap-1 rounded-full bg-slate-950/90 px-3 py-1 text-xs text-slate-300">
@@ -151,11 +156,11 @@ export function AuctionCard({ id, title, image, status, currentBid, endsIn }: Au
         <h3 className="text-lg font-semibold text-white">{title}</h3>
         <p className="mt-3 text-sm text-slate-400">Current bid {currentBid}</p>
         <div className="mt-5 flex items-center justify-between gap-3">
-          <Link to={`/auctions/${id}`} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
+          <Link to={`/auctions/${id}`} className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
             View auction
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
-          <button className="min-h-[48px] rounded-full bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">Watch</button>
+          <button className="min-h-[48px] w-full rounded-full bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10 sm:w-auto">Watch</button>
         </div>
       </div>
     </motion.article>
@@ -164,7 +169,7 @@ export function AuctionCard({ id, title, image, status, currentBid, endsIn }: Au
 
 export function CategoryCard({ title, description, icon }: { title: string; description: string; icon?: ReactNode }) {
   return (
-    <motion.div whileHover={{ y: -3 }} className="rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30 transition duration-300">
+    <motion.div whileHover={{ y: -3 }} className="w-full max-w-full rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30 transition duration-300">
       <div className="flex items-center gap-3">
         <div className="rounded-3xl bg-blue-500/10 p-3 text-blue-300">{icon}</div>
         <div>
@@ -178,7 +183,7 @@ export function CategoryCard({ title, description, icon }: { title: string; desc
 
 export function SellerCard({ name, specialty, rating }: { name: string; specialty: string; rating: string }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30 transition duration-300">
+    <div className="w-full max-w-full rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30 transition duration-300">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="font-semibold text-white">{name}</p>
@@ -192,7 +197,7 @@ export function SellerCard({ name, specialty, rating }: { name: string; specialt
 
 export function ReviewCard({ quote, author, rating }: { quote: string; author: string; rating: number }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition duration-300">
+    <div className="w-full max-w-full rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition duration-300">
       <p className="text-amber-300">{'★'.repeat(rating)}</p>
       <p className="mt-4 text-sm text-slate-300">“{quote}”</p>
       <p className="mt-5 text-sm font-semibold text-white">{author}</p>
@@ -202,7 +207,7 @@ export function ReviewCard({ quote, author, rating }: { quote: string; author: s
 
 export function StatisticCard({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className={`rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition duration-300 ${accent || ''}`}>
+    <div className={`w-full max-w-full rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition duration-300 ${accent || ''}`}>
       <p className="text-sm text-slate-400">{label}</p>
       <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
     </div>

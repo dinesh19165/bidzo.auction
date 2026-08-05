@@ -40,8 +40,8 @@ export default function OnboardingWizard() {
 
   return (
     <SectionShell title="Register" subtitle="Create your account">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-6 rounded-xl border border-white/10 bg-slate-900/70 p-6">
+      <div className="mx-auto w-full max-w-3xl">
+        <div className="mb-6 rounded-xl border border-white/10 bg-slate-900/70 p-4 sm:p-6">
           <p className="text-sm text-slate-300">Step {step} / 4</p>
           <div className="mt-3 h-2 rounded-full bg-white/5">
             <div className="h-2 rounded-full bg-blue-600" style={{ width: `${(step / 4) * 100}%` }} />
@@ -49,26 +49,26 @@ export default function OnboardingWizard() {
         </div>
 
         {step === 0 && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-6">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+            <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-slate-900/80 p-4 sm:p-6">
               <p className="text-sm font-semibold uppercase text-blue-300">Customer</p>
               <h3 className="mt-2 text-xl font-semibold text-white">Buy, bid and save</h3>
-              <ul className="mt-3 text-sm text-slate-300 space-y-2">
+              <ul className="mt-3 space-y-2 text-sm text-slate-300">
                 <li>• Buy products</li>
                 <li>• Join auctions</li>
                 <li>• Wishlist & Wallet</li>
               </ul>
-              <button onClick={() => choose('customer')} className="mt-4 rounded-full bg-blue-600 px-4 py-2 text-white">Choose Customer</button>
+              <button onClick={() => choose('customer')} className="mt-4 w-full rounded-full bg-blue-600 px-4 py-2 text-white sm:w-auto">Choose Customer</button>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-6">
+            <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-slate-900/80 p-4 sm:p-6">
               <p className="text-sm font-semibold uppercase text-emerald-300">Vendor</p>
               <h3 className="mt-2 text-xl font-semibold text-white">Sell, auction and grow</h3>
-              <ul className="mt-3 text-sm text-slate-300 space-y-2">
+              <ul className="mt-3 space-y-2 text-sm text-slate-300">
                 <li>• Sell products</li>
                 <li>• Create auctions</li>
                 <li>• Inventory & analytics</li>
               </ul>
-              <button onClick={() => choose('vendor')} className="mt-4 rounded-full bg-emerald-600 px-4 py-2 text-white">Choose Vendor</button>
+              <button onClick={() => choose('vendor')} className="mt-4 w-full rounded-full bg-emerald-600 px-4 py-2 text-white sm:w-auto">Choose Vendor</button>
             </div>
           </div>
         )}
@@ -78,29 +78,29 @@ export default function OnboardingWizard() {
             <h3 className="text-xl font-semibold text-white">{account === 'customer' ? 'Customer registration' : 'Vendor registration'}</h3>
             <div className="mt-4 grid gap-3">
               {account === 'vendor' && (
-                <input placeholder="Business name" className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, businessName: e.target.value }))} />
+                <input placeholder="Business name" className="min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, businessName: e.target.value }))} />
               )}
-              <input placeholder="Full name" className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, name: e.target.value }))} />
-              <input placeholder="Email" className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, email: e.target.value }))} />
-              <input placeholder="Phone" className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, phone: e.target.value }))} />
-              <input placeholder="Password" type="password" className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, password: e.target.value }))} />
-              <div className="mt-4 flex justify-end gap-3">
-                <button onClick={() => setStep(0)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Back</button>
-                <button onClick={submitRegistration} className="rounded-full bg-blue-600 px-4 py-2 text-sm text-white">Continue</button>
+              <input placeholder="Full name" className="min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, name: e.target.value }))} />
+              <input placeholder="Email" className="min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, email: e.target.value }))} />
+              <input placeholder="Phone" className="min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, phone: e.target.value }))} />
+              <input placeholder="Password" type="password" className="min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, password: e.target.value }))} />
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button onClick={() => setStep(0)} className="w-full rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200 sm:w-auto">Back</button>
+                <button onClick={submitRegistration} className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm text-white sm:w-auto">Continue</button>
               </div>
             </div>
           </div>
         )}
 
         {step === 2 && (
-          <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-6 text-center">
+          <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4 text-center sm:p-6">
             <p className="text-sm text-slate-400">We sent an OTP to your phone/email.</p>
             <div className="mt-4 flex justify-center gap-3">
               {['1','2','3','4','5','6'].map((d) => <div key={d} className="h-12 w-10 rounded-2xl border border-white/10 bg-slate-950/50 text-center text-lg font-semibold leading-[3rem] text-white">{d}</div>)}
             </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setStep(1)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Back</button>
-              <button onClick={verifyOtp} className="rounded-full bg-blue-600 px-4 py-2 text-sm text-white">Verify OTP</button>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button onClick={() => setStep(1)} className="w-full rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200 sm:w-auto">Back</button>
+              <button onClick={verifyOtp} className="w-full rounded-full bg-blue-600 px-4 py-2 text-sm text-white sm:w-auto">Verify OTP</button>
             </div>
           </div>
         )}
@@ -112,8 +112,8 @@ export default function OnboardingWizard() {
             <div className="mt-4 grid gap-3">
               <input placeholder="Display name" className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, displayName: e.target.value }))} />
               <input placeholder="Location" className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" onChange={(e) => setForm((s:any) => ({ ...s, location: e.target.value }))} />
-              <div className="mt-4 flex justify-end">
-                <button onClick={finishProfile} className="rounded-full bg-emerald-600 px-4 py-2 text-sm text-white">Finish setup</button>
+              <div className="mt-4 flex justify-stretch sm:justify-end">
+                <button onClick={finishProfile} className="w-full rounded-full bg-emerald-600 px-4 py-2 text-sm text-white sm:w-auto">Finish setup</button>
               </div>
             </div>
           </div>

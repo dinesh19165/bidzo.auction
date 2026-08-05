@@ -6,9 +6,9 @@ export function Table<T>({ columns, data, className = '' }: { columns: Column<T>
   const renderCell = (column: Column<T>, row: T) => (column.render ? column.render(row) : (row as any)[column.key]);
 
   return (
-    <div className={className}>
-      <div className="hidden w-full overflow-x-auto md:block">
-        <table className="w-full table-auto text-sm">
+    <div className={`w-full min-w-0 ${className}`}>
+      <div className="hidden w-full min-w-0 overflow-x-auto md:block">
+        <table className="w-full min-w-0 table-auto text-sm">
           <thead>
             <tr className="text-left text-slate-400">
               {columns.map((c) => <th key={c.key} className="px-3 py-2">{c.label}</th>)}
@@ -24,9 +24,9 @@ export function Table<T>({ columns, data, className = '' }: { columns: Column<T>
         </table>
       </div>
 
-      <div className="space-y-3 md:hidden">
+      <div className="w-full space-y-3 md:hidden">
         {data.map((row, i) => (
-          <div key={i} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-lg shadow-slate-950/20">
+          <div key={i} className="w-full rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-lg shadow-slate-950/20">
             {columns.map((column) => (
               <div key={column.key} className="flex items-start justify-between gap-3 py-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{column.label}</span>

@@ -2,6 +2,7 @@ import { Link, NavLink } from 'react-router-dom';
 import { ArrowRight, Bell, Gavel, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
+import Logo from '../Logo';
 
 interface NavbarProps {
   theme: 'dark' | 'light';
@@ -12,15 +13,8 @@ export function Navbar({ theme, toggleTheme }: NavbarProps) {
   return (
     <header className={`sticky top-0 z-50 border-b backdrop-blur-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950/80' : 'border-slate-200 bg-white/80'}`}>
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <Link to="/" className="flex items-center gap-3">
-          <div className="rounded-2xl bg-blue-600 p-2.5 shadow-lg shadow-blue-600/30">
-            <Gavel className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <p className={`text-lg font-semibold tracking-wide ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Bidzo</p>
-            <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Enterprise Auction Platform</p>
-          </div>
-        </Link>
+        {/* Centralized logo component */}
+        <Link to="/" className="inline-flex items-center"><Logo /></Link>
         <nav className="hidden items-center gap-6 text-sm md:flex">
           {[
             ['Marketplace', '/marketplace'],
@@ -53,7 +47,7 @@ export function Navbar({ theme, toggleTheme }: NavbarProps) {
 export function MobileNavbar({ theme, toggleTheme }: NavbarProps) {
   return (
     <div className={`flex items-center justify-between border-b px-4 py-3 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/90' : 'border-slate-200 bg-white/90'}`}>
-      <Link to="/" className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Bidzo</Link>
+      <Link to="/" className="inline-flex items-center"><Logo /></Link>
       <div className="flex items-center gap-2">
         <button onClick={toggleTheme} className={`rounded-full border p-2 ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -106,10 +100,10 @@ export function Footer({ theme }: { theme: 'dark' | 'light' }) {
   return (
     <footer className={`border-t ${theme === 'dark' ? 'border-white/10 bg-slate-950/80' : 'border-slate-200 bg-white/80'}`}>
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-4 lg:px-8">
-        <div>
-          <p className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Bidzo</p>
-          <p className={`mt-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Enterprise-grade auction and marketplace experiences for modern commerce.</p>
-        </div>
+          <div>
+            <p className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Bidzo</p>
+            <p className={`mt-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Enterprise-grade auction and marketplace experiences for modern commerce.</p>
+          </div>
         <div>
           <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Company</p>
           <ul className={`mt-3 space-y-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>

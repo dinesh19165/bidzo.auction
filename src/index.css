@@ -22,10 +22,25 @@ body {
 
 * {
   box-sizing: border-box;
+  max-width: 100%;
 }
 
 html {
   scroll-behavior: smooth;
+}
+
+body,
+p,
+h1,
+h2,
+h3,
+h4,
+span,
+div,
+li,
+label {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 button,
@@ -35,6 +50,7 @@ input,
 select,
 textarea {
   font: inherit;
+  max-width: 100%;
 }
 
 button,
@@ -52,7 +68,10 @@ a,
   min-width: 44px;
 }
 
-img {
+img,
+svg,
+video,
+iframe {
   display: block;
   max-width: 100%;
   height: auto;
@@ -62,6 +81,11 @@ input,
 select,
 textarea {
   width: 100%;
+}
+
+.break-words {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .scrollbar-hidden {

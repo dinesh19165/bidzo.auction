@@ -56,7 +56,7 @@ export function MarketplacePage() {
 
   return (
     <SectionShell title="Marketplace" subtitle="Browse categories and curated listings">
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[300px_1fr]">
         <Sidebar theme="dark">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white">Filters</h3>
@@ -66,7 +66,7 @@ export function MarketplacePage() {
           <div className="mt-4 space-y-3">
             <Input placeholder="Search listings, categories, or sellers" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
             <Select label="Category" options={[{ label: 'All', value: '' }, ...categories.slice(0, 12).map((c) => ({ label: c, value: c }))]} value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }} />
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
               <Input placeholder="Min price" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
               <Input placeholder="Max price" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} />
             </div>
@@ -84,8 +84,8 @@ export function MarketplacePage() {
         </Sidebar>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
               <p className="text-sm text-slate-400">{filtered.length} results</p>
               <div className="h-6 w-px bg-white/5" />
               <div className="text-sm text-slate-300">View</div>
@@ -104,7 +104,7 @@ export function MarketplacePage() {
             </div>
           </div>
 
-          <div className={`${grid ? 'grid gap-4 md:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}`}>
+          <div className={`${grid ? 'grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}`}>
             {pageItems.map((product) => (
               <div key={product.id} className={`${grid ? '' : 'rounded-[24px] border border-white/10 bg-slate-900/70 p-4'}`}>
                 {(() => {

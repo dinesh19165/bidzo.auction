@@ -114,7 +114,7 @@ function App() {
             <Route path="/customer/wallet" element={<WalletPage />} />
             <Route path="/customer/bids" element={<CustomerBidsPage />} />
             <Route path="/customer/won" element={<CustomerWonAuctionsPage />} />
-            <Route path="/customer/wishlist" element={<CustomerWatchlistPage />} />
+            <Route path="/customer/wishlist" element={<CustomerWishlistPage />} />
             <Route path="/customer/recently-viewed" element={<CustomerRecentlyViewedPage />} />
             <Route path="/customer/saved-searches" element={<CustomerSavedSearchesPage />} />
             <Route path="/customer/transactions" element={<CustomerTransactionsPage />} />
@@ -130,7 +130,6 @@ function App() {
             <Route path="/customer/category" element={<CustomerCategoryPage />} />
             <Route path="/customer/product/:id" element={<CustomerProductPage />} />
             <Route path="/customer/seller/:id" element={<CustomerSellerPage />} />
-            <Route path="/customer/wishlist" element={<CustomerWishlistPage />} />
             <Route path="/customer/watch-auction" element={<CustomerWatchAuctionPage />} />
             <Route path="/customer/place-bid" element={<CustomerPlaceBidPage />} />
             <Route path="/customer/bid-confirmation" element={<CustomerBidConfirmationPage />} />

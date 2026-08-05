@@ -23,23 +23,23 @@ export function LoginPage() {
 
   return (
     <SectionShell title="Authentication" subtitle="Welcome back to Bidzo">
-      <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
+      <div className="mx-auto grid w-full max-w-5xl gap-6 grid-cols-1 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="w-full rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
           <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Customer & vendor access</p>
           <h3 className="mt-3 text-2xl font-semibold text-white">Secure sign-in for buyers and sellers</h3>
           <div className="mt-6 space-y-4">
-            <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email or phone" />
-            <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Password" />
-            <div className="flex items-center justify-between text-sm text-slate-400">
+            <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email or phone" />
+            <input className="w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Password" />
+            <div className="flex flex-col gap-2 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between">
               <Link to="/forgot-password" className="hover:text-white">Forgot password?</Link>
               <Link to="/register" className="hover:text-white">Create account</Link>
             </div>
-            <button onClick={handleLogin} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">
+            <button onClick={handleLogin} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white sm:w-auto">
               Sign in <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </div>
-        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-8">
+        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
           <h3 className="text-xl font-semibold text-white">Quick onboarding</h3>
           <div className="mt-5 space-y-3">
             {verificationSteps.map((step) => (
@@ -60,7 +60,11 @@ export function LoginPage() {
 
 export function RegisterPage() {
   // Redirect entry to the full onboarding wizard
-  return <SectionShell title="Register" subtitle="Choose account"><div className="mx-auto max-w-3xl"><Link to="/onboarding" className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-white">Start onboarding <ArrowRight className="h-4 w-4" /></Link></div></SectionShell>;
+  return (
+    <SectionShell title="Register" subtitle="Choose account">
+      <div className="mx-auto flex max-w-3xl justify-start"><Link to="/onboarding" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-white sm:w-auto">Start onboarding <ArrowRight className="h-4 w-4" /></Link></div>
+    </SectionShell>
+  );
 }
 
 export function CustomerRegisterPage() {
@@ -76,14 +80,14 @@ export function CustomerRegisterPage() {
   return (
     <SectionShell title="Customer registration" subtitle="Create your buyer profile">
       <div className="mx-auto grid max-w-3xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
-          <input value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Full name" />
-          <input value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email" />
-          <input value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Phone" />
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+          <input value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Full name" />
+          <input value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email" />
+          <input value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Phone" />
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">We’ll verify your email and phone before activation.</div>
-          <button onClick={submit} className="mt-5 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to OTP</button>
+          <button onClick={submit} className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white sm:w-auto">Continue to OTP</button>
         </div>
-        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-8">
+        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
           <h3 className="text-xl font-semibold text-white">Benefits for buyers</h3>
           <ul className="mt-4 space-y-3 text-sm text-slate-300">
             <li>• Instant bid alerts and outbid notifications</li>
@@ -109,16 +113,16 @@ export function VendorRegisterPage() {
   return (
     <SectionShell title="Vendor registration" subtitle="Create your seller storefront">
       <div className="mx-auto grid max-w-3xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
-          <input value={form.businessName} onChange={(e) => setForm((s) => ({ ...s, businessName: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Business name" />
-          <input value={form.ownerName} onChange={(e) => setForm((s) => ({ ...s, ownerName: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Owner name" />
-          <input value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email" />
-          <input value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Phone" />
-          <input value={form.gst} onChange={(e) => setForm((s) => ({ ...s, gst: e.target.value }))} className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="GST (Optional)" />
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+          <input value={form.businessName} onChange={(e) => setForm((s) => ({ ...s, businessName: e.target.value }))} className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Business name" />
+          <input value={form.ownerName} onChange={(e) => setForm((s) => ({ ...s, ownerName: e.target.value }))} className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Owner name" />
+          <input value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Email" />
+          <input value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Phone" />
+          <input value={form.gst} onChange={(e) => setForm((s) => ({ ...s, gst: e.target.value }))} className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="GST (Optional)" />
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Business verification unlocks inventory, auction tools and seller analytics.</div>
-          <button onClick={submit} className="mt-5 inline-flex rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white">Continue to verification</button>
+          <button onClick={submit} className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white sm:w-auto">Continue to verification</button>
         </div>
-        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-emerald-600/15 to-blue-500/10 p-8">
+        <div className="w-full rounded-[24px] border border-white/10 bg-gradient-to-br from-emerald-600/15 to-blue-500/10 p-4 sm:p-8">
           <h3 className="text-xl font-semibold text-white">Vendor onboarding checklist</h3>
           <ul className="mt-4 space-y-3 text-sm text-slate-300">
             <li>• Business details and bank verification</li>
@@ -143,12 +147,12 @@ export function OTPPage() {
 
   return (
     <SectionShell title="OTP verification" subtitle="Enter the code sent to your phone">
-      <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-8 text-center">
+      <div className="mx-auto w-full max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 text-center sm:p-8">
         <p className="text-slate-300">Use 123456 for the static UI experience.</p>
-        <div className="mt-4 flex justify-center gap-3">
-          {['1', '2', '3', '4', '5', '6'].map((digit) => <div key={digit} className="h-12 w-10 rounded-2xl border border-white/10 bg-slate-950/50 text-center text-lg font-semibold leading-[3rem] text-white">{digit}</div>)}
+        <div className="mt-4 flex flex-wrap justify-center gap-3">
+          {['1', '2', '3', '4', '5', '6'].map((digit) => <div key={digit} className="flex h-12 w-10 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/50 text-lg font-semibold text-white">{digit}</div>)}
         </div>
-        <button onClick={verify} className="mt-6 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Verify</button>
+        <button onClick={verify} className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white sm:w-auto">Verify</button>
       </div>
     </SectionShell>
   );
@@ -157,9 +161,9 @@ export function OTPPage() {
 export function ForgotPasswordPage() {
   return (
     <SectionShell title="Forgot password" subtitle="Reset access securely">
-      <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
-        <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Registered email" />
-        <Link to="/reset-password" className="mt-5 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Send reset link</Link>
+      <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+        <input className="w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Registered email" />
+        <Link to="/reset-password" className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white sm:w-auto">Send reset link</Link>
       </div>
     </SectionShell>
   );
@@ -168,10 +172,10 @@ export function ForgotPasswordPage() {
 export function ResetPasswordPage() {
   return (
     <SectionShell title="Reset password" subtitle="Create a new password">
-      <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
-        <input className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="New password" />
-        <input className="mb-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Confirm password" />
-        <Link to="/login" className="inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Update password</Link>
+      <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+        <input className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="New password" />
+        <input className="mb-4 w-full min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" placeholder="Confirm password" />
+        <Link to="/login" className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white sm:w-auto">Update password</Link>
       </div>
     </SectionShell>
   );
@@ -181,12 +185,12 @@ export function KYCPage() {
   return (
     <SectionShell title="KYC" subtitle="Identity verification">
       <div className="mx-auto grid max-w-3xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
           <p className="text-sm text-slate-300">Upload a government-issued ID, address proof, and selfie for review.</p>
-          <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-slate-400">Drop files here or browse your device</div>
-          <Link to="/registration-fee" className="mt-5 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Submit KYC</Link>
+          <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-slate-400 sm:p-8">Drop files here or browse your device</div>
+          <Link to="/registration-fee" className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white sm:w-auto">Submit KYC</Link>
         </div>
-        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-8">
+        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
           <h3 className="text-xl font-semibold text-white">Verification checklist</h3>
           <ul className="mt-4 space-y-3 text-sm text-slate-300">
             <li>• PAN / GST certificate</li>
@@ -203,7 +207,7 @@ export function RegistrationFeePage() {
   return (
     <SectionShell title="Registration fee" subtitle="Pay ₹20 to activate your account">
       <div className="mx-auto grid max-w-3xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8">
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
             <p className="text-lg font-semibold text-white">Fee: ₹20</p>
             <p className="mt-2">Payment summary: secure verification + bidding access</p>
@@ -211,12 +215,12 @@ export function RegistrationFeePage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {['UPI', 'Cards', 'Wallet', 'Net banking'].map((method) => <div key={method} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-sm text-slate-300">{method}</div>)}
           </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link to="/payment/success" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Pay now</Link>
-            <Link to="/payment/failure" className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200">Simulate failure</Link>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Link to="/customer/order-success" className="w-full rounded-full bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white sm:w-auto">Pay now</Link>
+            <Link to="/customer/checkout" className="w-full rounded-full border border-white/10 px-4 py-2 text-center text-sm font-medium text-slate-200 sm:w-auto">Try another payment</Link>
           </div>
         </div>
-        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-8">
+        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
           <div className="flex items-center gap-2 text-amber-300"><Wallet className="h-4 w-4" /> Protected payment</div>
           <p className="mt-3 text-sm text-slate-300">Every transaction is encrypted and backed by real-time confirmation.</p>
           <div className="mt-4 flex items-center gap-2 text-sm text-slate-300"><Smartphone className="h-4 w-4" /> Instant receipts and status updates</div>

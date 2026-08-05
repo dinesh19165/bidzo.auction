@@ -6,8 +6,8 @@ export function SellerProfilePage() {
   const seller = sellers[0];
   return (
     <SectionShell title="Seller profile" subtitle={seller.name}>
-      <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-[28px] border border-white/10 bg-slate-900/70 p-8 shadow-2xl shadow-slate-950/30">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[1fr_0.9fr]">
+        <div className="w-full rounded-[28px] border border-white/10 bg-slate-900/70 p-4 shadow-2xl shadow-slate-950/30 sm:p-8">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-blue-500/10 p-3 text-blue-300"><BadgeCheck className="h-5 w-5" /></div>
             <div>
@@ -16,7 +16,7 @@ export function SellerProfilePage() {
             </div>
           </div>
           <p className="mt-5 text-slate-300">This profile demonstrates premium listing quality, fast fulfillment, and smooth communication for large-value transactions.</p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 grid gap-3 grid-cols-1 sm:grid-cols-3">
             {['Rating 4.9', 'Reply in 1h', '98% on-time'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">{item}</div>)}
           </div>
           <div className="mt-6 rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/10 to-amber-500/10 p-5">

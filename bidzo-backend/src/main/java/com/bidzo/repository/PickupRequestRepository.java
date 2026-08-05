@@ -1,0 +1,22 @@
+package com.bidzo.repository;
+
+import com.bidzo.entity.PickupRequest;
+import com.bidzo.entity.VendorProfile;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface PickupRequestRepository extends JpaRepository<PickupRequest, Long> {
+
+    Optional<PickupRequest> findById(Long id);
+    List<PickupRequest> findByStatus(String status);
+    Page<PickupRequest> findByStatus(String status, Pageable pageable);
+    long countByStatus(String status);
+    List<PickupRequest> findAllByVendor(VendorProfile vendor);
+    Page<PickupRequest> findAllByVendor(VendorProfile vendor, Pageable pageable);
+    long countByVendor(VendorProfile vendor);
+}

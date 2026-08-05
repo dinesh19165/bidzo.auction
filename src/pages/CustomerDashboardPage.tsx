@@ -9,14 +9,14 @@ export function CustomerDashboardPage() {
   const completion = Math.round((profileParts.filter(Boolean).length / profileParts.length) * 100);
   return (
     <SectionShell title="Customer dashboard" subtitle="Your buying hub for orders, bids and wallet activity">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
         {customerStats.map((item) => (
           <StatisticCard key={item.label} label={item.label} value={item.value} />
         ))}
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+      <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-6">
           <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Profile completion</p>
           <h3 className="mt-2 text-xl font-semibold text-white">{completion}% complete</h3>
           <div className="mt-4 w-full rounded-full bg-white/5">
@@ -50,7 +50,7 @@ export function CustomerDashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="mt-6 grid gap-6 grid-cols-1 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
           <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
             <div className="flex items-center justify-between">
@@ -118,9 +118,9 @@ export function CustomerDashboardPage() {
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-6">
             <h3 className="text-lg font-semibold text-white">Quick access</h3>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-2">
               {[{ label: 'Wishlist', icon: Heart, route: '/customer/wishlist' }, { label: 'Messages', icon: MessageCircleMore, route: '/customer/messages' }, { label: 'Notifications', icon: BellRing, route: '/customer/notifications' }, { label: 'Settings', icon: Settings, route: '/customer/settings' }].map((item) => {
                 const Icon = item.icon;
                 return (
@@ -135,7 +135,7 @@ export function CustomerDashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+      <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-3">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white">Wishlist</h3>
@@ -165,7 +165,7 @@ export function CustomerDashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-2">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <h3 className="text-lg font-semibold text-white">Support tickets</h3>
           <div className="mt-4 space-y-3 text-sm text-slate-300">

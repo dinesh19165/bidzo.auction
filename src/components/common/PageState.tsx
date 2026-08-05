@@ -18,7 +18,7 @@ export function PageState({ title, description, actionLabel, actionHref, tone = 
   }[tone];
 
   return (
-    <div className={`rounded-[24px] border p-8 text-center shadow-lg shadow-slate-950/20 ${toneClasses}`}>
+    <div role="status" aria-live="polite" className={`rounded-[24px] border p-8 text-center shadow-lg shadow-slate-950/20 ${toneClasses}`}>
       <p className="text-3xl font-semibold text-white">{title}</p>
       <p className="mt-3 text-sm">{description}</p>
       {children}

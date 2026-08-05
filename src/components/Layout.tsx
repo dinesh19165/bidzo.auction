@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const desktopSearchRef = useRef<HTMLInputElement>(null);
 
   const mobileLinks = [
     { to: '/', label: 'Home' },
@@ -28,49 +30,48 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_25%),linear-gradient(135deg,_#020617,_#0f172a)] text-slate-100">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-black/20">
         <div className="border-b border-white/10">
-          <div className="mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs text-slate-300 sm:px-6 lg:px-8">
+          <div className="mx-auto flex flex-col gap-2 px-4 py-2 text-xs text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
             <p className="inline-flex flex-wrap items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-slate-100">
               <span className="font-medium">Free express shipping</span>
               <span className="text-slate-400">on orders over ₹5,000</span>
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <button className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300 transition hover:bg-white/10">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300">
                 <Globe className="h-3.5 w-3.5" /> English
                 <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-              <button className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300 transition hover:bg-white/10">
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300">
                 ₹ INR
                 <ChevronDown className="h-3.5 w-3.5" />
-              </button>
+              </div>
               <Link to="/help" className="rounded-full px-3 py-1 text-slate-300 transition hover:text-white">Help</Link>
             </div>
           </div>
         </div>
 
-        <div className="mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-cyan-500 p-3 shadow-lg shadow-blue-600/30">
-              <Store className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold tracking-wide">Bidzo</p>
-              <p className="text-xs text-slate-400">Premium marketplace</p>
-            </div>
-          </Link>
+        <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6 lg:px-8">
+          {/* Logo component: uses /logo.png if present in public/, falls back to text */}
+          <div>
+            {/* Shared header: logo always shown and links to home */}
+            <Link to="/" className="inline-flex items-center">
+              <Logo />
+            </Link>
+          </div>
 
           <div className="hidden flex-1 items-center gap-2 rounded-full border border-white/10 bg-slate-900/70 px-3 py-2 lg:flex">
-            <button className="inline-flex items-center justify-center rounded-full bg-white/5 p-2 text-slate-300 transition hover:bg-white/10">
+            <button type="button" aria-label="Focus search" onClick={() => desktopSearchRef.current?.focus()} className="inline-flex items-center justify-center rounded-full bg-white/5 p-2 text-slate-300 transition hover:bg-white/10">
               <Search className="h-4 w-4" />
             </button>
             <input
+              ref={desktopSearchRef}
               placeholder="Search products, auctions, sellers..."
               className="w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
             />
-            <button className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300 xl:inline-flex">
+            <div className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300 xl:inline-flex">
               All categories
               <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-            <button className="inline-flex items-center justify-center rounded-full bg-white/5 p-2 text-slate-300 transition hover:bg-white/10">
+            </div>
+            <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className="inline-flex items-center justify-center rounded-full bg-white/5 p-2 text-slate-300 transition hover:bg-white/10">
               <Mic className="h-4 w-4" />
             </button>
           </div>
@@ -79,7 +80,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <AuthActions />
           </div>
 
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex flex-wrap items-center justify-end gap-2 md:hidden">
             <button type="button" onClick={() => setMobileSearchOpen((value) => !value)} className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200">
               <Search className="h-4 w-4" />
             </button>
@@ -101,13 +102,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         ) : null}
 
         <div className="border-t border-white/10 bg-slate-900/75">
-          <div className="mx-auto flex flex-nowrap items-center gap-2 overflow-x-auto px-4 py-3 text-sm text-slate-300 scrollbar-hidden sm:px-6 lg:px-8">
+          <div className="mx-auto flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap px-4 py-3 text-sm text-slate-300 scrollbar-hidden sm:px-6 lg:px-8">
             {['Electronics', 'Vehicles', 'Real Estate', 'Fashion', 'Furniture', 'Agriculture', 'Livestock', 'Services', 'Books', 'Pets'].map((item) => (
-              <Link key={item} to="/marketplace" className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 transition hover:bg-white/10">
+              <Link key={item} to="/marketplace" className="shrink-0 snap-start rounded-full border border-white/10 bg-white/5 px-3 py-1.5 transition hover:bg-white/10">
                 {item}
               </Link>
             ))}
-            <Link to="/auctions" className="shrink-0 rounded-full bg-amber-500/10 px-3 py-1.5 font-medium text-amber-200 transition hover:bg-amber-500/20">
+            <Link to="/auctions" className="shrink-0 snap-start rounded-full bg-amber-500/10 px-3 py-1.5 font-medium text-amber-200 transition hover:bg-amber-500/20">
               Live auctions
             </Link>
           </div>
@@ -135,14 +136,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 p-2.5">
-                    <Store className="h-4 w-4 text-white" />
+                    <Link to="/" className="inline-flex items-center"><Logo /></Link>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-white">Bidzo</p>
-                    <p className="text-xs text-slate-400">Premium marketplace</p>
-                  </div>
-                </div>
                 <button type="button" onClick={() => setMobileMenuOpen(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200">
                   <X className="h-4 w-4" />
                 </button>
@@ -195,7 +190,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <ul className="mt-3 space-y-2 text-sm text-slate-400">
               <li><Link to="/about" className="hover:text-white">About us</Link></li>
               <li><Link to="/careers" className="hover:text-white">Careers</Link></li>
-              <li><Link to="/policy" className="hover:text-white">Privacy</Link></li>
+              <li><Link to="/privacy" className="hover:text-white">Privacy</Link></li>
               <li><Link to="/terms" className="hover:text-white">Terms</Link></li>
             </ul>
           </div>
