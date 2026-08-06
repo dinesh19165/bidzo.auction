@@ -7,6 +7,6 @@ public final class SwaggerUtils {
 
     public static <T> Schema<T> exampleSchema(Class<T> clazz) {
         // TODO: implement a reflection-based example schema builder or use explicit examples
-        return new Schema<>().$ref(clazz.getSimpleName());
+        return new Schema<T>().set$ref(clazz.getSimpleName());
     }
 }

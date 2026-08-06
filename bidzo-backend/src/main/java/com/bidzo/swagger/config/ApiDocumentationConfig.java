@@ -3,7 +3,7 @@ package com.bidzo.swagger.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import org.springdoc.core.customizers.OpenApiCustomiser;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 
@@ -17,7 +17,7 @@ public class ApiDocumentationConfig {
     }
 
     @Bean
-    public OpenApiCustomiser globalResponsesCustomizer() {
+    public OpenApiCustomizer globalResponsesCustomizer() {
         return openApi -> {
             // TODO: add standard global ApiResponses (401, 403, 500, 400 etc.)
             // Example skeleton (no-op placeholders to avoid heavy logic):

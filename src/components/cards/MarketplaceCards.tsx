@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock3, Eye, Heart, MessageCircle, Share2, Star } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { ArrowRight, CheckCircle2, Clock3, Eye, Heart, Share2, Star } from 'lucide-react';
+import { memo, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
+import ReactDOM from 'react-dom';
+import { showToast } from '../ui/toast';
 
 interface ProductCardProps {
   id: string | number;
@@ -25,7 +27,32 @@ interface ProductCardProps {
   actionLink?: string;
 }
 
-export function ProductCard({
+function parseCountdown(value?: string) {
+  if (!value) return 0;
+  const text = value.trim();
+  const hours = text.match(/(\d+)h/i);
+  const minutes = text.match(/(\d+)m/i);
+  const seconds = text.match(/(\d+)s/i);
+  if (hours || minutes || seconds) {
+    return (Number(hours?.[1] || 0) * 3600) + (Number(minutes?.[1] || 0) * 60) + Number(seconds?.[1] || 0);
+  }
+
+  const parts = text.split(':').map((part) => Number(part));
+  if (parts.length === 3 && parts.every((part) => Number.isFinite(part))) {
+    return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+  }
+  return 0;
+}
+
+function formatCountdown(totalSeconds: number) {
+  if (totalSeconds <= 0) return 'Auction Ended';
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+}
+
+export const ProductCard = memo(function ProductCard({
   id,
   title,
   description,
@@ -46,19 +73,106 @@ export function ProductCard({
   actionLabel,
   actionLink,
 }: ProductCardProps) {
+  const [favorited, setFavorited] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem('bidzo_favorites');
+      if (!raw) return false;
+      const list = JSON.parse(raw) as Array<string | number>;
+      return list.includes(id as any);
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const [quickOpen, setQuickOpen] = useState(false);
+
+  const toggleFavorite = useCallback(() => {
+    setFavorited((prev) => {
+      const next = !prev;
+      try {
+        const raw = localStorage.getItem('bidzo_favorites');
+        const list = raw ? (JSON.parse(raw) as Array<string | number>) : [];
+        if (next) {
+          if (!list.includes(id as any)) list.push(id as any);
+          localStorage.setItem('bidzo_favorites', JSON.stringify(list));
+          showToast('Added to Favorites');
+        } else {
+          const filtered = list.filter((i) => i !== id);
+          localStorage.setItem('bidzo_favorites', JSON.stringify(filtered));
+          showToast('Removed from Favorites');
+        }
+      } catch (e) {}
+      return next;
+    });
+  }, [id]);
+
+  const openQuickView = useCallback(() => setQuickOpen(true), []);
+  const closeQuickView = useCallback(() => setQuickOpen(false), []);
+  const [countdown, setCountdown] = useState(() => parseCountdown(endsIn));
+  const isAuction = useMemo(() => (badge || '').toLowerCase().includes('auction'), [badge]);
+
+  useEffect(() => {
+    const initialSeconds = parseCountdown(endsIn);
+    if (initialSeconds <= 0) {
+      setCountdown(0);
+      return;
+    }
+
+    setCountdown(initialSeconds);
+    const timer = window.setInterval(() => {
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [endsIn]);
+
+  const priceLabel = isAuction ? 'Current Bid' : 'Price';
+  const priceValue = isAuction ? (currentBid || price) : price;
+
+  useEffect(() => {
+    if (!quickOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeQuickView();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [quickOpen, closeQuickView]);
+
   return (
-    <motion.article whileHover={{ y: -4, scale: 1.01 }} className="group relative w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300">
+    <>
+      <motion.article
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -6, scale: 1.01, boxShadow: '0 30px 70px -24px rgba(59,130,246,0.35)' }}
+      transition={{ duration: 0.25 }}
+      className="group relative w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition-all duration-250 hover:border-blue-400/30"
+    >
       <div className="relative overflow-hidden">
         <div className="thumbnail-wrapper" style={{ width: 280, height: 180, maxWidth: '100%', overflow: 'hidden', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-          <img src={image} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="transition duration-500 group-hover:scale-105" />
+          <img src={image} alt={title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="transition-all duration-250 group-hover:scale-[1.05]" />
         </div>
         <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3">
           {badge ? (
             <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">{badge}</span>
           ) : null}
           <div className="flex items-center gap-2">
-            <button className="rounded-full bg-slate-950/75 p-2 text-slate-200 transition hover:bg-white/10"><Heart className="h-4 w-4" /></button>
-            <button className="rounded-full bg-slate-950/75 p-2 text-slate-200 transition hover:bg-white/10"><Eye className="h-4 w-4" /></button>
+            <button
+              type="button"
+              onClick={toggleFavorite}
+              aria-label="Add to Favorites"
+              className={`rounded-full p-2 text-slate-200 transition-all duration-200 transform ${favorited ? 'scale-105' : ''} focus-visible:outline-none`}
+            >
+              <Heart className={`h-4 w-4 transition-all duration-200 ${favorited ? 'text-rose-500 drop-shadow-[0_6px_14px_rgba(220,38,38,0.22)]' : 'text-slate-200 group-hover:text-rose-400'}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={openQuickView}
+              aria-label="Quick View"
+              className="rounded-full p-2 text-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-500/20 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
           </div>
         </div>
         {verified ? (
@@ -81,52 +195,107 @@ export function ProductCard({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-2xl font-semibold text-white">{price}</p>
+              <p className="text-2xl font-semibold text-white">{priceValue}</p>
               {oldPrice ? <p className="text-sm text-slate-500 line-through">{oldPrice}</p> : null}
             </div>
+            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{priceLabel}</p>
             {discount ? <p className="mt-1 text-xs uppercase tracking-[0.18em] text-emerald-300">{discount}</p> : null}
           </div>
-          {currentBid ? (
-            <div className="rounded-full bg-blue-500/10 px-3 py-1 text-xs text-blue-200">Bid ₹{currentBid}</div>
+          {isAuction ? (
+            <div className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs text-blue-200">
+              <Clock3 className="h-3.5 w-3.5" />
+              <span>{countdown > 0 ? formatCountdown(countdown) : 'Auction Ended'}</span>
+            </div>
           ) : null}
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="rounded-3xl bg-slate-950/75 px-4 py-3 text-sm text-slate-300">
-            <p className="font-medium text-white">Seller</p>
-            <p>{seller}</p>
+        <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15 text-sm font-semibold text-blue-200">
+                {seller.charAt(0)}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <span>{seller}</span>
+                  {verified ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : null}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                  <span className="inline-flex items-center gap-1 text-amber-300">
+                    <Star className="h-3.5 w-3.5" /> {rating ?? 4.8}
+                  </span>
+                  <span>{reviews ?? 124} Reviews</span>
+                </div>
+              </div>
+            </div>
+            {verified ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300">Verified</span> : null}
           </div>
-          <div className="rounded-3xl bg-slate-950/75 px-4 py-3 text-sm text-slate-300">
-            <p className="font-medium text-white">Location</p>
-            <p>{location || 'India'}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            {rating ? (
-              <span className="inline-flex items-center gap-1 text-amber-300">
-                <Star className="h-4 w-4" /> {rating}
-              </span>
-            ) : null}
-            <span>{reviews ? `${reviews} reviews` : 'Popular choice'}</span>
-          </div>
-          {endsIn ? <span className="text-xs uppercase tracking-[0.18em] text-slate-400">Ends in {endsIn}</span> : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Link to={actionLink ?? `/customer/product/${id}`} className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
-            {actionLabel || (currentBid ? 'Bid now' : 'Buy now')}
-            <ArrowRight className="h-3.5 w-3.5" />
+          <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[48px] w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-all duration-250 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 active:scale-[0.98] sm:w-auto">
+            <span className="absolute inset-0 origin-center scale-0 rounded-full bg-white/10 transition-transform duration-300 group-hover/btn:scale-100" />
+            <span className="relative z-10">{isAuction ? 'Place Bid' : actionLabel || 'Buy Now'}</span>
+            <ArrowRight className="relative z-10 h-3.5 w-3.5" />
           </Link>
-          <button className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:border-white/20 hover:bg-white/10 sm:w-auto">
+          <button type="button" className="relative inline-flex min-h-[48px] w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-all duration-250 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 active:scale-[0.98] sm:w-auto">
             <Share2 className="h-4 w-4" /> Share
           </button>
         </div>
       </div>
     </motion.article>
+      {quickOpen && ReactDOM.createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={closeQuickView} />
+          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.18 }} className="relative z-10 mx-4 w-full max-w-3xl rounded-2xl bg-slate-900/95 border border-white/10 p-6 shadow-2xl">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="rounded-lg bg-slate-800/50 p-2">
+                <img src={image} alt={title} className="h-72 w-full rounded-md object-cover" />
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold text-white">{title}</h2>
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    {verified ? <CheckCircle2 className="h-5 w-5 text-emerald-300" /> : null}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-2xl font-semibold text-white">{priceValue}</p>
+                  <p className="mt-1 text-sm uppercase tracking-[0.12em] text-slate-400">{priceLabel}</p>
+                </div>
+
+                <p className="text-sm text-slate-300">{description}</p>
+
+                <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-3">
+                  <p className="text-sm font-medium text-white">Seller</p>
+                  <p className="text-sm text-slate-300">{seller}</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="inline-flex items-center gap-2 text-sm text-amber-300"><Star className="h-4 w-4" />{rating ?? '—'}</div>
+                  <div className="text-sm text-slate-400">{reviews ?? 0} Reviews</div>
+                  <div className="text-sm text-slate-400">{category}</div>
+                  <div className="text-sm text-slate-400">{condition}</div>
+                  <div className="text-sm text-slate-400">{location}</div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Link to={actionLink ?? `/customer/product/${id}`} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500">
+                    {isAuction ? 'Place Bid' : actionLabel || 'Buy Now'}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                  <button onClick={closeQuickView} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">Close</button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
-}
+});
 
 interface AuctionCardProps {
   id: string | number;

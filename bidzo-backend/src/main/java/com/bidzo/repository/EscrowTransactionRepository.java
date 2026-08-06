@@ -1,7 +1,7 @@
 package com.bidzo.repository;
 
 import com.bidzo.entity.EscrowTransaction;
-import com.bidzo.enums.com.bidzo.enums.EscrowStatus;
+import com.bidzo.enums.EscrowStatus;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 public interface EscrowTransactionRepository extends JpaRepository<EscrowTransaction, Long> {
 
     Optional<EscrowTransaction> findById(Long id);
-    List<EscrowTransaction> findByStatus(com.bidzo.enums.EscrowStatus status);
-    Page<EscrowTransaction> findByStatus(com.bidzo.enums.EscrowStatus status, Pageable pageable);
-    long countByStatus(com.bidzo.enums.EscrowStatus status);
+    List<EscrowTransaction> findByStatus(EscrowStatus status);
+    Page<EscrowTransaction> findByStatus(EscrowStatus status, Pageable pageable);
+    long countByStatus(EscrowStatus status);
 }

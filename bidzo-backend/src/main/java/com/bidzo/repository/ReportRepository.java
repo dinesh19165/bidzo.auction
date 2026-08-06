@@ -1,9 +1,9 @@
 package com.bidzo.repository;
 
-import com.bidzo.entity.Report;
+import com.bidzo.entity.Refund;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ReportRepository extends JpaRepository<Report, Long> {
+public interface ReportRepository extends JpaRepository<Refund, Long> {
 }

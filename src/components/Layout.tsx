@@ -53,9 +53,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
           <div>
             {/* Shared header: logo always shown and links to home */}
-            <Link to="/" className="inline-flex items-center">
-              <Logo />
-            </Link>
+            <Link to="/" className="inline-flex items-center flex-shrink-0">
+              <Logo className="w-[200px] h-[200px] object-contain" />
+           </Link>
           </div>
 
           <div className="hidden flex-1 items-center gap-2 rounded-full border border-white/10 bg-slate-900/70 px-3 py-2 lg:flex">

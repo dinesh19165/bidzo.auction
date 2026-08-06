@@ -77,7 +77,7 @@ export function MegaMenu({ theme }: { theme: 'dark' | 'light' }) {
 
 export function Sidebar({ theme, children }: { theme: 'dark' | 'light'; children: ReactNode }) {
   return (
-    <aside className={`rounded-[24px] border p-5 shadow-lg ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white/70'}`}>
+    <aside className={`rounded-[24px] border p-5 shadow-lg lg:sticky lg:top-[100px] lg:self-start ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white/70'}`}>
       {children}
     </aside>
   );
