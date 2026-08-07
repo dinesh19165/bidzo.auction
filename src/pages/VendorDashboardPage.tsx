@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BarChart3, PackageCheck, ShoppingBag, TrendingUp, Wallet, MessageCircleMore, ClipboardList } from 'lucide-react';
+import { BarChart3, PackageCheck, ShoppingBag, TrendingUp, Wallet, MessageCircleMore, ClipboardList, Truck } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
 import { vendorStats, transactions, reviews, vendorInventory, vendorOrders, vendorAuctions, vendorReports, verificationSteps } from '../data/mockData';
 import { Card } from '../components/common/Card';
@@ -66,6 +66,7 @@ export function VendorDashboardPage() {
                     { label: 'Inventory', icon: PackageCheck, route: '/products' },
                     { label: 'Create product', icon: ShoppingBag, route: '/vendor/create-product-wizard' },
                     { label: 'Create auction', icon: BarChart3, route: '/vendor/create-auction-wizard' },
+                    { label: 'Create bike auction', icon: Truck, route: '/vendor/create-auction-wizard?type=bike' },
                     { label: 'Wallet', icon: Wallet, route: '/vendor/wallet' },
                   ].map((item) => {
                     const Icon = item.icon;

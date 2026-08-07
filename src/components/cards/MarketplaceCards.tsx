@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock3, Eye, Heart, Share2, Star } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, Sparkles, Star, Users } from 'lucide-react';
 import { memo, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
 import ReactDOM from 'react-dom';
 import { showToast } from '../ui/toast';
@@ -95,11 +95,11 @@ export const ProductCard = memo(function ProductCard({
         if (next) {
           if (!list.includes(id as any)) list.push(id as any);
           localStorage.setItem('bidzo_favorites', JSON.stringify(list));
-          showToast('Added to Favorites');
+          showToast('Added to favourites', 'Saved for your next bidding session.', 'success');
         } else {
           const filtered = list.filter((i) => i !== id);
           localStorage.setItem('bidzo_favorites', JSON.stringify(filtered));
-          showToast('Removed from Favorites');
+          showToast('Removed from favourites', 'The listing is no longer in your saved collection.', 'info');
         }
       } catch (e) {}
       return next;
@@ -143,18 +143,19 @@ export const ProductCard = memo(function ProductCard({
       <motion.article
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -6, scale: 1.01, boxShadow: '0 30px 70px -24px rgba(59,130,246,0.35)' }}
+      whileHover={{ y: -8, scale: 1.01, boxShadow: '0 34px 80px -24px rgba(59,130,246,0.35)' }}
       transition={{ duration: 0.25 }}
-      className="group relative w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition-all duration-250 hover:border-blue-400/30"
+      className="group relative w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition-all duration-250 hover:border-blue-400/40"
     >
       <div className="relative overflow-hidden">
         <div className="thumbnail-wrapper" style={{ width: 280, height: 180, maxWidth: '100%', overflow: 'hidden', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-          <img src={image} alt={title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="transition-all duration-250 group-hover:scale-[1.05]" />
+          <img src={image} alt={title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="transition-all duration-300 group-hover:scale-[1.06]" />
         </div>
         <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3">
           {badge ? (
             <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">{badge}</span>
           ) : null}
+          {isAuction ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-200"><Sparkles className="h-3 w-3" /> Live</span> : null}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -232,14 +233,17 @@ export const ProductCard = memo(function ProductCard({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[48px] w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-all duration-250 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 active:scale-[0.98] sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 overflow-hidden rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-all duration-250 hover:-translate-y-0.5 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 active:scale-[0.98]">
             <span className="absolute inset-0 origin-center scale-0 rounded-full bg-white/10 transition-transform duration-300 group-hover/btn:scale-100" />
-            <span className="relative z-10">{isAuction ? 'Place Bid' : actionLabel || 'Buy Now'}</span>
+            <span className="relative z-10">{isAuction ? 'Watch Auction' : actionLabel || 'Buy Now'}</span>
             <ArrowRight className="relative z-10 h-3.5 w-3.5" />
           </Link>
-          <button type="button" className="relative inline-flex min-h-[48px] w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-all duration-250 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 active:scale-[0.98] sm:w-auto">
-            <Share2 className="h-4 w-4" /> Share
+          <button type="button" className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
+            <Share2 className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={toggleFavorite} className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Favorite listing">
+            <Heart className={`h-4 w-4 transition-all duration-200 ${favorited ? 'text-rose-500' : ''}`} />
           </button>
         </div>
       </div>
@@ -304,32 +308,55 @@ interface AuctionCardProps {
   status: string;
   currentBid: string;
   endsIn: string;
+  seller?: string;
+  verified?: boolean;
+  watchers?: number;
+  participants?: number;
+  condition?: string;
+  rating?: number;
 }
 
-export function AuctionCard({ id, title, image, status, currentBid, endsIn }: AuctionCardProps) {
+export function AuctionCard({ id, title, image, status, currentBid, endsIn, seller='Bidzo Seller', verified=true, watchers=120, participants=18, condition='Excellent', rating=4.8 }: AuctionCardProps) {
   return (
-    <motion.article whileHover={{ y: -4, scale: 1.01 }} className="w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300">
+    <motion.article whileHover={{ y: -8, scale: 1.01, boxShadow: '0 32px 80px -24px rgba(59,130,246,0.35)' }} transition={{ duration: 0.24 }} className="group w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300 hover:border-blue-400/40">
       <div className="relative overflow-hidden">
-        {/* Auction image: render a constrained thumbnail (responsive) */}
         <div className="thumbnail-wrapper" style={{ width: 280, height: 180, maxWidth: '100%', overflow: 'hidden', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-          <img src={image} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="bg-slate-800" />
+          <img src={image} alt={title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="bg-slate-800 transition-all duration-300 group-hover:scale-[1.05]" />
         </div>
-        <div className="absolute inset-x-4 top-4 flex items-center justify-between">
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${status === 'Live' ? 'bg-emerald-500/15 text-emerald-300' : status === 'Upcoming' ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-700/80 text-slate-300'}`}>{status}</span>
+        <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-2">
+          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${status === 'Live' ? 'bg-emerald-500/15 text-emerald-300' : status === 'Upcoming' ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-700/80 text-slate-300'}`}>
+            {status === 'Live' ? <span className="mr-1 inline-flex h-2 w-2 animate-pulse rounded-full bg-emerald-400" /> : null}
+            {status}
+          </span>
           <div className="inline-flex items-center gap-1 rounded-full bg-slate-950/90 px-3 py-1 text-xs text-slate-300">
             <Clock3 className="h-3.5 w-3.5" /> {endsIn}
           </div>
         </div>
       </div>
       <div className="p-5">
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        <p className="mt-3 text-sm text-slate-400">Current bid {currentBid}</p>
-        <div className="mt-5 flex items-center justify-between gap-3">
-          <Link to={`/auctions/${id}`} className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
-            View auction
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/10 text-sm font-semibold text-blue-200">{seller.charAt(0)}</div>
+            <div>
+              <p className="font-semibold text-white">{seller}</p>
+              <p className="text-xs text-slate-400">{condition}</p>
+            </div>
+          </div>
+          {verified ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300">Verified</span> : null}
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Users className="h-3 w-3" /> {watchers} watchers</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Gavel className="h-3 w-3" /> {participants} bids</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Star className="h-3 w-3" /> {rating}</span>
+        </div>
+        <p className="mt-4 text-sm text-slate-400">Current bid {currentBid}</p>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <Link to={`/auctions/${id}`} className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-250 hover:-translate-y-0.5 hover:bg-blue-500">
+            View details
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
-          <button className="min-h-[48px] w-full rounded-full bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10 sm:w-auto">Watch</button>
+          <button className="min-h-[48px] rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:bg-white/10">Watch</button>
         </div>
       </div>
     </motion.article>

@@ -1,8 +1,9 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, BadgeCheck, CheckCircle2, ShieldCheck, Smartphone, Wallet } from 'lucide-react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { ArrowRight, BadgeCheck, CheckCircle2, CreditCard, Landmark, LoaderCircle, ShieldCheck, Smartphone, Wallet } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
+import { markAuctionAsRegistered, markRegistrationPaid, readAuctionFlowState, writeAuctionFlowState, type AuctionFlowState } from '../utils/auctionFlowState';
 import { useAuth } from '../context/AuthContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const verificationSteps = [
   { title: 'Email verification', done: true },
@@ -204,26 +205,95 @@ export function KYCPage() {
 }
 
 export function RegistrationFeePage() {
+  const navigate = useNavigate();
+  const [flowState, setFlowState] = useState(() => readAuctionFlowState());
+  const [isJoiningLive, setIsJoiningLive] = useState(false);
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      event.preventDefault();
+      window.history.pushState(null, '', window.location.pathname);
+    };
+
+    window.history.pushState(null, '', window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (flowState.auctionStage === 'BID_CONFIRMATION') {
+      const nextState = writeAuctionFlowState({ ...flowState, auctionStage: 'REGISTRATION_FEE' });
+      setFlowState(nextState);
+    }
+  }, [flowState.auctionStage]);
+
+  if (flowState.auctionStage === 'LIVE_AUCTION' || flowState.auctionStage === 'AUCTION_ENDED') {
+    return <Navigate to="/customer/auction-live" replace />;
+  }
+
+  if (flowState.auctionStage === 'WINNER' || flowState.auctionStage === 'FINAL_PAYMENT' || flowState.auctionStage === 'ORDER_SUCCESS' || flowState.auctionStage === 'INVOICE' || flowState.auctionStage === 'OUTBID') {
+    return <Navigate to="/customer/winner" replace />;
+  }
+
+  if (flowState.auctionStage !== 'REGISTRATION_FEE' && flowState.auctionStage !== 'REGISTRATION_PAYMENT' && flowState.auctionStage !== 'BID_CONFIRMATION') {
+    return <Navigate to="/customer/watch-auction" replace />;
+  }
+
+  const methods = [
+    { label: 'UPI', icon: Smartphone, accent: 'border-blue-400/30 bg-blue-500/10 text-blue-200' },
+    { label: 'Cards', icon: CreditCard, accent: 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' },
+    { label: 'Wallet', icon: Wallet, accent: 'border-amber-400/20 bg-amber-500/10 text-amber-200' },
+    { label: 'Net banking', icon: Landmark, accent: 'border-slate-400/20 bg-white/5 text-slate-200' },
+  ];
+
   return (
     <SectionShell title="Registration fee" subtitle="Pay ₹20 to activate your account">
+      <div className="mb-6 rounded-[24px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-medium text-white">Step 3 of 6 – Registration Required</p>
+          <p className="text-slate-400">Registration</p>
+        </div>
+      </div>
       <div className="mx-auto grid max-w-3xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-            <p className="text-lg font-semibold text-white">Fee: ₹20</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-lg font-semibold text-white">Fee: ₹20</p>
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200"><ShieldCheck className="h-3.5 w-3.5" /> Secure</span>
+            </div>
             <p className="mt-2">Payment summary: secure verification + bidding access</p>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {['UPI', 'Cards', 'Wallet', 'Net banking'].map((method) => <div key={method} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-sm text-slate-300">{method}</div>)}
+            {methods.map((method) => {
+              const Icon = method.icon;
+              return (
+                <button key={method.label} type="button" className={`rounded-2xl border p-4 text-center text-sm transition hover:-translate-y-0.5 ${method.accent}`}>
+                  <Icon className="mx-auto mb-2 h-5 w-5" />
+                  {method.label}
+                </button>
+              );
+            })}
           </div>
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link to="/customer/order-success" className="w-full rounded-full bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white sm:w-auto">Pay now</Link>
-            <Link to="/customer/checkout" className="w-full rounded-full border border-white/10 px-4 py-2 text-center text-sm font-medium text-slate-200 sm:w-auto">Try another payment</Link>
+            <button type="button" disabled={isJoiningLive} onClick={() => {
+              setIsJoiningLive(true);
+              window.setTimeout(() => {
+                markAuctionAsRegistered(flowState.auctionId);
+                const nextState = markRegistrationPaid();
+                setFlowState(nextState);
+                navigate('/customer/auction-live', { replace: true });
+              }, 3000);
+            }} className="flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">{isJoiningLive ? 'Joining Live Auction...' : 'Pay now'} <ArrowRight className="h-4 w-4" /></button>
           </div>
         </div>
         <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
           <div className="flex items-center gap-2 text-amber-300"><Wallet className="h-4 w-4" /> Protected payment</div>
           <p className="mt-3 text-sm text-slate-300">Every transaction is encrypted and backed by real-time confirmation.</p>
           <div className="mt-4 flex items-center gap-2 text-sm text-slate-300"><Smartphone className="h-4 w-4" /> Instant receipts and status updates</div>
+          <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
+            <div className="flex items-center gap-2 text-white"><LoaderCircle className="h-4 w-4 animate-spin text-blue-300" /> Processing your secure payment</div>
+          </div>
         </div>
       </div>
     </SectionShell>

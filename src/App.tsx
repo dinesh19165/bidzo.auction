@@ -106,6 +106,7 @@ function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/kyc" element={<KYCPage />} />
             <Route path="/registration-fee" element={<RegistrationFeePage />} />
+            <Route path="/customer/registration-fee" element={<RegistrationFeePage />} />
             <Route path="/dashboards/customer" element={<CustomerDashboardPage />} />
             <Route path="/customer/dashboard" element={<CustomerDashboardPage />} />
             <Route path="/customer/profile" element={<CustomerProfilePage />} />
