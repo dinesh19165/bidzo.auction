@@ -1,4 +1,4 @@
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   BadgeCheck,
@@ -112,7 +112,8 @@ function FormField({
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const location = useLocation();
+  const { login, user } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -120,7 +121,7 @@ export function LoginPage() {
   const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
   const [touched, setTouched] = useState({ identifier: false, password: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor'>('customer');
+  const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor'>((location.state as { role?: 'customer' | 'vendor' } | null)?.role ?? 'customer');
 
   const roleOptions: Array<{ value: 'customer' | 'vendor'; label: string; description: string; features: string[] }> = [
     {
@@ -164,6 +165,12 @@ export function LoginPage() {
         { title: 'Seller Approval' },
       ];
 
+  useEffect(() => {
+    if (user) {
+      navigate(user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer', { replace: true });
+    }
+  }, [navigate, user]);
+
   const validate = (nextIdentifier = identifier, nextPassword = password) => {
     const nextErrors: { identifier?: string; password?: string } = {};
     if (!nextIdentifier.trim()) {
@@ -186,8 +193,8 @@ export function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      await login(identifier || 'guest');
-      navigate('/');
+      await login(identifier || 'guest', password, selectedRole);
+      navigate(selectedRole === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer', { replace: true });
     } finally {
       setIsSubmitting(false);
     }
@@ -209,127 +216,178 @@ export function LoginPage() {
 
   return (
     <SectionShell title="Authentication" subtitle="Welcome back to Bidzo">
-      <div className="mx-auto grid w-full max-w-5xl gap-6 grid-cols-1 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="w-full rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
-          <div className="flex flex-wrap items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-sm text-emerald-200">
-            <ShieldCheck className="h-4 w-4" />
-            Secure sign-in with protected checkout
-          </div>
-          <p className="mt-4 text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Customer & vendor access</p>
-          <h3 className="mt-3 text-2xl font-semibold text-white">Sign in for buyers and sellers</h3>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {roleOptions.map((option) => {
-              const isActive = selectedRole === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setSelectedRole(option.value)}
-                  className={`rounded-2xl border p-4 text-left transition duration-200 ${isActive ? 'border-blue-400/40 bg-blue-500/10 text-white shadow-[0_0_0_1px_rgba(59,130,246,0.2)]' : 'border-white/10 bg-slate-950/40 text-slate-300 hover:border-white/20 hover:bg-slate-950/60'}`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold">{option.label}</span>
-                    {isActive ? <CheckCircle2 className="h-4 w-4 text-blue-300" /> : <ShieldCheck className="h-4 w-4 text-slate-500" />}
-                  </div>
-                  <p className={`mt-2 text-xs ${isActive ? 'text-slate-200' : 'text-slate-400'}`}>{option.description}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {option.features.map((feature) => (
-                      <span key={feature} className={`rounded-full px-2.5 py-1 text-[11px] ${isActive ? 'bg-slate-950/50 text-slate-100' : 'bg-white/5 text-slate-400'}`}>
-                        {feature}
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <h3 className="mt-4 text-xl font-semibold text-white">{roleCopy.heading}</h3>
-          <p className="mt-2 text-sm text-slate-400">{roleCopy.description}</p>
-
-          <div className="mt-6 space-y-4">
-            <label className="block">
-              <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
-                <Mail className="h-4 w-4 text-blue-300" />
-                Email or phone number
-              </span>
-              <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition duration-200 ${touched.identifier && errors.identifier ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/10 bg-slate-950/60 hover:border-white/20 focus-within:border-blue-400/50 focus-within:bg-slate-950/80'}`}>
-                <input
-                  value={identifier}
-                  onChange={(e) => handleIdentifierChange(e.target.value)}
-                  onBlur={() => setTouched((prev) => ({ ...prev, identifier: true }))}
-                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
-                  placeholder="name@company.com or 10-digit phone"
-                />
-              </div>
-              {touched.identifier && errors.identifier ? <p className="mt-2 text-sm text-amber-300">{errors.identifier}</p> : <p className="mt-2 text-sm text-slate-500">Customers use their buyer account. Vendors use their seller account.</p>}
-            </label>
-
-            <label className="block">
-              <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
-                <Lock className="h-4 w-4 text-slate-400" />
-                Password
-              </span>
-              <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition duration-200 ${touched.password && errors.password ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/10 bg-slate-950/60 hover:border-white/20 focus-within:border-blue-400/50 focus-within:bg-slate-950/80'}`}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => handlePasswordChange(e.target.value)}
-                  onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
-                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
-                  placeholder="Enter your password"
-                />
-                <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="rounded-full p-1 text-slate-400 transition hover:text-white" aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {touched.password && errors.password ? <p className="mt-2 text-sm text-amber-300">{errors.password}</p> : <p className="mt-2 text-sm text-slate-500">Use the password from your latest Bidzo account setup.</p>}
-            </label>
-
-            <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-300">
-              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="h-4 w-4 rounded border-white/20 bg-slate-950 text-blue-500" />
-              <span>Remember me for faster access next time</span>
-            </label>
-
-            <div className="flex flex-col gap-3 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-              <Link to="/forgot-password" className="transition hover:text-white">Forgot password?</Link>
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-3 py-2 text-center sm:text-right">
-                <p className="text-slate-300">New to Bidzo?</p>
-                <Link to="/register" className="font-medium text-blue-300 transition hover:text-blue-200">Create account</Link>
-              </div>
+      <div className="mx-auto flex w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.22),_transparent_40%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(2,8,23,0.98))] shadow-[0_30px_90px_rgba(2,6,23,0.55)]">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-lg shadow-cyan-500/20">
+              <Sparkles className="h-5 w-5 text-white" />
             </div>
-
-            <button
-              onClick={handleLogin}
-              disabled={isSubmitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_35px_rgba(59,130,246,0.25)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(59,130,246,0.35)] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-            >
-              {isSubmitting ? 'Signing in…' : 'Sign in'} <ArrowRight className="h-4 w-4" />
-            </button>
+            <div>
+              <p className="text-sm font-semibold text-white">Bidzo</p>
+              <p className="text-xs text-slate-400">Marketplace access</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-slate-300">
+            <Link to="/" className="transition hover:text-white">Home</Link>
+            <Link to="/about" className="transition hover:text-white">How it works</Link>
+            <Link to="/help" className="transition hover:text-white">Help</Link>
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
-          <div className="flex items-center gap-2 text-blue-200">
-            <Sparkles className="h-4 w-4" />
-            <p className="text-sm font-semibold uppercase tracking-[0.24em]">Quick onboarding</p>
-          </div>
-          <h3 className="mt-3 text-xl font-semibold text-white">Role-based access made simple</h3>
-
-          <div className="mt-5 space-y-3">
-            {onboardingSteps.map((step, index) => (
-              <div key={step.title} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-300">
-                <span>{step.title}</span>
-                {index < onboardingSteps.length - 1 ? <ArrowRight className="h-4 w-4 text-slate-500" /> : <CheckCircle2 className="h-4 w-4 text-emerald-300" />}
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
-            <div className="flex items-center gap-2 text-white">
-              <Shield className="h-4 w-4 text-amber-300" />
-              {roleCopy.onboardingTitle}
+        <div className="grid gap-6 p-4 sm:p-8 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-[28px] border border-white/10 bg-slate-950/60 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-7">
+            <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-sm text-emerald-200">
+              <ShieldCheck className="h-4 w-4" />
+              Secure marketplace access
             </div>
-            <p className="mt-2">{roleCopy.onboardingMessage}</p>
+
+            <h3 className="mt-5 text-3xl font-semibold text-white sm:text-4xl">
+              {selectedRole === 'vendor' ? 'Welcome back, Vendor' : 'Welcome back, Customer'}
+            </h3>
+            <p className="mt-2 text-sm text-slate-400 sm:text-base">
+              {selectedRole === 'vendor' ? 'Sign in to manage your marketplace' : 'Sign in to discover products and auctions'}
+            </p>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {roleOptions.map((option) => {
+                const isActive = selectedRole === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSelectedRole(option.value)}
+                    className={`rounded-[24px] border p-4 text-left transition-all duration-300 ${isActive ? 'border-cyan-400/40 bg-gradient-to-br from-blue-500/20 to-cyan-500/10 text-white shadow-[0_0_0_1px_rgba(34,211,238,0.25),0_18px_45px_rgba(14,165,233,0.16)]' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:border-white/20 hover:bg-slate-900/80'}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-semibold">{option.label}</span>
+                      {isActive ? <CheckCircle2 className="h-4 w-4 text-cyan-300" /> : <ShieldCheck className="h-4 w-4 text-slate-500" />}
+                    </div>
+                    <p className={`mt-2 text-xs ${isActive ? 'text-slate-100' : 'text-slate-400'}`}>{option.description}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {option.features.map((feature) => (
+                        <span key={feature} className={`rounded-full px-2.5 py-1 text-[11px] ${isActive ? 'bg-slate-950/60 text-slate-50' : 'bg-white/5 text-slate-400'}`}>
+                          {feature}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <label className="block">
+                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
+                  <Mail className="h-4 w-4 text-cyan-300" />
+                  Email or phone number
+                </span>
+                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition duration-200 ${touched.identifier && errors.identifier ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/10 bg-slate-900/70 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-900/90'}`}>
+                  <input
+                    value={identifier}
+                    onChange={(e) => handleIdentifierChange(e.target.value)}
+                    onBlur={() => setTouched((prev) => ({ ...prev, identifier: true }))}
+                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                    placeholder="name@company.com or 10-digit phone"
+                  />
+                </div>
+                {touched.identifier && errors.identifier ? <p className="mt-2 text-sm text-amber-300">{errors.identifier}</p> : <p className="mt-2 text-sm text-slate-500">Use your registered Bidzo account details.</p>}
+              </label>
+
+              <label className="block">
+                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
+                  <Lock className="h-4 w-4 text-slate-400" />
+                  Password
+                </span>
+                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition duration-200 ${touched.password && errors.password ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/10 bg-slate-900/70 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-900/90'}`}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => handlePasswordChange(e.target.value)}
+                    onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
+                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                    placeholder="Enter your password"
+                  />
+                  <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="rounded-full p-1 text-slate-400 transition hover:text-white" aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {touched.password && errors.password ? <p className="mt-2 text-sm text-amber-300">{errors.password}</p> : <p className="mt-2 text-sm text-slate-500">Use the password from your latest Bidzo account setup.</p>}
+              </label>
+
+              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-300">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="h-4 w-4 rounded border-white/20 bg-slate-950 text-blue-500" />
+                <span>Remember me for faster access next time</span>
+              </label>
+
+              <div className="flex flex-col gap-3 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                <Link to="/forgot-password" className="transition hover:text-white">Forgot password?</Link>
+                <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-center sm:text-right">
+                  <p className="text-slate-300">New to Bidzo?</p>
+                  <Link to="/register" className="font-medium text-cyan-300 transition hover:text-cyan-200">Create account</Link>
+                </div>
+              </div>
+
+              <button
+                onClick={handleLogin}
+                disabled={isSubmitting}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_35px_rgba(59,130,246,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(59,130,246,0.35)] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isSubmitting ? 'Signing in…' : 'Sign in'} <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="relative overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/70 to-cyan-500/20 p-4 sm:p-7">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.2),_transparent_40%)]" />
+            <div className="absolute right-4 top-4 text-[120px] font-black leading-none text-white/10 sm:text-[180px]">B</div>
+            <div className="relative">
+              <div className="flex items-center gap-2 text-cyan-200">
+                <Sparkles className="h-4 w-4" />
+                <p className="text-sm font-semibold uppercase tracking-[0.24em]">Everything you need to buy & sell</p>
+              </div>
+
+              <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
+                <div className="flex items-center justify-between rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
+                  <span>🔥 LIVE AUCTION</span>
+                  <span className="rounded-full bg-cyan-500/20 px-2 py-1">02:14:05</span>
+                </div>
+                <div className="mt-4 rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.35),_transparent_45%),linear-gradient(135deg,_rgba(8,15,35,0.96),_rgba(15,23,42,1))] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Product preview</p>
+                      <p className="mt-2 text-lg font-semibold text-white">Vintage Watch</p>
+                    </div>
+                    <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">Live</div>
+                  </div>
+                  <div className="mt-5 flex items-end justify-between">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Current bid</p>
+                      <p className="mt-1 text-3xl font-semibold text-white">₹12,500</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-right text-sm text-slate-300">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Bids</p>
+                      <p className="mt-1 font-semibold text-white">128</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {[
+                    { title: 'Secure & Protected', icon: ShieldCheck },
+                    { title: 'Real-time Bidding', icon: Sparkles },
+                    { title: 'Trusted Marketplace', icon: CheckCircle2 },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={item.title} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center text-sm text-slate-300">
+                        <Icon className="mx-auto mb-2 h-4 w-4 text-cyan-300" />
+                        {item.title}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -350,8 +408,8 @@ export function RegisterPage() {
         </div>
         <ProgressIndicator activeStep={0} />
         <div className="flex justify-start">
-          <Link to="/onboarding" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
-            Start onboarding <ArrowRight className="h-4 w-4" />
+          <Link to="/register/customer" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
+            Continue to customer registration <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>
@@ -362,11 +420,27 @@ export function RegisterPage() {
 export function CustomerRegisterPage() {
   const navigate = useNavigate();
   const { registerCustomer } = useAuth();
-  const [form, setForm] = useState({ name: '', email: '', phone: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
+  const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
+
+  const validate = () => {
+    const nextErrors: { name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string } = {};
+    if (!form.name.trim()) nextErrors.name = 'Full name is required.';
+    if (!form.email.trim()) nextErrors.email = 'Email is required.';
+    if (!form.phone.trim()) nextErrors.phone = 'Phone number is required.';
+    if (!form.password.trim()) nextErrors.password = 'Password is required.';
+    if (!form.confirmPassword.trim()) nextErrors.confirmPassword = 'Please confirm your password.';
+    if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
+      nextErrors.confirmPassword = 'Passwords do not match.';
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const submit = async () => {
-    await registerCustomer(form);
-    navigate('/otp');
+    if (!validate()) return;
+    await registerCustomer(form, 'customer');
+    navigate('/otp', { replace: true, state: { role: 'customer' } });
   };
 
   return (
@@ -379,8 +453,15 @@ export function CustomerRegisterPage() {
           <ProgressIndicator activeStep={0} />
           <div className="mt-4 space-y-4">
             <FormField label="Full name" placeholder="As shown on your ID" value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} icon={BadgeCheck} />
+            {errors.name ? <p className="text-sm text-amber-300">{errors.name}</p> : null}
             <FormField label="Email address" placeholder="name@company.com" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} icon={Mail} />
+            {errors.email ? <p className="text-sm text-amber-300">{errors.email}</p> : null}
             <FormField label="Phone number" placeholder="10-digit mobile number" value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} icon={Phone} />
+            {errors.phone ? <p className="text-sm text-amber-300">{errors.phone}</p> : null}
+            <FormField label="Password" placeholder="Create a strong password" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} icon={Lock} type="password" />
+            {errors.password ? <p className="text-sm text-amber-300">{errors.password}</p> : null}
+            <FormField label="Confirm password" placeholder="Re-enter your password" value={form.confirmPassword} onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))} icon={Lock} type="password" />
+            {errors.confirmPassword ? <p className="text-sm text-amber-300">{errors.confirmPassword}</p> : null}
           </div>
           <div className="mt-5 flex items-start gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
             <CircleAlert className="mt-0.5 h-4 w-4 text-amber-300" />
@@ -390,19 +471,52 @@ export function CustomerRegisterPage() {
             Continue to OTP <ArrowRight className="h-4 w-4" />
           </button>
         </div>
-        <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
-          <div className="flex items-center gap-2 text-blue-200">
-            <ShieldCheck className="h-4 w-4" />
-            <p className="text-sm font-semibold uppercase tracking-[0.24em]">Why customers choose Bidzo</p>
-          </div>
-          <h3 className="mt-4 text-xl font-semibold text-white">A more trusted buying experience</h3>
-          <ul className="mt-4 space-y-3 text-sm text-slate-300">
-            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Instant bid alerts and outbid notifications</li>
-            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Protected checkout and secure wallet controls</li>
-            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Wishlist, saved searches, and price tracking</li>
-          </ul>
-          <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
-            <div className="flex items-center gap-2 text-white"><Clock3 className="h-4 w-4 text-blue-300" /> Verification usually completes within minutes.</div>
+        <div className="relative overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/80 to-cyan-500/20 p-4 sm:p-8">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.2),_transparent_40%)]" />
+          <div className="absolute right-3 top-3 text-[110px] font-black leading-none text-white/10 sm:text-[160px]">BIDZO</div>
+          <div className="relative">
+            <div className="flex items-center gap-2 text-cyan-200">
+              <Sparkles className="h-4 w-4" />
+              <p className="text-sm font-semibold uppercase tracking-[0.24em]">Discover. Bid. Win.</p>
+            </div>
+            <p className="mt-2 text-sm text-slate-400">Find products you love and compete in real-time auctions.</p>
+
+            <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
+              <div className="flex items-center justify-between rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
+                <span>🔥 LIVE AUCTION</span>
+                <span className="rounded-full bg-cyan-500/20 px-2 py-1">01:12:08</span>
+              </div>
+              <div className="mt-4 rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.35),_transparent_45%),linear-gradient(135deg,_rgba(8,15,35,0.96),_rgba(15,23,42,1))] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Product preview</p>
+                    <p className="mt-2 text-lg font-semibold text-white">Vintage Rolex</p>
+                  </div>
+                  <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">Live</div>
+                </div>
+                <div className="mt-5 flex items-end justify-between">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Current bid</p>
+                    <p className="mt-1 text-3xl font-semibold text-white">₹12,500</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-right text-sm text-slate-300">
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Bids</p>
+                    <p className="mt-1 font-semibold text-white">128</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {['❤️ Saved', '⚡ Live Bidding', '🏆 Winning Bid'].map((chip) => (
+                  <span key={chip} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1.5 text-[11px] font-medium text-slate-200">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-slate-300">
+              <div className="flex items-center gap-2 text-white"><Clock3 className="h-4 w-4 text-cyan-300" /> Verification usually completes within minutes.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -413,11 +527,28 @@ export function CustomerRegisterPage() {
 export function VendorRegisterPage() {
   const navigate = useNavigate();
   const { registerVendor } = useAuth();
-  const [form, setForm] = useState({ businessName: '', ownerName: '', email: '', phone: '', gst: '' });
+  const [form, setForm] = useState({ businessName: '', ownerName: '', email: '', phone: '', gst: '', password: '', confirmPassword: '' });
+  const [errors, setErrors] = useState<{ businessName?: string; ownerName?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
+
+  const validate = () => {
+    const nextErrors: { businessName?: string; ownerName?: string; email?: string; phone?: string; password?: string; confirmPassword?: string } = {};
+    if (!form.businessName.trim()) nextErrors.businessName = 'Business name is required.';
+    if (!form.ownerName.trim()) nextErrors.ownerName = 'Owner name is required.';
+    if (!form.email.trim()) nextErrors.email = 'Email is required.';
+    if (!form.phone.trim()) nextErrors.phone = 'Phone number is required.';
+    if (!form.password.trim()) nextErrors.password = 'Password is required.';
+    if (!form.confirmPassword.trim()) nextErrors.confirmPassword = 'Please confirm your password.';
+    if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
+      nextErrors.confirmPassword = 'Passwords do not match.';
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const submit = async () => {
-    await registerVendor(form);
-    navigate('/kyc');
+    if (!validate()) return;
+    await registerVendor(form, 'vendor');
+    navigate('/otp', { replace: true, state: { role: 'vendor' } });
   };
 
   return (
@@ -430,9 +561,17 @@ export function VendorRegisterPage() {
           <ProgressIndicator activeStep={0} />
           <div className="mt-4 space-y-4">
             <FormField label="Business name" placeholder="Your registered business" value={form.businessName} onChange={(e) => setForm((s) => ({ ...s, businessName: e.target.value }))} icon={Building2} accent="emerald" />
+            {errors.businessName ? <p className="text-sm text-amber-300">{errors.businessName}</p> : null}
             <FormField label="Owner name" placeholder="Legal representative" value={form.ownerName} onChange={(e) => setForm((s) => ({ ...s, ownerName: e.target.value }))} icon={BadgeCheck} accent="emerald" />
+            {errors.ownerName ? <p className="text-sm text-amber-300">{errors.ownerName}</p> : null}
             <FormField label="Email address" placeholder="team@yourbrand.com" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} icon={Mail} accent="emerald" />
+            {errors.email ? <p className="text-sm text-amber-300">{errors.email}</p> : null}
             <FormField label="Phone number" placeholder="Business contact number" value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} icon={Phone} accent="emerald" />
+            {errors.phone ? <p className="text-sm text-amber-300">{errors.phone}</p> : null}
+            <FormField label="Password" placeholder="Create a strong password" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} icon={Lock} type="password" accent="emerald" />
+            {errors.password ? <p className="text-sm text-amber-300">{errors.password}</p> : null}
+            <FormField label="Confirm password" placeholder="Re-enter your password" value={form.confirmPassword} onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))} icon={Lock} type="password" accent="emerald" />
+            {errors.confirmPassword ? <p className="text-sm text-amber-300">{errors.confirmPassword}</p> : null}
             <FormField label="GST / tax ID (optional)" placeholder="Optional for faster onboarding" value={form.gst} onChange={(e) => setForm((s) => ({ ...s, gst: e.target.value }))} icon={FileCheck2} accent="emerald" />
           </div>
           <div className="mt-5 flex items-start gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
@@ -443,19 +582,53 @@ export function VendorRegisterPage() {
             Continue to verification <ArrowRight className="h-4 w-4" />
           </button>
         </div>
-        <div className="w-full rounded-[24px] border border-white/10 bg-gradient-to-br from-emerald-600/15 to-blue-500/10 p-4 sm:p-8">
-          <div className="flex items-center gap-2 text-emerald-200">
-            <ShieldCheck className="h-4 w-4" />
-            <p className="text-sm font-semibold uppercase tracking-[0.24em]">Vendor onboarding checklist</p>
-          </div>
-          <h3 className="mt-4 text-xl font-semibold text-white">Built for professional sellers</h3>
-          <ul className="mt-4 space-y-3 text-sm text-slate-300">
-            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Business details and secure bank verification</li>
-            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Identity and store verification for trust</li>
-            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Product and auction launch setup in one place</li>
-          </ul>
-          <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
-            <div className="flex items-center gap-2 text-white"><Sparkles className="h-4 w-4 text-emerald-300" /> Your storefront becomes more trustworthy as verification completes.</div>
+        <div className="relative overflow-hidden rounded-[28px] border border-emerald-400/20 bg-gradient-to-br from-emerald-600/20 via-slate-900/80 to-cyan-500/20 p-4 sm:p-8">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.2),_transparent_40%)]" />
+          <div className="absolute right-3 top-3 text-[110px] font-black leading-none text-white/10 sm:text-[160px]">B</div>
+          <div className="relative">
+            <div className="flex items-center gap-2 text-emerald-200">
+              <Briefcase className="h-4 w-4" />
+              <p className="text-sm font-semibold uppercase tracking-[0.24em]">Grow your business with Bidzo</p>
+            </div>
+            <p className="mt-2 text-sm text-slate-400">Powerful tools to sell, auction and grow your business.</p>
+
+            <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-400 shadow-lg shadow-emerald-500/20">
+                  <Briefcase className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-white">Seller Dashboard</p>
+                  <p className="text-sm text-slate-400">Everything to manage your store</p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {[
+                  { label: 'Products', value: '128' },
+                  { label: 'Live Auctions', value: '24' },
+                  { label: 'Orders', value: '86' },
+                  { label: 'Sales', value: '₹2.4L' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">{item.label}</p>
+                    <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {['✓ Verified Seller', '₹2.4L Sales', '24 Active Listings'].map((chip) => (
+                  <span key={chip} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1.5 text-[11px] font-medium text-slate-200">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-slate-300">
+              <div className="flex items-center gap-2 text-white"><Sparkles className="h-4 w-4 text-emerald-300" /> Your storefront becomes more trustworthy as verification completes.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -465,11 +638,16 @@ export function VendorRegisterPage() {
 
 export function OTPPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { pendingRole, clearPendingRole } = useAuth();
 
   const verify = () => {
-    if (user?.type === 'vendor') navigate('/registration-fee');
-    else navigate('/dashboards/customer');
+    if (pendingRole === 'vendor') {
+      clearPendingRole();
+      navigate('/kyc', { replace: true, state: { role: 'vendor' } });
+    } else {
+      clearPendingRole();
+      navigate('/login', { replace: true, state: { role: 'customer' } });
+    }
   };
 
   return (
@@ -556,10 +734,14 @@ export function KYCPage() {
   const [draggingField, setDraggingField] = useState<'aadhaar' | 'pan' | null>(null);
 
   const submitKyc = () => {
+    if (!aadhaarFile || !panFile) {
+      return;
+    }
+
     setIsSubmitting(true);
     window.setTimeout(() => {
       setIsSubmitting(false);
-      navigate('/registration-fee');
+      navigate('/login', { replace: true, state: { role: 'vendor' } });
     }, 1100);
   };
 
@@ -631,10 +813,10 @@ export function KYCPage() {
   };
 
   return (
-    <SectionShell title="KYC" subtitle="Identity verification">
+    <SectionShell title="Vendor verification" subtitle="Complete identity verification">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-emerald-300">
             <FileCheck2 className="h-4 w-4" /> Verified identity
           </div>
           <ProgressIndicator activeStep={2} />
@@ -643,7 +825,7 @@ export function KYCPage() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-950/50">
               <Upload className="h-5 w-5 text-blue-200" />
             </div>
-            <p className="mt-3 font-semibold text-white">Upload Aadhaar and PAN for secure verification</p>
+            <p className="mt-3 font-semibold text-white">Upload Aadhaar and PAN for secure vendor verification</p>
             <p className="mt-1 text-slate-300">PNG, JPG, PDF up to 10MB</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-slate-400">
               <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1">Aadhaar</span>
@@ -656,11 +838,12 @@ export function KYCPage() {
             {renderUploadCard({ title: 'PAN card', description: 'Required for tax and compliance review', field: 'pan', file: panFile, accent: 'emerald' })}
           </div>
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
-            <div className="flex items-center gap-2 text-white"><CircleAlert className="h-4 w-4 text-amber-300" /> Make sure the document name, number, and photo are clearly visible.</div>
+            <div className="flex items-center gap-2 text-white"><CircleAlert className="h-4 w-4 text-amber-300" /> Aadhaar and PAN are mandatory for vendor approval. Upload both to continue.</div>
           </div>
-          <button onClick={submitKyc} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
+          <button onClick={submitKyc} disabled={!aadhaarFile || !panFile || isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
             {isSubmitting ? 'Submitting verification…' : 'Submit KYC'} <ArrowRight className="h-4 w-4" />
           </button>
+          {!aadhaarFile || !panFile ? <p className="mt-3 text-sm text-amber-300">Please upload both Aadhaar and PAN to continue.</p> : null}
         </div>
         <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
           <h3 className="text-xl font-semibold text-white">Verification checklist</h3>
@@ -680,6 +863,7 @@ export function KYCPage() {
 
 export function RegistrationFeePage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [flowState, setFlowState] = useState(() => readAuctionFlowState());
   const [isJoiningLive, setIsJoiningLive] = useState(false);
 
@@ -759,7 +943,11 @@ export function RegistrationFeePage() {
                   markAuctionAsRegistered(flowState.auctionId);
                   const nextState = markRegistrationPaid();
                   setFlowState(nextState);
-                  navigate('/customer/auction-live', { replace: true });
+                  if (user?.type === 'vendor') {
+                    navigate('/login', { replace: true, state: { role: 'vendor' } });
+                  } else {
+                    navigate('/customer/auction-live', { replace: true });
+                  }
                 }, 3000);
               }}
               className="flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"

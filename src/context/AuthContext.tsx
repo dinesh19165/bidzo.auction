@@ -6,10 +6,12 @@ export type UserType = 'customer' | 'vendor' | 'admin';
 
 type AuthContextType = {
   user: User | null;
-  login: (identifier: string, password?: string) => Promise<User>;
+  pendingRole: UserType | null;
+  login: (identifier: string, password?: string, selectedRole?: UserType) => Promise<User>;
   logout: () => void;
-  registerCustomer: (data: any) => Promise<User>;
-  registerVendor: (data: any) => Promise<User>;
+  registerCustomer: (data: any, selectedRole?: UserType) => Promise<User>;
+  registerVendor: (data: any, selectedRole?: UserType) => Promise<User>;
+  clearPendingRole: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,11 +24,18 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [pendingRole, setPendingRole] = useState<UserType | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const raw = localStorage.getItem('bidzo_user');
-    if (raw) setUser(JSON.parse(raw));
+    if (raw) {
+      try {
+        setUser(JSON.parse(raw));
+      } catch {
+        localStorage.removeItem('bidzo_user');
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -43,11 +52,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     vendorVerified: overrides.vendorVerified || false,
   });
 
-  const login = async (identifier: string) => {
-    // Mock login: accept any identifier, set as customer unless contains 'vendor'
-    const isVendor = identifier.toLowerCase().includes('vendor');
-    const u = fakeUser({ name: identifier.split('@')[0] || 'User', email: identifier.includes('@') ? identifier : `${identifier}@example.com`, type: isVendor ? 'vendor' : 'customer', vendorVerified: isVendor ? true : false });
+  const clearPendingRole = () => {
+    setPendingRole(null);
+  };
+
+  const login = async (identifier: string, password?: string, selectedRole?: UserType) => {
+    const resolvedType = selectedRole === 'vendor' ? 'vendor' : selectedRole === 'admin' ? 'admin' : identifier.toLowerCase().includes('vendor') ? 'vendor' : 'customer';
+    const u = fakeUser({
+      name: identifier.split('@')[0] || 'User',
+      email: identifier.includes('@') ? identifier : `${identifier}@example.com`,
+      type: resolvedType,
+      vendorVerified: resolvedType === 'vendor',
+    });
     setUser(u);
+    setPendingRole(null);
     return u;
   };
 
@@ -56,20 +74,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/');
   };
 
-  const registerCustomer = async (data: any) => {
-    const u = fakeUser({ name: data.name || data.email, email: data.email, type: 'customer' });
-    setUser(u);
+  const registerCustomer = async (data: any, selectedRole: UserType = 'customer') => {
+    setPendingRole(selectedRole === 'vendor' ? 'vendor' : 'customer');
+    const u = fakeUser({
+      name: data.name || data.email,
+      email: data.email,
+      type: selectedRole === 'vendor' ? 'vendor' : 'customer',
+    });
+    setUser(null);
     return u;
   };
 
-  const registerVendor = async (data: any) => {
-    const u = fakeUser({ name: data.businessName || data.ownerName || data.email, email: data.email, type: 'vendor', vendorVerified: false });
-    setUser(u);
+  const registerVendor = async (data: any, selectedRole: UserType = 'vendor') => {
+    setPendingRole(selectedRole === 'vendor' ? 'vendor' : 'customer');
+    const u = fakeUser({
+      name: data.businessName || data.ownerName || data.email,
+      email: data.email,
+      type: selectedRole === 'vendor' ? 'vendor' : 'customer',
+      vendorVerified: false,
+    });
+    setUser(null);
     return u;
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, registerCustomer, registerVendor }}>
+    <AuthContext.Provider value={{ user, pendingRole, login, logout, registerCustomer, registerVendor, clearPendingRole }}>
       {children}
     </AuthContext.Provider>
   );

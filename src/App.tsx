@@ -1,7 +1,7 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Layout } from './components/Layout';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth, type UserType } from './context/AuthContext';
 import { UserProvider, CartProvider, WalletProvider, NotificationProvider, ThemeProvider } from './context';
 import { HomePage } from './pages/HomePage';
 import { AboutPage } from './pages/AboutPage';
@@ -63,6 +63,41 @@ import { OrganizationHierarchyPage, FranchiseManagementPage, LocationManagementP
 import { SuperAdminDashboardPage, FranchiseDashboardAdminPage, RolePermissionMatrixPage, ApprovalCenterPage, SystemSettingsPage, CMSPage, ReportsPage } from './pages/extra/EnterpriseAdminPages';
 import { CustomerProfilePage, CustomerOrdersPage, CustomerAuctionsPage, CustomerBidsPage, CustomerWonAuctionsPage, CustomerRecentlyViewedPage, CustomerWatchlistPage, CustomerSavedSearchesPage, CustomerTransactionsPage, CustomerAddressesPage, CustomerMessagesPage, CustomerReviewsPage, CustomerSupportPage, CustomerInvoicesPage, CustomerSettingsPage, VendorBusinessInfoPage, VendorGstPage, VendorBankPage, VendorIdentityPage, VendorStoreVerificationPage, VendorStoreProfilePage, VendorStoreSettingsPage, VendorSubscriptionPage, VendorWalletPage, VendorWithdrawPage, VendorSalesAnalyticsPage, VendorOrdersPage, VendorCustomersPage, VendorInventoryPage, VendorProductsPage, VendorProductVariantsPage, VendorCreateProductPage, VendorEditProductPage, VendorDeleteProductPage, VendorCreateAuctionPage, VendorEditAuctionPage, VendorAuctionAnalyticsPage, VendorMessagesPage, VendorNotificationsPage, VendorReviewsPage, VendorSupportTicketsPage, VendorReportsPage } from './pages/extra/CustomerVendorExtras';
 
+function AppRouteGuard({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const { user } = useAuth();
+  const pathname = location.pathname;
+  const isCustomerRoute = pathname === '/dashboards/customer' || pathname.startsWith('/customer');
+  const isVendorRoute = pathname === '/dashboards/vendor' || pathname.startsWith('/vendor');
+  const isAuthEntryRoute = ['/login', '/register', '/register/customer', '/register/vendor', '/onboarding'].includes(pathname);
+
+  if (isAuthEntryRoute && user) {
+    return <Navigate to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} replace />;
+  }
+
+  if (isCustomerRoute) {
+    if (!user) {
+      return <Navigate to="/login" replace />;
+    }
+
+    if (user.type !== 'customer') {
+      return <Navigate to={user.type === 'vendor' ? '/dashboards/vendor' : '/login'} replace />;
+    }
+  }
+
+  if (isVendorRoute) {
+    if (!user) {
+      return <Navigate to="/login" replace />;
+    }
+
+    if (user.type !== 'vendor') {
+      return <Navigate to={user.type === 'customer' ? '/dashboards/customer' : '/login'} replace />;
+    }
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -73,6 +108,7 @@ function App() {
             <ThemeProvider>
               <Layout>
                 <AnimatePresence mode="wait">
+                  <AppRouteGuard>
                   <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
@@ -224,6 +260,7 @@ function App() {
             <Route path="/coming-soon" element={<ComingSoonPage />} />
             <Route path="/*" element={<NotFoundPage />} />
                   </Routes>
+                  </AppRouteGuard>
                 </AnimatePresence>
               </Layout>
             </ThemeProvider>

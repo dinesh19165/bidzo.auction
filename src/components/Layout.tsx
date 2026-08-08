@@ -239,10 +239,10 @@ function AuthActions() {
         </div>
       )}
 
-      <Link to="/admin/super-dashboard" className="rounded-full border border-blue-400/30 bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-600/20">ERP Admin</Link>
+      {/* <Link to="/admin/super-dashboard" className="rounded-full border border-blue-400/30 bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-600/20">ERP Admin</Link>
       <Link to="/customer/checkout" className="inline-flex items-center justify-center rounded-full bg-blue-600 p-2 text-white transition hover:bg-blue-500">
         <ShoppingBag className="h-4 w-4" />
-      </Link>
+      </Link> */}
     </div>
   );
 }
