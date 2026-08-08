@@ -2,7 +2,7 @@ package com.bidzo.service.impl;
 
 import com.bidzo.dto.report.*;
 import com.bidzo.repository.ActivityLogRepository;
-import com.bidzo.repository.AuditLogRepository;
+import com.bidzo.audit.AuditLogRepository;
 import com.bidzo.service.ReportService;
 import java.util.List;
 import org.springframework.stereotype.Service;

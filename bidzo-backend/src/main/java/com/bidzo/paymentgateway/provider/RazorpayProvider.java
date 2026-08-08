@@ -1,5 +1,6 @@
 package com.bidzo.paymentgateway.provider;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import com.bidzo.paymentgateway.dto.PaymentRequest;
 import com.bidzo.paymentgateway.dto.PaymentResponse;
@@ -9,6 +10,7 @@ import com.bidzo.paymentgateway.dto.RefundRequest;
 import com.bidzo.paymentgateway.dto.RefundResponse;
 import com.bidzo.paymentgateway.config.PaymentGatewayProperties;
 
+@Primary
 @Component
 public class RazorpayProvider implements PaymentProvider {
 

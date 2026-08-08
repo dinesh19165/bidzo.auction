@@ -599,46 +599,39 @@ export function CustomerWalletPaymentPage() {
 export function CustomerAuctionLivePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [flowState, setFlowState] = useState<AuctionFlowState>(() => readAuctionFlowState());
-  const [bidAmount, setBidAmount] = useState(String(readAuctionFlowState().highestBid + 5000));
+  const initialFlowState = readAuctionFlowState();
+  const [flowState, setFlowState] = useState<AuctionFlowState>(initialFlowState);
+  const [bidAmount, setBidAmount] = useState(String(initialFlowState.highestBid + 5000));
   const [highlightedBidId, setHighlightedBidId] = useState<string | null>(null);
   const [highestBidHighlight, setHighestBidHighlight] = useState(false);
   const previousBidsRef = useRef(flowState.bids);
 
   useAuctionFlowBackGuard(true);
 
-  if (flowState.auctionStage === 'BID_CONFIRMATION') {
-    return <Navigate to="/customer/bid-confirmation" replace />;
-  }
-
   const auctionStage = flowState.auctionStage;
   const shouldSendToWatchAuction = auctionStage !== 'REGISTRATION_PAYMENT' && auctionStage !== 'LIVE_AUCTION' && auctionStage !== 'AUCTION_ENDED' && auctionStage !== 'WINNER' && auctionStage !== 'OUTBID' && auctionStage !== 'FINAL_PAYMENT' && auctionStage !== 'ORDER_SUCCESS' && auctionStage !== 'INVOICE';
+  const isBidConfirmation = auctionStage === 'BID_CONFIRMATION';
+  const isRegistrationPayment = auctionStage === 'REGISTRATION_PAYMENT';
+  const isWinnerStage = auctionStage === 'WINNER';
+  const isOutbidStage = auctionStage === 'OUTBID';
 
   useEffect(() => {
-    if (flowState.auctionStage === 'REGISTRATION_PAYMENT') {
+    const currentStage = flowState.auctionStage;
+
+    if (currentStage === 'REGISTRATION_PAYMENT' || currentStage === 'REGISTRATION_FEE') {
       const timer = window.setTimeout(() => {
         setFlowState(enterLiveAuctionRoom());
-      }, 2400);
+      }, 1800);
       return () => window.clearTimeout(timer);
     }
 
-    if (flowState.auctionStage === 'LIVE_AUCTION' || flowState.auctionStage === 'AUCTION_ENDED' || flowState.auctionStage === 'WINNER' || flowState.auctionStage === 'OUTBID' || flowState.auctionStage === 'BID_CONFIRMATION' || flowState.auctionStage === 'FINAL_PAYMENT' || flowState.auctionStage === 'ORDER_SUCCESS' || flowState.auctionStage === 'INVOICE') {
+    if (currentStage === 'LIVE_AUCTION' || currentStage === 'AUCTION_ENDED' || currentStage === 'WINNER' || currentStage === 'OUTBID' || currentStage === 'BID_CONFIRMATION' || currentStage === 'FINAL_PAYMENT' || currentStage === 'ORDER_SUCCESS' || currentStage === 'INVOICE') {
       return;
     }
 
     const nextState = enterLiveAuctionRoom();
     setFlowState(nextState);
   }, [flowState.auctionStage]);
-
-  if (flowState.auctionStage === 'REGISTRATION_PAYMENT') {
-    return (
-      <FlowTransitionScreen
-        heading="Joining Live Auction..."
-        message="Auction Starting..."
-        detail="Preparing the live room for your bid."
-      />
-    );
-  }
 
   useEffect(() => {
     if (flowState.auctionStage !== 'LIVE_AUCTION') return;
@@ -696,6 +689,20 @@ export function CustomerAuctionLivePage() {
     previousBidsRef.current = flowState.bids;
   }, [flowState.bids]);
 
+  if (isBidConfirmation) {
+    return <Navigate to="/customer/bid-confirmation" replace />;
+  }
+
+  if (isRegistrationPayment) {
+    return (
+      <FlowTransitionScreen
+        heading="Joining Live Auction..."
+        message="Auction Starting..."
+        detail="Preparing the live room for your bid."
+      />
+    );
+  }
+
   const isAuctionClosed = auctionStage !== 'LIVE_AUCTION' || flowState.secondsLeft <= 0;
 
   if (shouldSendToWatchAuction) {
@@ -715,7 +722,7 @@ export function CustomerAuctionLivePage() {
     setFlowState(nextState);
   };
 
-  if (flowState.auctionStage === 'WINNER') {
+  if (isWinnerStage) {
     return (
       <SectionShell title="Auction winner" subtitle="Congratulations — your bid secured the auction item">
         <FlowBreadcrumbs steps={[{ label: 'Live', to: '/customer/auction-live' }, { label: 'Winner', to: '/customer/winner' }, { label: 'Checkout', to: '/customer/checkout' }]} />
@@ -738,7 +745,7 @@ export function CustomerAuctionLivePage() {
     );
   }
 
-  if (flowState.auctionStage === 'OUTBID') {
+  if (isOutbidStage) {
     const recommendedLiveAuctions = [
       { title: 'Luxury Sports Watch', currentBid: '₹3,10,000', endsIn: '05m 12s' },
       { title: 'Vintage Chronograph Timepiece', currentBid: '₹2,72,000', endsIn: '02m 18s' },

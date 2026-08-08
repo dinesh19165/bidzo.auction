@@ -1,5 +1,7 @@
 package com.bidzo.push.service;
 
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 import com.bidzo.push.provider.PushProvider;
 import com.bidzo.push.config.PushProperties;
@@ -9,19 +11,36 @@ import com.bidzo.push.dto.DeviceTokenRequest;
 import com.bidzo.push.dto.DeviceTokenResponse;
 import com.bidzo.push.dto.TopicRequest;
 import com.bidzo.push.dto.TopicResponse;
-import com.bidzo.push.util.NotificationBuilder;
 
 @Service
 public class PushNotificationServiceImpl implements PushNotificationService {
 
     private final PushProvider provider;
     private final PushProperties properties;
-    private final NotificationBuilder builder;
 
-    public PushNotificationServiceImpl(PushProvider provider, PushProperties properties, NotificationBuilder builder) {
-        this.provider = provider;
+    public PushNotificationServiceImpl(Map<String, PushProvider> providers, PushProperties properties) {
         this.properties = properties;
-        this.builder = builder;
+
+        String configured = properties != null ? properties.getProvider() : null;
+        PushProvider selected = null;
+        if (configured != null) {
+            String beanName = configured + "PushProvider"; // e.g. "firebase" -> "firebasePushProvider"
+            selected = providers.get(beanName);
+        }
+
+        if (selected == null) {
+            selected = providers.get("firebasePushProvider");
+        }
+
+        if (selected == null) {
+            selected = providers.values().stream().findFirst().orElse(null);
+        }
+
+        if (selected == null) {
+            throw new IllegalStateException("No PushProvider beans available");
+        }
+
+        this.provider = selected;
     }
 
     @Override

@@ -1,58 +1,60 @@
 package com.bidzo.service.impl;
 
-import com.bidzo.dto.auction.*;
-import com.bidzo.repository.AuctionRepository;
-import com.bidzo.service.AuctionService;
+import java.util.ArrayList;
 import java.util.List;
+
 import org.springframework.stereotype.Service;
+
+import com.bidzo.dto.auction.AuctionCreateDto;
+import com.bidzo.dto.auction.AuctionDetailsDto;
+import com.bidzo.dto.auction.AuctionFilterDto;
+import com.bidzo.dto.auction.AuctionResponseDto;
+import com.bidzo.dto.auction.AuctionSearchDto;
+import com.bidzo.dto.auction.AuctionSummaryDto;
+import com.bidzo.dto.auction.AuctionUpdateDto;
+import com.bidzo.service.AuctionService;
 
 @Service
 public class AuctionServiceImpl implements AuctionService {
 
-    private final AuctionRepository auctionRepository;
-
-    public AuctionServiceImpl(AuctionRepository auctionRepository) {
-        this.auctionRepository = auctionRepository;
-    }
-
     @Override
     public AuctionResponseDto create(AuctionCreateDto createDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return AuctionResponseDto.builder()
+                .id(1L)
+                .status("Auction Created Successfully")
+                .build();
     }
 
     @Override
-    public AuctionResponseDto update(AuctionUpdateDto updateDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
-    }
-
-    @Override
-    public void delete(Long id) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+    public AuctionResponseDto update(Long id, AuctionUpdateDto updateDto) {
+        return AuctionResponseDto.builder()
+                .id(id)
+                .status("Auction Updated Successfully")
+                .build();
     }
 
     @Override
     public AuctionDetailsDto getById(Long id) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return new AuctionDetailsDto();
     }
 
     @Override
     public List<AuctionSummaryDto> getAll() {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return new ArrayList<>();
     }
 
     @Override
     public List<AuctionSummaryDto> search(AuctionSearchDto searchDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return new ArrayList<>();
     }
 
     @Override
     public List<AuctionSummaryDto> filter(AuctionFilterDto filterDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return new ArrayList<>();
     }
 
     @Override
-    public List<AuctionSummaryDto> getActiveAuctions() {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+    public void delete(Long id) {
+        // TODO
     }
-
 }

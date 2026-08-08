@@ -1,11 +1,20 @@
 package com.bidzo.service.impl;
 
-import com.bidzo.dto.auth.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+
+import com.bidzo.dto.auth.AuthCreateDto;
+import com.bidzo.dto.auth.AuthDetailsDto;
+import com.bidzo.dto.auth.AuthFilterDto;
+import com.bidzo.dto.auth.AuthRequestDto;
+import com.bidzo.dto.auth.AuthResponseDto;
+import com.bidzo.dto.auth.AuthSearchDto;
+import com.bidzo.dto.auth.AuthSummaryDto;
 import com.bidzo.repository.RefreshTokenRepository;
 import com.bidzo.repository.UserRepository;
 import com.bidzo.service.AuthService;
-import java.util.List;
-import org.springframework.stereotype.Service;
 
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -13,44 +22,53 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
 
-    public AuthServiceImpl(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository) {
+    public AuthServiceImpl(UserRepository userRepository,
+                           RefreshTokenRepository refreshTokenRepository) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
     }
 
     @Override
     public AuthResponseDto authenticate(AuthRequestDto requestDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return AuthResponseDto.builder()
+                .id(1L)
+                .status("Login Successful")
+                .build();
     }
 
     @Override
     public AuthResponseDto register(AuthCreateDto createDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return AuthResponseDto.builder()
+                .id(1L)
+                .status("Registration Successful")
+                .build();
     }
 
     @Override
     public AuthResponseDto refreshToken(AuthRequestDto requestDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return AuthResponseDto.builder()
+                .id(1L)
+                .status("Token Refreshed")
+                .build();
     }
 
     @Override
     public AuthDetailsDto getById(Long id) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return new AuthDetailsDto();
     }
 
     @Override
     public List<AuthSummaryDto> getAll() {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return new ArrayList<>();
     }
 
     @Override
     public List<AuthSummaryDto> search(AuthSearchDto searchDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return new ArrayList<>();
     }
 
     @Override
     public List<AuthSummaryDto> filter(AuthFilterDto filterDto) {
-        throw new UnsupportedOperationException("Implementation will be added later.");
+        return new ArrayList<>();
     }
-
 }

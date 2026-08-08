@@ -1,5 +1,7 @@
 package com.bidzo.storage.service;
 
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 import com.bidzo.storage.provider.StorageProvider;
 import com.bidzo.storage.config.StorageProperties;
@@ -13,8 +15,28 @@ public class StorageServiceImpl implements StorageService {
 
     private final StorageProvider provider;
 
-    public StorageServiceImpl(StorageProvider provider, StorageProperties properties) {
-        this.provider = provider;
+    public StorageServiceImpl(Map<String, StorageProvider> providers, StorageProperties properties) {
+        // choose provider based on configuration
+        String configured = properties != null ? properties.getProvider() : null;
+        StorageProvider selected = null;
+        if (configured != null) {
+            String beanName = configured + "StorageProvider"; // e.g. "local" -> "localStorageProvider"
+            selected = providers.get(beanName);
+        }
+
+        if (selected == null) {
+            selected = providers.get("localStorageProvider");
+        }
+
+        if (selected == null) {
+            selected = providers.values().stream().findFirst().orElse(null);
+        }
+
+        if (selected == null) {
+            throw new IllegalStateException("No StorageProvider beans available");
+        }
+
+        this.provider = selected;
         // TODO: use properties if provider selection is needed
     }
 

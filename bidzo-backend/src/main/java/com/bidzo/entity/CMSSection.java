@@ -17,7 +17,7 @@ public class CMSSection extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "key", length = 128, nullable = false, unique = true)
+    @Column(name = "section_key", length = 128, nullable = false, unique = true)
     private String key;
 
     @Column(name = "title", length = 256)

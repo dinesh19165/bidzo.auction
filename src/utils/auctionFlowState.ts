@@ -153,15 +153,21 @@ export function readAuctionFlowState(): AuctionFlowState {
     }
 
     const parsed = JSON.parse(raw) as Partial<AuctionFlowState>;
+    const normalizedStage = parsed.auctionStage ?? 'LISTING';
+
     return {
       ...defaultState,
       ...parsed,
       auctionId: parsed.auctionId ?? selectedAuctionId ?? defaultState.auctionId,
-      bids: parsed.bids || defaultState.bids,
+      bids: Array.isArray(parsed.bids) && parsed.bids.length > 0 ? parsed.bids : defaultState.bids,
       auctionEndTime: parsed.auctionEndTime || defaultState.auctionEndTime,
+      auctionStage: normalizedStage as AuctionFlowStage,
     };
   } catch {
-    return { ...defaultState };
+    return {
+      ...defaultState,
+      auctionId: getSelectedAuctionId() ?? defaultState.auctionId,
+    };
   }
 }
 

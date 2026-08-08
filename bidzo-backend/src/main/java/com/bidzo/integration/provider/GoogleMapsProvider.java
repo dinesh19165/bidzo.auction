@@ -1,9 +1,11 @@
 package com.bidzo.integration.provider;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import com.bidzo.integration.dto.IntegrationRequest;
 import com.bidzo.integration.dto.IntegrationResponse;
 
+@Primary
 @Component
 public class GoogleMapsProvider implements IntegrationProvider {
 

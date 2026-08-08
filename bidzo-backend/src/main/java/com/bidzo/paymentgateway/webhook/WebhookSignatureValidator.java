@@ -1,7 +1,9 @@
 package com.bidzo.paymentgateway.webhook;
 
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
+@Component
 public class WebhookSignatureValidator {
 
     public WebhookSignatureValidator() {}

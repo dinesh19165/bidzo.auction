@@ -5,15 +5,19 @@ import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointR
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.annotation.Order;
 
 @Configuration
 public class ActuatorConfig {
 
-    // Placeholder security configuration for actuator endpoints if needed
+    // SecurityFilterChain that only applies to actuator endpoints.
     @Bean
+    @Order(1)
     public SecurityFilterChain actuatorSecurity(HttpSecurity http) throws Exception {
-        // TODO: configure actuator endpoint security; return http.build() as placeholder
-        http.authorizeHttpRequests().requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll();
-        return http.csrf().disable().build();
+        http.securityMatcher(EndpointRequest.toAnyEndpoint())
+            .csrf(csrf -> csrf.disable())
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+
+        return http.build();
     }
 }
