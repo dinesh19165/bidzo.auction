@@ -229,9 +229,9 @@ export function MarketplacePage() {
             </div>
           ) : null}
 
-          <div className={`${grid ? 'grid grid-cols-1 gap-4 justify-items-center sm:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}`}>
+          <div className={`${grid ? 'grid grid-cols-1 gap-4 justify-items-center md:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}`}>
             {pageItems.map((product) => (
-              <div key={product.id} className={`${grid ? 'w-full max-w-[340px]' : 'rounded-[24px] border border-white/10 bg-slate-900/70 p-4'}`}>
+              <div key={product.id} className={`${grid ? 'w-full max-w-full sm:max-w-[340px] min-w-0' : 'rounded-[24px] border border-white/10 bg-slate-900/70 p-4 min-w-0'}`}>
                 <ProductCard
                   id={product.id}
                   title={product.title}

@@ -150,8 +150,8 @@ export const ProductCard = memo(function ProductCard({
       className="group relative w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition-all duration-250 hover:border-blue-400/40"
     >
       <div className="relative overflow-hidden">
-        <div className="thumbnail-wrapper" style={{ width: 280, height: 180, maxWidth: '100%', overflow: 'hidden', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-          <img src={image} alt={title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="transition-all duration-300 group-hover:scale-[1.06]" />
+        <div className="h-44 w-full overflow-hidden rounded-t-[28px] sm:h-52">
+          <img src={image} alt={title} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-300 group-hover:scale-[1.06]" />
         </div>
         <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3">
           {badge ? (
@@ -191,13 +191,13 @@ export const ProductCard = memo(function ProductCard({
           <span>{condition}</span>
         </div>
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <p className="text-sm text-slate-400 line-clamp-2">{description}</p>
+          <h3 className="text-lg font-semibold text-white break-words">{title}</h3>
+          <p className="text-sm text-slate-400 line-clamp-2 break-words">{description}</p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
               <p className="text-2xl font-semibold text-white">{priceValue}</p>
               {oldPrice ? <p className="text-sm text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
             </div>

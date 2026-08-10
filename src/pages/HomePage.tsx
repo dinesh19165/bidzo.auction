@@ -259,19 +259,19 @@ export function HomePage() {
           </div>
           <Link to="/auctions" className="text-sm font-medium text-slate-300 transition hover:text-white">Browse all live auctions</Link>
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hidden">
+        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hidden snap-x snap-mandatory">
           {trendingAuctions.map((item) => (
-            <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`min-w-[320px] rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] ${item.status === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : item.status === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{item.status}</span>
-                <span className={`text-xs uppercase tracking-[0.18em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.endsIn}</span>
+            <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`snap-start flex-shrink-0 w-full max-w-full sm:min-w-[320px] sm:max-w-[320px] rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] whitespace-nowrap ${item.status === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : item.status === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{item.status}</span>
+                <span className={`text-xs uppercase tracking-[0.18em] whitespace-nowrap ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.endsIn}</span>
               </div>
               <div className={`mb-4 h-44 overflow-hidden rounded-[20px] ${theme === 'dark' ? 'bg-slate-950/50' : 'bg-[var(--surface-muted)]'}`}>
                 <img src={item.image} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
               </div>
-              <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
-              <p className={`mt-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.currentBid)}</span></p>
-              <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
+              <h3 className={`text-lg font-semibold break-words ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
+              <p className={`mt-3 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.currentBid)}</span></p>
+              <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
             </Link>
           ))}
         </div>
