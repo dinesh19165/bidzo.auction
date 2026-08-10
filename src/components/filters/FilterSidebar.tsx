@@ -1,6 +1,7 @@
 import { Input, Select, Checkbox } from '../forms/FormComponents';
 import { Monitor, Search, User, Star, ShieldCheck, Gavel, ShoppingBag, Tag, Funnel, RefreshCw, Check } from 'lucide-react';
 import { categories } from '../../data/mockData';
+import { useLocaleContext } from '../../context/LocaleContext';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -131,26 +132,28 @@ export default function FilterSidebar({
       </div>
     );
   }
+  const { translate, currencySymbol } = useLocaleContext();
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-white">
           <Funnel className="h-4 w-4 text-blue-300" />
-          <h3 className="text-lg font-semibold">Filters</h3>
+          <h3 className="text-lg font-semibold">{translate('filters')}</h3>
         </div>
-        <button type="button" onClick={resetFilters} className="text-sm text-slate-400 transition hover:text-white">Reset</button>
+        <button type="button" onClick={resetFilters} className="text-sm text-slate-400 transition hover:text-white">{translate('reset')}</button>
       </div>
 
       <div className="mt-2 space-y-3">
-        <Input ariaLabel="Search products" icon={<Search className="h-4 w-4 text-slate-400" />} placeholder="Search products, auctions, sellers..." value={query} onChange={(e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)} />
-            <Dropdown label="Category" options={[{ label: 'All', value: '' }, ...categories.slice(0, 12).map((c: string) => ({ label: c, value: c }))]} value={category} onChange={(v) => { setCategory(v); }} icon={<Monitor className="h-4 w-4 text-slate-400" />} />
+        <Input ariaLabel="Search products" icon={<Search className="h-4 w-4 text-slate-400" />} placeholder={translate('searchPlaceholder')} value={query} onChange={(e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)} />
+            <Dropdown label={translate('category')} options={[{ label: translate('allCategories'), value: '' }, ...categories.slice(0, 12).map((c: string) => ({ label: c, value: c }))]} value={category} onChange={(v) => { setCategory(v); }} icon={<Monitor className="h-4 w-4 text-slate-400" />} />
 
         <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
-          <Input ariaLabel="Minimum price" placeholder="Min price" value={minPrice} onChange={(e: ChangeEvent<HTMLInputElement>) => setMinPrice(e.target.value)} icon={<span className="text-slate-400">₹</span>} />
-          <Input ariaLabel="Maximum price" placeholder="Max price" value={maxPrice} onChange={(e: ChangeEvent<HTMLInputElement>) => setMaxPrice(e.target.value)} icon={<span className="text-slate-400">₹</span>} />
+          <Input ariaLabel="Minimum price" placeholder={translate('minPrice')} value={minPrice} onChange={(e: ChangeEvent<HTMLInputElement>) => setMinPrice(e.target.value)} icon={<span className="text-slate-400">{currencySymbol}</span>} />
+          <Input ariaLabel="Maximum price" placeholder={translate('maxPrice')} value={maxPrice} onChange={(e: ChangeEvent<HTMLInputElement>) => setMaxPrice(e.target.value)} icon={<span className="text-slate-400">{currencySymbol}</span>} />
         </div>
 
-        <Input ariaLabel="Seller name" icon={<User className="h-4 w-4 text-slate-400" />} placeholder="Seller" value={seller} onChange={(e: ChangeEvent<HTMLInputElement>) => setSeller(e.target.value)} />
+        <Input ariaLabel="Seller name" icon={<User className="h-4 w-4 text-slate-400" />} placeholder={translate('seller')} value={seller} onChange={(e: ChangeEvent<HTMLInputElement>) => setSeller(e.target.value)} />
 
             <Dropdown label="Rating" options={[{ label: 'Any', value: '' }, { label: '4+', value: '4' }, { label: '4.5+', value: '4.5' }, { label: '4.8+', value: '4.8' }]} value={rating} onChange={(v) => setRating(v)} icon={<Star className="h-4 w-4 text-amber-300" />} />
 
@@ -162,7 +165,7 @@ export default function FilterSidebar({
             label={
               <div className="flex items-center gap-[14px]">
                 <ShieldCheck className="h-5 w-5 text-emerald-300" />
-                <span className="text-[16px] font-medium text-white">Verified sellers only</span>
+                <span className="text-[16px] font-medium text-white">{translate('verifiedSellersOnly')}</span>
               </div>
             }
           />
@@ -174,7 +177,7 @@ export default function FilterSidebar({
             label={
               <div className="flex items-center gap-[14px]">
                 <Gavel className="h-5 w-5 text-violet-400" />
-                <span className="text-[16px] font-medium text-white">Auctions only</span>
+                <span className="text-[16px] font-medium text-white">{translate('auctionsOnly')}</span>
               </div>
             }
           />
@@ -186,24 +189,24 @@ export default function FilterSidebar({
             label={
               <div className="flex items-center gap-[14px]">
                 <ShoppingBag className="h-5 w-5 text-blue-300" />
-                <span className="text-[16px] font-medium text-white">Buy now only</span>
+                <span className="text-[16px] font-medium text-white">{translate('buyNowOnly')}</span>
               </div>
             }
           />
         </div>
 
-            <Dropdown label="Condition" options={[{ label: 'Any', value: '' }, { label: 'New Listing', value: 'New Listing' }, { label: 'Like New', value: 'Like New' }, { label: 'Excellent', value: 'Excellent' }, { label: 'Certified', value: 'Certified' }]} value={condition} onChange={(v) => setCondition(v)} icon={<Tag className="h-4 w-4 text-slate-400" />} />
+            <Dropdown label="Condition" options={[{ label: translate('any'), value: '' }, { label: 'New Listing', value: 'New Listing' }, { label: 'Like New', value: 'Like New' }, { label: 'Excellent', value: 'Excellent' }, { label: 'Certified', value: 'Certified' }]} value={condition} onChange={(v) => setCondition(v)} icon={<Tag className="h-4 w-4 text-slate-400" />} />
 
-        <Input ariaLabel="Location" icon={<span className="h-4 w-4 text-slate-400">📍</span>} placeholder="Location" value={location} onChange={(e: ChangeEvent<HTMLInputElement>) => setLocation(e.target.value)} />
+        <Input ariaLabel="Location" icon={<span className="h-4 w-4 text-slate-400">📍</span>} placeholder={translate('location')} value={location} onChange={(e: ChangeEvent<HTMLInputElement>) => setLocation(e.target.value)} />
 
-            <Dropdown label="Sort by" options={[{ label: '⇅ Relevance', value: 'relevance' }, { label: '🕒 Newest', value: 'newest' }, { label: '💰 Price Low to High', value: 'price_asc' }, { label: '💎 Premium', value: 'rating' }]} value={sort} onChange={(v) => setSort(v)} icon={<Funnel className="h-4 w-4 text-slate-400" />} />
+            <Dropdown label={translate('sortBy')} options={[{ label: '⇅ Relevance', value: 'relevance' }, { label: '🕒 Newest', value: 'newest' }, { label: '💰 Price Low to High', value: 'price_asc' }, { label: '💎 Premium', value: 'rating' }]} value={sort} onChange={(v) => setSort(v)} icon={<Funnel className="h-4 w-4 text-slate-400" />} />
 
         <div className="mt-2 flex items-center gap-3">
           <button onClick={resetFilters} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-500">
-            <Funnel className="h-4 w-4" /> Apply Filters
+            <Funnel className="h-4 w-4" /> {translate('applyFilters')}
           </button>
           <button onClick={resetFilters} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300 transition hover:bg-white/10">
-            <RefreshCw className="h-4 w-4" /> Reset All
+            <RefreshCw className="h-4 w-4" /> {translate('resetAll')}
           </button>
         </div>
       </div>

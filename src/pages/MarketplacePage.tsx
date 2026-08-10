@@ -1,11 +1,11 @@
 import { SectionShell } from '../components/SectionShell';
 import { categories, products } from '../data/mockData';
-import { Input, Select, Checkbox } from '../components/forms/FormComponents';
 import { Sidebar } from '../components/layout/LayoutComponents';
 import FilterSidebar from '../components/filters/FilterSidebar';
 import { ProductCard } from '../components/cards/MarketplaceCards';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, LayoutGrid, List, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LayoutGrid, List, Sparkles, X } from 'lucide-react';
+import { useLocaleContext } from '../context/LocaleContext';
 
 const categoryChips = [
   { label: 'Electronics', icon: '💻', value: 'Electronics' },
@@ -74,6 +74,8 @@ export function MarketplacePage() {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
+  const { translate, currencySymbol } = useLocaleContext();
+
   const resetFilters = () => {
     setCategory('');
     setMinPrice('');
@@ -106,13 +108,13 @@ export function MarketplacePage() {
       chips.push({ key: 'rating', label: `★ ${rating}+`, onRemove: () => setRating('') });
     }
     if (verifiedOnly) {
-      chips.push({ key: 'verified', label: 'Verified', onRemove: () => setVerifiedOnly(false) });
+      chips.push({ key: 'verified', label: translate('verifiedSellersOnly'), onRemove: () => setVerifiedOnly(false) });
     }
     if (auctionOnly) {
-      chips.push({ key: 'auction', label: 'Live Auctions', onRemove: () => setAuctionOnly(false) });
+      chips.push({ key: 'auction', label: translate('liveAuctions'), onRemove: () => setAuctionOnly(false) });
     }
     if (buyNowOnly) {
-      chips.push({ key: 'buyNow', label: 'Buy Now', onRemove: () => setBuyNowOnly(false) });
+      chips.push({ key: 'buyNow', label: translate('buyNow'), onRemove: () => setBuyNowOnly(false) });
     }
     if (condition) {
       chips.push({ key: 'condition', label: condition, onRemove: () => setCondition('') });
@@ -121,7 +123,7 @@ export function MarketplacePage() {
       chips.push({ key: 'location', label: location, onRemove: () => setLocation('') });
     }
     if (minPrice || maxPrice) {
-      const priceLabel = minPrice && maxPrice ? `₹${minPrice} - ₹${maxPrice}` : minPrice ? `Min ₹${minPrice}` : `Max ₹${maxPrice}`;
+      const priceLabel = minPrice && maxPrice ? `${translate('minPrice')} ${currencySymbol}${minPrice} - ${translate('maxPrice')} ${currencySymbol}${maxPrice}` : minPrice ? `${translate('minPrice')} ${currencySymbol}${minPrice}` : `${translate('maxPrice')} ${currencySymbol}${maxPrice}`;
       chips.push({ key: 'price', label: priceLabel, onRemove: () => { setMinPrice(''); setMaxPrice(''); } });
     }
 
@@ -171,21 +173,21 @@ export function MarketplacePage() {
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <p className="text-sm text-slate-400">{filtered.length} results</p>
+              <p className="text-sm text-slate-400">{filtered.length} {translate('results')}</p>
               <div className="h-6 w-px bg-white/5" />
-              <div className="text-sm text-slate-300">View</div>
+              <div className="text-sm text-slate-300">{translate('view')}</div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-sm text-slate-300">
-                <button type="button" onClick={() => setGrid(true)} className={`rounded-full p-2 transition ${grid ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`} aria-label="Grid view">
+                <button type="button" onClick={() => setGrid(true)} className={`rounded-full p-2 transition ${grid ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`} aria-label={translate('gridView')}>
                   <LayoutGrid className="h-4 w-4" />
                 </button>
-                <button type="button" onClick={() => setGrid(false)} className={`rounded-full p-2 transition ${!grid ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`} aria-label="List view">
+                <button type="button" onClick={() => setGrid(false)} className={`rounded-full p-2 transition ${!grid ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`} aria-label={translate('listView')}>
                   <List className="h-4 w-4" />
                 </button>
               </div>
             </div>
             <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
               <Sparkles className="mr-2 h-4 w-4 text-amber-300" />
-              Curated marketplace picks
+              {translate('curatedMarketplacePicks')}
             </div>
           </div>
 
@@ -255,7 +257,7 @@ export function MarketplacePage() {
             <div className="text-sm text-slate-400">Displaying {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} Listings</div>
             <div className="inline-flex items-center gap-2 text-sm text-slate-300">
               <button type="button" onClick={() => setPage(Math.max(1, page - 1))} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:bg-white/10 disabled:opacity-50" disabled={page === 1}>
-                <ArrowLeft className="h-4 w-4" /> Previous
+                <ArrowLeft className="h-4 w-4" /> {translate('previous')}
               </button>
               {visiblePages.map((pageNumber) => (
                 <button key={pageNumber} type="button" onClick={() => setPage(pageNumber)} className={`h-10 w-10 rounded-full border transition ${page === pageNumber ? 'border-blue-400/40 bg-blue-500/15 text-white' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>
@@ -263,7 +265,7 @@ export function MarketplacePage() {
                 </button>
               ))}
               <button type="button" onClick={() => setPage(Math.min(totalPages, page + 1))} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:bg-white/10 disabled:opacity-50" disabled={page === totalPages}>
-                Next <ArrowRight className="h-4 w-4" />
+                {translate('next')} <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>

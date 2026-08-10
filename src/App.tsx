@@ -2,7 +2,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Layout } from './components/Layout';
 import { AuthProvider, useAuth, type UserType } from './context/AuthContext';
-import { UserProvider, CartProvider, WalletProvider, NotificationProvider, ThemeProvider } from './context';
+import { UserProvider, CartProvider, WalletProvider, NotificationProvider, ThemeProvider, LocaleProvider } from './context';
 import { HomePage } from './pages/HomePage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
@@ -105,8 +105,9 @@ function App() {
       <CartProvider>
         <WalletProvider>
           <NotificationProvider>
-            <ThemeProvider>
-              <Layout>
+            <LocaleProvider>
+              <ThemeProvider>
+                <Layout>
                 <AnimatePresence mode="wait">
                   <AppRouteGuard>
                   <Routes>
@@ -262,8 +263,9 @@ function App() {
                   </Routes>
                   </AppRouteGuard>
                 </AnimatePresence>
-              </Layout>
-            </ThemeProvider>
+                </Layout>
+              </ThemeProvider>
+            </LocaleProvider>
           </NotificationProvider>
         </WalletProvider>
       </CartProvider>

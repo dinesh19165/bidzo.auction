@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useThemeContext } from '../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useLocaleContext } from '../context/LocaleContext';
 import { ArrowRight, CheckCircle2, Clock3, Globe, Heart, MapPin, Mic, Package, Search, ShieldCheck, Smartphone, Sparkles, Store, TrendingUp, Truck } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
@@ -109,14 +111,17 @@ export function HomePage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  const { theme } = useThemeContext();
+  const { translate, formatCurrency } = useLocaleContext();
+
   return (
     <>
-      <section className="relative overflow-hidden bg-slate-950 text-white">
+      <section className="relative overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_35%),radial-gradient(circle_at_20%_30%,_rgba(56,189,248,0.12),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(251,191,36,0.10),_transparent_20%)]" />
         <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
           <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <div className="space-y-8">
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10">
+              <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${theme === 'dark' ? 'bg-slate-900/70 text-slate-200 ring-1 ring-white/10' : 'bg-[var(--surface-muted)] text-[var(--text-primary)] ring-[var(--border-color)]'}`}>
                 <Sparkles className="h-4 w-4 text-amber-300" />
                 Trusted premium auctions and verified sellers
               </div>
@@ -132,19 +137,19 @@ export function HomePage() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
-                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.8)]">
-                  <div className="mb-4 text-sm font-medium uppercase tracking-[0.24em] text-slate-400">Search inventory</div>
+                <div className={`rounded-[28px] border p-5 transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.8)]' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_60px_-30px_rgba(15,23,42,0.08)]'}`}>
+                  <div className={`mb-4 text-sm font-medium uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Search inventory</div>
                   <div className="grid gap-3 sm:grid-cols-[1.5fr_0.8fr]">
-                    <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-slate-950/70 px-4 py-3">
-                      <Search className="h-5 w-5 text-slate-400" />
-                      <input type="search" placeholder="Search auctions, products, sellers" className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" />
+                    <div className={`flex items-center gap-3 rounded-3xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-[var(--border-color)] bg-[var(--surface-muted)]'}`}>
+                      <Search className={`h-5 w-5 ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`} />
+                      <input type="search" placeholder="Search auctions, products, sellers" className={`w-full bg-transparent text-sm ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]'} outline-none`} />
                     </div>
-                    <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-slate-950/70 px-4 py-3">
-                      <span className="text-sm text-slate-400">Category</span>
-                      <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} className="w-full rounded-lg bg-transparent text-sm text-white outline-none">
+                    <div className={`flex items-center gap-3 rounded-3xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-[var(--border-color)] bg-[var(--surface-muted)]'}`}>
+                      <span className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Category</span>
+                      <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} className={`w-full rounded-lg bg-transparent text-sm ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'} outline-none`}>
                         <option>All Categories</option>
                         {marketplaceCategories.slice(0, 6).map((item) => (
-                          <option key={item.title} className="bg-slate-900 text-white">{item.title}</option>
+                          <option key={item.title} className={theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-[var(--surface)] text-[var(--text-primary)]'}>{item.title}</option>
                         ))}
                       </select>
                     </div>
@@ -153,58 +158,58 @@ export function HomePage() {
 
                 <div className="grid gap-3">
                   <Link to="/auctions" className="inline-flex min-h-[56px] items-center justify-center rounded-3xl bg-gradient-to-r from-cyan-400 to-sky-500 px-6 text-sm font-semibold text-slate-950 transition hover:brightness-110">
-                    Start Bidding
+                    {translate('startBidding')}
                   </Link>
                   <Link to="/marketplace" className="inline-flex min-h-[56px] items-center justify-center rounded-3xl border border-white/10 bg-slate-900/80 px-6 text-sm font-semibold text-white transition hover:bg-slate-900">
-                    Explore Marketplace
+                    {translate('exploreMarketplace')}
                   </Link>
                 </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 text-center shadow-xl shadow-slate-950/20">
-                  <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Live auctions</p>
-                  <p className="mt-4 text-3xl font-semibold text-white">214</p>
-                  <p className="mt-2 text-sm text-slate-400">Active auctions right now</p>
+              <Link to="/auctions" className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'} hover:-translate-y-1 hover:shadow-[0_20px_60px_-20px_rgba(15,23,42,0.12)]`}>
+                <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Live auctions</p>
+                <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>214</p>
+                <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Active auctions right now</p>
+              </Link>
+                <div className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
+                  <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Registered buyers</p>
+                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>86k+</p>
+                  <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Premium buyers on Bidzo</p>
                 </div>
-                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 text-center shadow-xl shadow-slate-950/20">
-                  <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Registered buyers</p>
-                  <p className="mt-4 text-3xl font-semibold text-white">86k+</p>
-                  <p className="mt-2 text-sm text-slate-400">Premium buyers on Bidzo</p>
-                </div>
-                <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 text-center shadow-xl shadow-slate-950/20">
-                  <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Verified sellers</p>
-                  <p className="mt-4 text-3xl font-semibold text-white">1.4k</p>
-                  <p className="mt-2 text-sm text-slate-400">Curated seller network</p>
+                <div className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
+                  <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Verified sellers</p>
+                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>1.4k</p>
+                  <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Curated seller network</p>
                 </div>
               </div>
             </div>
 
             <div className="grid gap-5">
-              <div className="rounded-[32px] border border-white/10 bg-slate-900/80 p-6 shadow-[0_40px_120px_-70px_rgba(15,23,42,0.8)]">
+              <div className={`rounded-[32px] border p-6 shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-[0_40px_120px_-70px_rgba(15,23,42,0.8)]' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Auction spotlight</p>
-                    <h2 className="mt-3 text-3xl font-semibold text-white">Rolex Oyster Reserve</h2>
+                    <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Auction spotlight</p>
+                    <h2 className={`mt-3 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>Rolex Oyster Reserve</h2>
                   </div>
                   <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs uppercase tracking-[0.18em] text-emerald-300">Live</span>
                 </div>
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-[28px] bg-slate-950/70 p-4">
-                    <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Current bid</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">₹3,12,000</p>
+                  <div className={`rounded-[28px] p-4 ${theme === 'dark' ? 'bg-slate-950/70' : 'bg-[var(--surface-muted)]'}`}>
+                    <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')}</p>
+                    <p className={`mt-2 text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(312000)}</p>
                   </div>
-                  <div className="rounded-[28px] bg-slate-950/70 p-4">
-                    <p className="text-sm uppercase tracking-[0.24em] text-slate-400">Bidders</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">24</p>
+                  <div className={`rounded-[28px] p-4 ${theme === 'dark' ? 'bg-slate-950/70' : 'bg-[var(--surface-muted)]'}`}>
+                    <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Bidders</p>
+                    <p className={`mt-2 text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>24</p>
                   </div>
                 </div>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link to="/auctions/101" className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">View auction</Link>
-                  <span className="inline-flex items-center rounded-full bg-white/5 px-4 py-3 text-sm text-slate-300">Verified seller</span>
+                  <span className={`inline-flex items-center rounded-full px-4 py-3 text-sm ${theme === 'dark' ? 'bg-white/5 text-slate-300' : 'bg-[var(--surface-muted)] text-[var(--text-primary)]'}`}>Verified seller</span>
                 </div>
               </div>
-              <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-950/90 to-slate-900/80 p-6 shadow-xl shadow-slate-950/20">
+              <div className={`rounded-[32px] border p-6 shadow-xl shadow-slate-950/20 ${theme === 'dark' ? 'border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-950/90 to-slate-900/80' : 'border-[var(--border-color)] bg-[var(--surface)]'}`}>
                 <p className="text-sm uppercase tracking-[0.24em] text-blue-300">Fast access</p>
                 <h2 className="mt-3 text-3xl font-semibold text-white">Premium listings, refined for you</h2>
                 <p className="mt-5 text-sm leading-7 text-slate-300">Explore curated products and live auctions that match your premium buying criteria.</p>
@@ -256,18 +261,18 @@ export function HomePage() {
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hidden">
           {trendingAuctions.map((item) => (
-            <div key={item.id} className="min-w-[320px] rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1">
+            <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`min-w-[320px] rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
               <div className="mb-4 flex items-center justify-between gap-3">
-                <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] ${item.status === 'Live' ? 'bg-emerald-500/15 text-emerald-300' : item.status === 'Upcoming' ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-700/80 text-slate-300'}`}>{item.status}</span>
-                <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{item.endsIn}</span>
+                <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] ${item.status === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : item.status === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{item.status}</span>
+                <span className={`text-xs uppercase tracking-[0.18em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.endsIn}</span>
               </div>
-              <div className="mb-4 h-44 overflow-hidden rounded-[20px] bg-slate-950/50">
+              <div className={`mb-4 h-44 overflow-hidden rounded-[20px] ${theme === 'dark' ? 'bg-slate-950/50' : 'bg-[var(--surface-muted)]'}`}>
                 <img src={item.image} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
               </div>
-              <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-              <p className="mt-3 text-sm text-slate-400">Current bid <span className="font-semibold text-white">{item.currentBid}</span></p>
-              <p className="mt-2 text-sm text-slate-400">{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
-            </div>
+              <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
+              <p className={`mt-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.currentBid)}</span></p>
+              <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
+            </Link>
           ))}
         </div>
       </section>

@@ -18,7 +18,7 @@ export function PrimaryButton({ children, icon, fullWidth = false, className = '
 
 export function SecondaryButton({ children, icon, fullWidth = false, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex min-h-[48px] max-w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 font-medium text-slate-200 transition hover:bg-white/10 ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
+    <button className={`inline-flex min-h-[48px] max-w-full items-center justify-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--surface-muted)] px-4 py-2.5 font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
       {icon}
       {children}
     </button>
@@ -27,14 +27,14 @@ export function SecondaryButton({ children, icon, fullWidth = false, className =
 
 export function IconButton({ children, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex min-h-[48px] min-w-[48px] max-w-full items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10 ${className}`} {...props}>
+    <button className={`inline-flex min-h-[48px] min-w-[48px] max-w-full items-center justify-center rounded-full border border-[var(--border-color)] bg-[var(--surface-muted)] p-2.5 text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] ${className}`} {...props}>
       {children}
     </button>
   );
 }
 
 export function Badge({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <span className={`rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-blue-200 ${className}`}>{children}</span>;
+  return <span className={`rounded-full bg-[var(--badge-bg)] px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-[var(--pill-text)] ${className}`}>{children}</span>;
 }
 
 export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) {

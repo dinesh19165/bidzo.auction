@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, Sparkles, 
 import { memo, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
 import ReactDOM from 'react-dom';
 import { showToast } from '../ui/toast';
+import { useLocaleContext } from '../../context/LocaleContext';
 
 interface ProductCardProps {
   id: string | number;
@@ -126,8 +127,9 @@ export const ProductCard = memo(function ProductCard({
     return () => window.clearInterval(timer);
   }, [endsIn]);
 
-  const priceLabel = isAuction ? 'Current Bid' : 'Price';
-  const priceValue = isAuction ? (currentBid || price) : price;
+  const { formatCurrency, translate } = useLocaleContext();
+  const priceLabel = translate(isAuction ? 'currentBid' : 'price');
+  const priceValue = formatCurrency(isAuction ? (currentBid || price) : price);
 
   useEffect(() => {
     if (!quickOpen) return;
@@ -197,7 +199,7 @@ export const ProductCard = memo(function ProductCard({
           <div>
             <div className="flex items-center gap-2">
               <p className="text-2xl font-semibold text-white">{priceValue}</p>
-              {oldPrice ? <p className="text-sm text-slate-500 line-through">{oldPrice}</p> : null}
+              {oldPrice ? <p className="text-sm text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
             </div>
             <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{priceLabel}</p>
             {discount ? <p className="mt-1 text-xs uppercase tracking-[0.18em] text-emerald-300">{discount}</p> : null}
@@ -236,7 +238,7 @@ export const ProductCard = memo(function ProductCard({
         <div className="flex flex-wrap items-center gap-2">
           <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 overflow-hidden rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-all duration-250 hover:-translate-y-0.5 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 active:scale-[0.98]">
             <span className="absolute inset-0 origin-center scale-0 rounded-full bg-white/10 transition-transform duration-300 group-hover/btn:scale-100" />
-            <span className="relative z-10">{isAuction ? 'Watch Auction' : actionLabel || 'Buy Now'}</span>
+            <span className="relative z-10">{isAuction ? translate('watchAuction') : actionLabel || translate('buyNow')}</span>
             <ArrowRight className="relative z-10 h-3.5 w-3.5" />
           </Link>
           <button type="button" className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
@@ -286,10 +288,10 @@ export const ProductCard = memo(function ProductCard({
 
                 <div className="flex items-center gap-3">
                   <Link to={actionLink ?? `/customer/product/${id}`} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500">
-                    {isAuction ? 'Place Bid' : actionLabel || 'Buy Now'}
+                    {isAuction ? translate('placeBid') : actionLabel || translate('buyNow')}
                     <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
-                  <button onClick={closeQuickView} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">Close</button>
+                  <button onClick={closeQuickView} className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">{translate('close')}</button>
                 </div>
               </div>
             </div>
@@ -317,6 +319,7 @@ interface AuctionCardProps {
 }
 
 export function AuctionCard({ id, title, image, status, currentBid, endsIn, seller='Bidzo Seller', verified=true, watchers=120, participants=18, condition='Excellent', rating=4.8 }: AuctionCardProps) {
+  const { translate, formatCurrency } = useLocaleContext();
   return (
     <motion.article whileHover={{ y: -8, scale: 1.01, boxShadow: '0 32px 80px -24px rgba(59,130,246,0.35)' }} transition={{ duration: 0.24 }} className="group w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300 hover:border-blue-400/40">
       <div className="relative overflow-hidden">
@@ -350,13 +353,13 @@ export function AuctionCard({ id, title, image, status, currentBid, endsIn, sell
           <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Gavel className="h-3 w-3" /> {participants} bids</span>
           <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Star className="h-3 w-3" /> {rating}</span>
         </div>
-        <p className="mt-4 text-sm text-slate-400">Current bid {currentBid}</p>
+        <p className="mt-4 text-sm text-slate-400">{translate('currentBid')} {formatCurrency(currentBid)}</p>
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <Link to={`/auctions/${id}`} className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-250 hover:-translate-y-0.5 hover:bg-blue-500">
-            View details
+            {translate('viewDetails')}
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
-          <button className="min-h-[48px] rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:bg-white/10">Watch</button>
+          <button className="min-h-[48px] rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:bg-white/10">{translate('watch')}</button>
         </div>
       </div>
     </motion.article>

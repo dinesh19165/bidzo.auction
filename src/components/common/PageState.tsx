@@ -12,15 +12,15 @@ interface PageStateProps {
 
 export function PageState({ title, description, actionLabel, actionHref, tone = 'default', children }: PageStateProps) {
   const toneClasses = {
-    default: 'border-white/10 bg-slate-900/70 text-slate-300',
+    default: 'border-[var(--border-color)] bg-[var(--surface)] text-[var(--text-primary)]',
     danger: 'border-red-500/20 bg-red-500/10 text-red-300',
     warning: 'border-amber-500/20 bg-amber-500/10 text-amber-200',
   }[tone];
 
   return (
-    <div role="status" aria-live="polite" className={`rounded-[24px] border p-8 text-center shadow-lg shadow-slate-950/20 ${toneClasses}`}>
-      <p className="text-3xl font-semibold text-white">{title}</p>
-      <p className="mt-3 text-sm">{description}</p>
+    <div role="status" aria-live="polite" className={`rounded-[24px] border p-8 text-center shadow-lg shadow-[var(--shadow-color)] ${toneClasses}`}>
+      <p className="text-3xl font-semibold text-[var(--text-primary)]">{title}</p>
+      <p className="mt-3 text-sm text-[var(--text-secondary)]">{description}</p>
       {children}
       {actionLabel && actionHref ? (
         <div className="mt-6">

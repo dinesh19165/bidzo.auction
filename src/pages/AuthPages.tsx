@@ -27,6 +27,7 @@ import {
 import { SectionShell } from '../components/SectionShell';
 import { markAuctionAsRegistered, markRegistrationPaid, readAuctionFlowState, writeAuctionFlowState } from '../utils/auctionFlowState';
 import { useAuth } from '../context/AuthContext';
+import { useThemeContext } from '../context/ThemeContext';
 import { useEffect, useState, type ChangeEvent, type DragEvent } from 'react';
 
 const verificationSteps = [
@@ -86,24 +87,36 @@ function FormField({
   icon?: any;
   accent?: 'blue' | 'emerald';
 }) {
+  const { theme } = useThemeContext();
   const isFilled = Boolean(value);
   const accentClasses = accent === 'emerald'
-    ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
-    : 'border-blue-400/30 bg-blue-500/10 text-blue-100';
+    ? theme === 'dark'
+      ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+      : 'border-emerald-400/30 bg-emerald-100 text-slate-950'
+    : theme === 'dark'
+      ? 'border-blue-400/30 bg-blue-500/10 text-blue-100'
+      : 'border-blue-400/30 bg-blue-100 text-slate-950';
+  const normalClasses = theme === 'dark'
+    ? 'border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500'
+    : 'border-slate-300 bg-slate-100 text-slate-900 placeholder:text-slate-500';
+  const labelClasses = theme === 'dark'
+    ? 'mb-2 flex items-center gap-2 text-sm font-medium text-slate-300'
+    : 'mb-2 flex items-center gap-2 text-sm font-medium text-slate-900';
+  const iconClasses = theme === 'dark' ? 'h-4 w-4 text-slate-400' : 'h-4 w-4 text-slate-500';
 
   return (
     <label className="block">
-      <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
-        {Icon ? <Icon className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
+      <span className={labelClasses}>
+        {Icon ? <Icon className={iconClasses} /> : <Shield className={iconClasses} />}
         {label}
       </span>
-      <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition ${isFilled ? accentClasses : 'border-white/10 bg-slate-950/60'}`}>
+      <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition ${isFilled ? accentClasses : normalClasses}`}>
         <input
           value={value}
           type={type}
           onChange={onChange}
           placeholder={placeholder}
-          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+          className="w-full bg-transparent text-sm outline-none"
         />
       </div>
     </label>
@@ -114,6 +127,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, user } = useAuth();
+  const { theme } = useThemeContext();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -215,40 +229,40 @@ export function LoginPage() {
   };
 
   return (
-    <SectionShell title="Authentication" subtitle="Welcome back to Bidzo">
+    <SectionShell title="Authentication" subtitle="Welcome back to Bidzo" compact>
       <div className="mx-auto flex w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.22),_transparent_40%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(2,8,23,0.98))] shadow-[0_30px_90px_rgba(2,6,23,0.55)]">
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-8">
+        <div className={`flex items-center justify-between px-4 py-3 sm:px-8 transition duration-300 ${theme === 'dark' ? 'border-b border-white/10' : 'border-b border-slate-200 bg-slate-50'}`}>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-lg shadow-cyan-500/20">
-              <Sparkles className="h-5 w-5 text-white" />
+            <div className={`flex h-10 w-10 items-center justify-center rounded-2xl shadow-lg ${theme === 'dark' ? 'bg-gradient-to-br from-blue-500 to-cyan-400 shadow-cyan-500/20' : 'bg-blue-100 shadow-slate-200'}`}>
+              <Sparkles className={`h-5 w-5 ${theme === 'dark' ? 'text-white' : 'text-blue-700'}`} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Bidzo</p>
-              <p className="text-xs text-slate-400">Marketplace access</p>
+              <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Bidzo</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Marketplace access</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-sm text-slate-300">
-            <Link to="/" className="transition hover:text-white">Home</Link>
-            <Link to="/about" className="transition hover:text-white">How it works</Link>
-            <Link to="/help" className="transition hover:text-white">Help</Link>
+          <div className={`flex items-center gap-3 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+            <Link to="/" className={`transition ${theme === 'dark' ? 'hover:text-white' : 'hover:text-slate-900'}`}>Home</Link>
+            <Link to="/about" className={`transition ${theme === 'dark' ? 'hover:text-white' : 'hover:text-slate-900'}`}>How it works</Link>
+            <Link to="/help" className={`transition ${theme === 'dark' ? 'hover:text-white' : 'hover:text-slate-900'}`}>Help</Link>
           </div>
         </div>
 
-        <div className="grid gap-6 p-4 sm:p-8 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[28px] border border-white/10 bg-slate-950/60 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-7">
-            <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-sm text-emerald-200">
+        <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className={`rounded-[28px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-6 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-white/90 shadow-[inset_0_1px_0_rgba(15,23,42,0.04)]'}`}>
+            <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${theme === 'dark' ? 'border border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
               <ShieldCheck className="h-4 w-4" />
               Secure marketplace access
             </div>
 
-            <h3 className="mt-5 text-3xl font-semibold text-white sm:text-4xl">
+            <h3 className={`mt-4 text-3xl font-semibold sm:text-4xl ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
               {selectedRole === 'vendor' ? 'Welcome back, Vendor' : 'Welcome back, Customer'}
             </h3>
-            <p className="mt-2 text-sm text-slate-400 sm:text-base">
+            <p className={`mt-2 text-sm sm:text-base ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
               {selectedRole === 'vendor' ? 'Sign in to manage your marketplace' : 'Sign in to discover products and auctions'}
             </p>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {roleOptions.map((option) => {
                 const isActive = selectedRole === option.value;
                 return (
@@ -256,16 +270,20 @@ export function LoginPage() {
                     key={option.value}
                     type="button"
                     onClick={() => setSelectedRole(option.value)}
-                    className={`rounded-[24px] border p-4 text-left transition-all duration-300 ${isActive ? 'border-cyan-400/40 bg-gradient-to-br from-blue-500/20 to-cyan-500/10 text-white shadow-[0_0_0_1px_rgba(34,211,238,0.25),0_18px_45px_rgba(14,165,233,0.16)]' : 'border-white/10 bg-slate-900/70 text-slate-300 hover:border-white/20 hover:bg-slate-900/80'}`}
+                    className={`rounded-[24px] border p-4 text-left transition-all duration-300 ${isActive ? (theme === 'dark' ? 'border-cyan-400/40 bg-gradient-to-br from-blue-500/20 to-cyan-500/10 text-white shadow-[0_0_0_1px_rgba(34,211,238,0.25),0_18px_45px_rgba(14,165,233,0.16)]' : 'border-blue-200 bg-blue-100 text-slate-950 shadow-[0_0_0_1px_rgba(59,130,246,0.2),0_18px_45px_rgba(59,130,246,0.16)]') : (theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300 hover:border-white/20 hover:bg-slate-900/80' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50')}`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-semibold">{option.label}</span>
-                      {isActive ? <CheckCircle2 className="h-4 w-4 text-cyan-300" /> : <ShieldCheck className="h-4 w-4 text-slate-500" />}
+                      {isActive ? (
+                        <CheckCircle2 className={theme === 'dark' ? 'h-4 w-4 text-cyan-300' : 'h-4 w-4 text-slate-900'} />
+                      ) : (
+                        <ShieldCheck className={theme === 'dark' ? 'h-4 w-4 text-slate-500' : 'h-4 w-4 text-slate-500'} />
+                      )}
                     </div>
-                    <p className={`mt-2 text-xs ${isActive ? 'text-slate-100' : 'text-slate-400'}`}>{option.description}</p>
+                    <p className={`mt-2 text-xs ${isActive ? (theme === 'dark' ? 'text-slate-100' : 'text-slate-700') : (theme === 'dark' ? 'text-slate-400' : 'text-slate-500')}`}>{option.description}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {option.features.map((feature) => (
-                        <span key={feature} className={`rounded-full px-2.5 py-1 text-[11px] ${isActive ? 'bg-slate-950/60 text-slate-50' : 'bg-white/5 text-slate-400'}`}>
+                        <span key={feature} className={`rounded-full px-2.5 py-1 text-[11px] ${isActive ? (theme === 'dark' ? 'bg-slate-950/60 text-slate-50' : 'bg-slate-100 text-slate-900') : (theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-700')}`}>
                           {feature}
                         </span>
                       ))}
@@ -277,53 +295,53 @@ export function LoginPage() {
 
             <div className="mt-6 space-y-4">
               <label className="block">
-                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
-                  <Mail className="h-4 w-4 text-cyan-300" />
+                <span className={`mb-2 flex items-center gap-2 text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-900'}`}>
+                  <Mail className={`h-4 w-4 ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-700'}`} />
                   Email or phone number
                 </span>
-                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition duration-200 ${touched.identifier && errors.identifier ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/10 bg-slate-900/70 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-900/90'}`}>
+                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition duration-200 ${touched.identifier && errors.identifier ? (theme === 'dark' ? 'border-amber-400/40 bg-amber-500/10' : 'border-amber-400/40 bg-amber-100') : (theme === 'dark' ? 'border-white/10 bg-slate-900/70 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-900/90' : 'border-slate-300 bg-slate-100 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-50')}`}>
                   <input
                     value={identifier}
                     onChange={(e) => handleIdentifierChange(e.target.value)}
                     onBlur={() => setTouched((prev) => ({ ...prev, identifier: true }))}
-                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                    className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
                     placeholder="name@company.com or 10-digit phone"
                   />
                 </div>
-                {touched.identifier && errors.identifier ? <p className="mt-2 text-sm text-amber-300">{errors.identifier}</p> : <p className="mt-2 text-sm text-slate-500">Use your registered Bidzo account details.</p>}
+                {touched.identifier && errors.identifier ? <p className="mt-2 text-sm text-amber-300">{errors.identifier}</p> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use your registered Bidzo account details.</p>}
               </label>
 
               <label className="block">
-                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
-                  <Lock className="h-4 w-4 text-slate-400" />
+                <span className={`mb-2 flex items-center gap-2 text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-900'}`}>
+                  <Lock className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
                   Password
                 </span>
-                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition duration-200 ${touched.password && errors.password ? 'border-amber-400/40 bg-amber-500/10' : 'border-white/10 bg-slate-900/70 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-900/90'}`}>
+                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition duration-200 ${touched.password && errors.password ? (theme === 'dark' ? 'border-amber-400/40 bg-amber-500/10' : 'border-amber-400/40 bg-amber-100') : (theme === 'dark' ? 'border-white/10 bg-slate-900/70 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-900/90' : 'border-slate-300 bg-slate-100 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-50')}`}>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => handlePasswordChange(e.target.value)}
                     onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
-                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                    className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
                     placeholder="Enter your password"
                   />
-                  <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="rounded-full p-1 text-slate-400 transition hover:text-white" aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                  <button type="button" onClick={() => setShowPassword((prev) => !prev)} className={`rounded-full p-1 transition ${theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`} aria-label={showPassword ? 'Hide password' : 'Show password'}>
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                {touched.password && errors.password ? <p className="mt-2 text-sm text-amber-300">{errors.password}</p> : <p className="mt-2 text-sm text-slate-500">Use the password from your latest Bidzo account setup.</p>}
+                {touched.password && errors.password ? <p className="mt-2 text-sm text-amber-300">{errors.password}</p> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use the password from your latest Bidzo account setup.</p>}
               </label>
 
-              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-300">
-                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="h-4 w-4 rounded border-white/20 bg-slate-950 text-blue-500" />
+              <label className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-sm transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className={`h-4 w-4 rounded border ${theme === 'dark' ? 'border-white/20 bg-slate-950 text-blue-500' : 'border-slate-400 bg-white text-blue-600'}`} />
                 <span>Remember me for faster access next time</span>
               </label>
 
-              <div className="flex flex-col gap-3 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                <Link to="/forgot-password" className="transition hover:text-white">Forgot password?</Link>
-                <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-center sm:text-right">
-                  <p className="text-slate-300">New to Bidzo?</p>
-                  <Link to="/register" className="font-medium text-cyan-300 transition hover:text-cyan-200">Create account</Link>
+              <div className={`flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>
+                <Link to="/forgot-password" className={`transition ${theme === 'dark' ? 'hover:text-white' : 'text-slate-900 hover:text-slate-700'}`}>Forgot password?</Link>
+                <div className={`rounded-2xl border px-3 py-2 text-center sm:text-right transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/60 text-slate-300' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+                  <p className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>New to Bidzo?</p>
+                  <Link to="/register" className={`font-medium transition ${theme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-600 hover:text-cyan-700'}`}>Create account</Link>
                 </div>
               </div>
 
@@ -337,36 +355,36 @@ export function LoginPage() {
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/70 to-cyan-500/20 p-4 sm:p-7">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.2),_transparent_40%)]" />
-            <div className="absolute right-4 top-4 text-[120px] font-black leading-none text-white/10 sm:text-[180px]">B</div>
+          <div className={`relative overflow-hidden rounded-[28px] p-4 sm:p-7 transition duration-300 ${theme === 'dark' ? 'border border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/70 to-cyan-500/20' : 'border border-slate-200 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.08)]'}`}>
+            <div className={`absolute inset-0 transition duration-300 ${theme === 'dark' ? 'bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.2),_transparent_40%)]' : 'bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_40%)]'}`} />
+            <div className={`absolute right-4 top-4 text-[120px] font-black leading-none transition duration-300 ${theme === 'dark' ? 'text-white/10' : 'text-slate-900/10'} sm:text-[180px]`}>B</div>
             <div className="relative">
-              <div className="flex items-center gap-2 text-cyan-200">
+              <div className={`flex items-center gap-2 ${theme === 'dark' ? 'text-cyan-200' : 'text-cyan-700'}`}>
                 <Sparkles className="h-4 w-4" />
                 <p className="text-sm font-semibold uppercase tracking-[0.24em]">Everything you need to buy & sell</p>
               </div>
 
-              <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
-                <div className="flex items-center justify-between rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
+              <div className={`mt-4 rounded-[28px] p-4 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-950/70 shadow-[0_20px_45px_rgba(2,6,23,0.35)]' : 'border border-slate-200 bg-slate-50 shadow-sm'}`}>
+                <div className={`flex items-center justify-between rounded-full border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] transition duration-300 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10 text-cyan-200' : 'border-cyan-200 bg-cyan-100 text-cyan-900'}`}>
                   <span>🔥 LIVE AUCTION</span>
-                  <span className="rounded-full bg-cyan-500/20 px-2 py-1">02:14:05</span>
+                  <span className={`rounded-full px-2 py-1 transition duration-300 ${theme === 'dark' ? 'bg-cyan-500/20 text-cyan-200' : 'bg-cyan-100 text-cyan-900'}`}>02:14:05</span>
                 </div>
-                <div className="mt-4 rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.35),_transparent_45%),linear-gradient(135deg,_rgba(8,15,35,0.96),_rgba(15,23,42,1))] p-4">
+                <div className={`mt-4 rounded-[24px] border p-4 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.35),_transparent_45%),linear-gradient(135deg,_rgba(8,15,35,0.96),_rgba(15,23,42,1))]' : 'border-slate-200 bg-white shadow-sm'}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Product preview</p>
-                      <p className="mt-2 text-lg font-semibold text-white">Vintage Watch</p>
+                      <p className={`text-[11px] uppercase tracking-[0.24em] transition duration-300 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Product preview</p>
+                      <p className={`mt-2 text-lg font-semibold transition duration-300 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Vintage Watch</p>
                     </div>
-                    <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">Live</div>
+                    <div className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] transition duration-300 ${theme === 'dark' ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border-emerald-200 bg-emerald-100 text-emerald-900'}`}>Live</div>
                   </div>
                   <div className="mt-5 flex items-end justify-between">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Current bid</p>
-                      <p className="mt-1 text-3xl font-semibold text-white">₹12,500</p>
+                      <p className={`text-[11px] uppercase tracking-[0.24em] transition duration-300 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Current bid</p>
+                      <p className={`mt-1 text-3xl font-semibold transition duration-300 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>₹12,500</p>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-right text-sm text-slate-300">
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Bids</p>
-                      <p className="mt-1 font-semibold text-white">128</p>
+                    <div className={`rounded-2xl border px-3 py-2 text-right text-sm transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300' : 'border-slate-200 bg-slate-100 text-slate-900'}`}>
+                      <p className={`text-[11px] uppercase tracking-[0.24em] transition duration-300 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Bids</p>
+                      <p className={`mt-1 font-semibold transition duration-300 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>128</p>
                     </div>
                   </div>
                 </div>
@@ -379,8 +397,8 @@ export function LoginPage() {
                   ].map((item) => {
                     const Icon = item.icon;
                     return (
-                      <div key={item.title} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center text-sm text-slate-300">
-                        <Icon className="mx-auto mb-2 h-4 w-4 text-cyan-300" />
+                      <div key={item.title} className={`rounded-2xl border px-3 py-3 text-center text-sm transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300' : 'border-slate-200 bg-white text-slate-900'}`}>
+                        <Icon className={`mx-auto mb-2 h-4 w-4 ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-700'}`} />
                         {item.title}
                       </div>
                     );

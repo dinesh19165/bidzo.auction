@@ -4,3 +4,4 @@ export * from './CartContext';
 export * from './WalletContext';
 export * from './NotificationContext';
 export * from './ThemeContext';
+export * from './LocaleContext';

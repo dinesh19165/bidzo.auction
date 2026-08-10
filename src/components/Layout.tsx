@@ -2,13 +2,38 @@ import { Link } from 'react-router-dom';
 import React, { useRef, useState } from 'react';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
+import { Check, ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useThemeContext } from '../context/ThemeContext';
+import { useLocaleContext } from '../context/LocaleContext';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
+  const { theme, toggleTheme } = useThemeContext();
+  const { language, currency, languageLabel, currencyLabel, setLanguage, setCurrency, translate, formatCurrency } = useLocaleContext();
+
+  const languageOptions = [
+    { key: 'en', label: 'English' },
+    { key: 'hi', label: 'Hindi' },
+    { key: 'te', label: 'Telugu' },
+    { key: 'ta', label: 'Tamil' },
+    { key: 'kn', label: 'Kannada' },
+    { key: 'ml', label: 'Malayalam' },
+    { key: 'bn', label: 'Bengali' },
+    { key: 'mr', label: 'Marathi' },
+  ] as const;
+
+  const currencyOptions = [
+    { key: 'INR', label: 'INR ₹' },
+    { key: 'USD', label: 'USD $' },
+    { key: 'EUR', label: 'EUR €' },
+    { key: 'GBP', label: 'GBP £' },
+    { key: 'AED', label: 'AED د.إ' },
+  ] as const;
 
   const mobileLinks = [
     { to: '/', label: 'Home' },
@@ -27,51 +52,120 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_25%),linear-gradient(135deg,_#020617,_#0f172a)] text-slate-100">
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-black/20">
-        <div className="border-b border-white/10">
-          <div className="mx-auto flex flex-col gap-2 px-4 py-2 text-xs text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-            <p className="inline-flex flex-wrap items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-slate-100">
-              <span className="font-medium">Free express shipping</span>
-              <span className="text-slate-400">on orders over ₹5,000</span>
+    <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
+      <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
+        <div className={`border-b transition duration-300 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
+          <div className={`mx-auto flex flex-col gap-1 px-4 py-1 text-xs transition duration-300 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
+            <p className={`inline-flex flex-wrap items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium transition duration-300 ${theme === 'dark' ? 'bg-blue-500/10 text-slate-100' : 'bg-slate-100 text-slate-950 border border-slate-200'}`}>
+              <span className="font-medium">{translate('freeShipping')}</span>
+              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{translate('onOrdersOver', { amount: '₹5,000' })}</span>
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300">
-                <Globe className="h-3.5 w-3.5" /> English
-                <ChevronDown className="h-3.5 w-3.5" />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLanguageMenuOpen((value) => !value);
+                    setCurrencyMenuOpen(false);
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
+                  aria-expanded={languageMenuOpen}
+                  aria-label="Select language"
+                >
+                  <Globe className="h-3.5 w-3.5" /> {languageLabel}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                {languageMenuOpen ? (
+                  <div className={`absolute left-0 mt-2 w-44 overflow-hidden rounded-2xl border ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-200/40'}`}>
+                    {languageOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => {
+                          setLanguage(option.key);
+                          setLanguageMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}
+                      >
+                        <span>{option.label}</span>
+                        {language === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300">
-                ₹ INR
-                <ChevronDown className="h-3.5 w-3.5" />
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrencyMenuOpen((value) => !value);
+                    setLanguageMenuOpen(false);
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
+                  aria-expanded={currencyMenuOpen}
+                  aria-label="Select currency"
+                >
+                  {currencyLabel}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                {currencyMenuOpen ? (
+                  <div className={`absolute left-0 mt-2 w-44 overflow-hidden rounded-2xl border ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-200/40'}`}>
+                    {currencyOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => {
+                          setCurrency(option.key);
+                          setCurrencyMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}
+                      >
+                        <span>{option.label}</span>
+                        {currency === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-              <Link to="/help" className="rounded-full px-3 py-1 text-slate-300 transition hover:text-white">Help</Link>
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className={`theme-toggle-pill inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-300 ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-50'}`}
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                <span>{theme === 'dark' ? '☀️ Light' : '🌙 Dark'}</span>
+              </button>
+              <Link to="/help" className={`rounded-full px-3 py-1 transition duration-300 ${theme === 'dark' ? 'text-slate-300 hover:text-white' : 'text-slate-900 hover:text-slate-700'}`}>
+                {translate('help')}
+              </Link>
             </div>
           </div>
         </div>
 
-        <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6 lg:px-8">
+<div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
           <div>
             {/* Shared header: logo always shown and links to home */}
             <Link to="/" className="inline-flex items-center flex-shrink-0">
-              <Logo className="w-[200px] h-[200px] object-contain" />
+              <Logo className="w-[150px] h-auto object-contain" />
            </Link>
           </div>
 
-          <div className="hidden flex-1 items-center gap-2 rounded-full border border-white/10 bg-slate-900/70 px-3 py-2 lg:flex">
-            <button type="button" aria-label="Focus search" onClick={() => desktopSearchRef.current?.focus()} className="inline-flex items-center justify-center rounded-full bg-white/5 p-2 text-slate-300 transition hover:bg-white/10">
+          <div className={`hidden flex-1 items-center gap-2 rounded-full px-2 py-1.5 lg:flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-900/70' : 'border border-slate-200 bg-white shadow-sm'}`}>
+            <button type="button" aria-label="Focus search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               <Search className="h-4 w-4" />
             </button>
             <input
               ref={desktopSearchRef}
-              placeholder="Search products, auctions, sellers..."
-              className="w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
+              placeholder={translate('searchPlaceholder')}
+              className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
             />
-            <div className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300 xl:inline-flex">
-              All categories
+            <div className={`hidden items-center gap-1 rounded-full px-2 py-1 text-sm xl:inline-flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300' : 'border border-slate-300 bg-slate-100 text-slate-900'}`}>
+              {translate('allCategories')}
               <ChevronDown className="h-3.5 w-3.5" />
             </div>
-            <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className="inline-flex items-center justify-center rounded-full bg-white/5 p-2 text-slate-300 transition hover:bg-white/10">
+            <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               <Mic className="h-4 w-4" />
             </button>
           </div>
@@ -81,34 +175,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 md:hidden">
-            <button type="button" onClick={() => setMobileSearchOpen((value) => !value)} className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200">
+            <button type="button" onClick={() => setMobileSearchOpen((value) => !value)} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
               <Search className="h-4 w-4" />
             </button>
-            <Link to="/login" className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-200">Login</Link>
-            <Link to="/register" className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-blue-600 px-3 py-2 text-sm font-medium text-white">Register</Link>
-            <button type="button" onClick={() => setMobileMenuOpen(true)} className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200">
+            <Link to="/login" className={`inline-flex min-h-[38px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-medium transition ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+              Login
+            </Link>
+            <Link to="/register" className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">Register</Link>
+            <button type="button" onClick={() => setMobileMenuOpen(true)} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
               <Menu className="h-4 w-4" />
             </button>
           </div>
         </div>
 
         {mobileSearchOpen ? (
-          <div className="border-t border-white/10 bg-slate-900/70 px-4 py-3 md:hidden">
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2">
-              <Search className="h-4 w-4 text-slate-400" />
-              <input placeholder="Search products, auctions, sellers..." className="w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500" />
+          <div className={`border-t px-4 py-3 md:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+            <div className={`flex items-center gap-2 rounded-full px-3 py-2 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-950/70' : 'border border-slate-200 bg-slate-100'}`}>
+              <Search className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
+              <input placeholder="Search products, auctions, sellers..." className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
             </div>
           </div>
         ) : null}
 
-        <div className="border-t border-white/10 bg-slate-900/75">
-          <div className="mx-auto flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap px-4 py-3 text-sm text-slate-300 scrollbar-hidden sm:px-6 lg:px-8">
+        <div className={`border-t transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/75' : 'border-slate-200 bg-white'}`}>
+          <div className={`mx-auto flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap px-4 py-1.5 text-sm transition duration-300 scrollbar-hidden sm:px-6 lg:px-8 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
             {['Electronics', 'Vehicles', 'Real Estate', 'Fashion', 'Furniture', 'Agriculture', 'Livestock', 'Services', 'Books', 'Pets'].map((item) => (
-              <Link key={item} to="/marketplace" className="shrink-0 snap-start rounded-full border border-white/10 bg-white/5 px-3 py-1.5 transition hover:bg-white/10">
+              <Link key={item} to="/marketplace" className={`shrink-0 snap-start rounded-full border px-3 py-1 transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                 {item}
               </Link>
             ))}
-            <Link to="/auctions" className="shrink-0 snap-start rounded-full bg-amber-500/10 px-3 py-1.5 font-medium text-amber-200 transition hover:bg-amber-500/20">
+            <Link to="/auctions" className={`shrink-0 snap-start rounded-full px-3 py-1 font-medium transition ${theme === 'dark' ? 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/20' : 'border border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300'}`}>
               Live auctions
             </Link>
           </div>
@@ -124,7 +220,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm"
+              className={`fixed inset-0 z-40 backdrop-blur-sm transition duration-300 ${theme === 'dark' ? 'bg-slate-950/80' : 'bg-slate-200/60'}`}
               aria-label="Close navigation menu"
             />
             <motion.aside
@@ -132,7 +228,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-              className="fixed inset-y-0 left-0 z-50 flex w-[82vw] max-w-sm flex-col border-r border-white/10 bg-slate-950/95 p-4 shadow-2xl shadow-black/40"
+              className={`fixed inset-y-0 left-0 z-50 flex w-[82vw] max-w-sm flex-col border-r p-4 shadow-2xl transition duration-300 ${theme === 'dark' ? 'border-r border-white/10 bg-slate-950/95 shadow-black/40' : 'border-r border-slate-200 bg-white shadow-slate-200/80'}`}
             >
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <div className="flex items-center gap-3">
@@ -145,7 +241,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
               <div className="mt-4 space-y-2 overflow-y-auto pb-4">
                 {mobileLinks.map((link) => (
-                  <Link key={link.to} to={link.to} onClick={() => setMobileMenuOpen(false)} className="flex min-h-[48px] items-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/10">
+                  <Link key={link.to} to={link.to} onClick={() => setMobileMenuOpen(false)} className={`flex min-h-[48px] items-center rounded-2xl border px-4 py-3 text-sm transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                     {link.label}
                   </Link>
                 ))}
@@ -239,10 +335,10 @@ function AuthActions() {
         </div>
       )}
 
-      {/* <Link to="/admin/super-dashboard" className="rounded-full border border-blue-400/30 bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-600/20">ERP Admin</Link>
+      <Link to="/admin/super-dashboard" className="rounded-full border border-blue-400/30 bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-600/20">ERP Admin</Link>
       <Link to="/customer/checkout" className="inline-flex items-center justify-center rounded-full bg-blue-600 p-2 text-white transition hover:bg-blue-500">
         <ShoppingBag className="h-4 w-4" />
-      </Link> */}
+      </Link>
     </div>
   );
 }
