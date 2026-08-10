@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useThemeContext } from '../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useLocaleContext } from '../context/LocaleContext';
-import { ArrowRight, CheckCircle2, Clock3, Globe, Heart, MapPin, Mic, Package, Search, ShieldCheck, Smartphone, Sparkles, Store, TrendingUp, Truck } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, CheckCircle2, Clock3, Globe, Heart, MapPin, Mic, Package, Search, ShieldCheck, Smartphone, Sparkles, Store, TrendingUp, Truck } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
   featuredProducts,
@@ -73,6 +73,29 @@ export function HomePage() {
   const trendingAuctions = auctionItems.slice(0, 6);
   const popularCategories = marketplaceCategories.slice(0, 6);
   const sellerHighlights = verifiedVendors.slice(0, 3);
+  const [activeTrendingIndex, setActiveTrendingIndex] = useState(0);
+  const trendingScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollTrendingToIndex = (index: number) => {
+    const container = trendingScrollRef.current;
+    if (!container) return;
+    const boundedIndex = Math.min(trendingAuctions.length - 1, Math.max(0, index));
+    const target = container.children[boundedIndex] as HTMLElement | undefined;
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', inline: 'start' });
+      setActiveTrendingIndex(boundedIndex);
+    }
+  };
+
+  const handleTrendingScroll = () => {
+    const container = trendingScrollRef.current;
+    if (!container) return;
+
+    const firstCard = container.children[0] as HTMLElement | undefined;
+    const cardWidth = firstCard ? firstCard.offsetWidth + 16 : container.offsetWidth;
+    const index = Math.round(container.scrollLeft / cardWidth);
+    setActiveTrendingIndex(Math.min(trendingAuctions.length - 1, Math.max(0, index)));
+  };
 
   useEffect(() => {
     const interval = window.setInterval(() => setActiveTestimonial((value) => (value + 1) % testimonials.length), 8000);
@@ -259,9 +282,9 @@ export function HomePage() {
           </div>
           <Link to="/auctions" className="text-sm font-medium text-slate-300 transition hover:text-white">Browse all live auctions</Link>
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hidden snap-x snap-mandatory">
+        <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-visible">
           {trendingAuctions.map((item) => (
-            <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`snap-start flex-shrink-0 w-full max-w-full sm:min-w-[320px] sm:max-w-[320px] rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
+            <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`w-full rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] whitespace-nowrap ${item.status === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : item.status === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{item.status}</span>
                 <span className={`text-xs uppercase tracking-[0.18em] whitespace-nowrap ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.endsIn}</span>
@@ -274,6 +297,58 @@ export function HomePage() {
               <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
             </Link>
           ))}
+        </div>
+        <div className="relative md:hidden">
+          <div className="flex gap-4 overflow-x-auto pb-2 pl-1 scrollbar-hidden snap-x snap-mandatory" ref={trendingScrollRef} onScroll={handleTrendingScroll}>
+            {trendingAuctions.map((item) => (
+              <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`snap-start flex-shrink-0 min-w-[calc(100%-48px)] max-w-[calc(100%-48px)] rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] whitespace-nowrap ${item.status === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : item.status === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{item.status}</span>
+                  <span className={`text-xs uppercase tracking-[0.18em] whitespace-nowrap ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.endsIn}</span>
+                </div>
+                <div className={`mb-4 h-44 overflow-hidden rounded-[20px] ${theme === 'dark' ? 'bg-slate-950/50' : 'bg-[var(--surface-muted)]'}`}>
+                  <img src={item.image} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
+                </div>
+                <h3 className={`text-lg font-semibold break-words ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
+                <p className={`mt-3 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.currentBid)}</span></p>
+                <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
+              </Link>
+            ))}
+          </div>
+          <button
+            type="button"
+            aria-label="Show previous auction"
+            onClick={() => scrollTrendingToIndex(activeTrendingIndex - 1)}
+            className="pointer-events-auto absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-slate-950/80 p-2 text-slate-100 shadow-lg transition hover:bg-slate-900"
+            style={{ backdropFilter: 'blur(10px)' }}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Show next auction"
+            onClick={() => scrollTrendingToIndex(activeTrendingIndex + 1)}
+            className="pointer-events-auto absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-slate-950/80 p-2 text-slate-100 shadow-lg transition hover:bg-slate-900"
+            style={{ backdropFilter: 'blur(10px)' }}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-4 flex flex-col items-start gap-3 md:hidden">
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-slate-400">Swipe to explore more auctions →</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {trendingAuctions.map((_, index) => (
+              <button
+                type="button"
+                key={index}
+                onClick={() => scrollTrendingToIndex(index)}
+                className={`h-2.5 w-2.5 rounded-full transition ${index === activeTrendingIndex ? 'bg-slate-100' : 'bg-slate-500/40 hover:bg-slate-300/70'}`}
+                aria-label={`View auction ${index + 1}`}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
