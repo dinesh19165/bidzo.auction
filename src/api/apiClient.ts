@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:8080';
+export const API_BASE_URL = 'https://bidzo-backend.onrender.com/api';
 
 export function getStoredAuthToken(): string | null {
   const raw = localStorage.getItem('bidzo_user');
@@ -32,7 +32,15 @@ export function getApiUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
-  return `${API_BASE_URL}${path}`;
+
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+
+  if (normalizedPath.startsWith('/api')) {
+    return `${baseUrl}${normalizedPath.replace(/^\/api/, '')}`;
+  }
+
+  return `${baseUrl}${normalizedPath}`;
 }
 
 function applyAuthHeaders(headers: Headers, token?: string | null) {

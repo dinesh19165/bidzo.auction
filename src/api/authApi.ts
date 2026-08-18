@@ -27,7 +27,7 @@ export interface AuthMeResponse {
 }
 
 export async function register(payload: AuthRegisterDto): Promise<void> {
-  const response = await fetchJson<ApiResponse<unknown>>('/api/auth/register', {
+  const response = await fetchJson<ApiResponse<unknown>>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
   }, false);
@@ -37,18 +37,28 @@ export async function register(payload: AuthRegisterDto): Promise<void> {
 }
 
 export async function login(payload: AuthLoginDto): Promise<AuthLoginResponse> {
-  const response = await fetchJson<ApiResponse<AuthLoginResponse>>('/api/auth/login', {
+  const response = await fetchJson<ApiResponse<AuthLoginResponse>>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(payload),
   }, false);
   if (!response?.data?.token) {
     throw new Error('Invalid login response');
   }
+
+  const persisted = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('bidzo_user') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+
+  localStorage.setItem('bidzo_user', JSON.stringify({ ...persisted, token: response.data.token }));
   return response.data;
 }
 
 export async function authMe(token: string): Promise<AuthMeResponse> {
-  const response = await fetchJsonWithToken<ApiResponse<AuthMeResponse>>('/api/auth/me', token, {
+  const response = await fetchJsonWithToken<ApiResponse<AuthMeResponse>>('/auth/me', token, {
     method: 'GET',
   });
   if (!response?.data) {
