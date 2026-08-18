@@ -3,13 +3,22 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { motion } from 'framer-motion';
 import { ArrowRight, BadgeCheck, CheckCircle2, Clock3, CreditCard, Gavel, Heart, Loader2, MapPin, PackageCheck, Search, Share2, ShieldCheck, ShoppingBag, Sparkles, Truck, Wallet, Zap, CircleDollarSign, QrCode, Printer, Download, BadgeAlert, Radio, ChevronRight } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
-import { products, auctionItems, sellers, wishlistItems, reviews, transactions, categories } from '../../data/mockData';
+import { products, sellers, wishlistItems, reviews, transactions, categories } from '../../data/mockData';
 import ProductForm from '../../components/ProductForm';
 import Wizard from '../../components/Wizard';
 import AuctionForm from '../../components/AuctionForm';
 import UploadField from '../../components/forms/UploadField';
 import { useAuth } from '../../context/AuthContext';
-import { addMockBid, advanceAuctionClock, beginFinalPayment, enterLiveAuctionRoom, goToMarketplace, initializeAuctionFlowState, initializeAuctionFlowStateForAuction, markInvoiceReady, markOrderConfirmed, placeBid, readAuctionFlowState, resolveAuctionOutcome, startAuctionFlow, type AuctionFlowState, writeAuctionFlowState, setSelectedAuctionId, isAuctionRegistered, markAuctionAsRegistered, getSelectedAuctionId } from '../../utils/auctionFlowState';
+import { createAuctionOrder, getOrderById } from '../../api/orderApi';
+import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentApi';
+import { createVendorProduct, getVendorProducts, type SellingType } from '../../api/vendorProductApi';
+import { createProductImage, createBuyNowOrder } from '../../api/productApi';
+import { uploadToCloudinary } from '../../services/cloudinaryUpload';
+import { getWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
+import { createAuction, getAuctions } from '../../api/auctionApi';
+import { getVendorProfile } from '../../api/vendorApi';
+import type { OrderResponseDto, RazorpayOrderResponse } from '../../types';
+import { addMockBid, advanceAuctionClock, beginFinalPayment, enterLiveAuctionRoom, goToMarketplace, initializeAuctionFlowState, initializeAuctionFlowStateForAuction, markInvoiceReady, markOrderConfirmed, placeBid, readAuctionFlowState, resolveAuctionOutcome, startAuctionFlow, type AuctionFlowState, writeAuctionFlowState, setSelectedAuctionId, isAuctionRegistered, markAuctionAsRegistered, getSelectedAuctionId, readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 
 function FlowBreadcrumbs({ steps }: { steps: Array<{ label: string; to?: string }> }) {
   return (
@@ -96,20 +105,6 @@ function useAuctionFlowBackGuard(enabled: boolean) {
   }, [enabled]);
 }
 
-function getAuctionStatus(auctionId: number) {
-  const auction = auctionItems.find((item) => item.id === auctionId);
-  return auction?.status ?? 'Live';
-}
-
-function getAuctionTitle(auctionId: number) {
-  const auction = auctionItems.find((item) => item.id === auctionId);
-  return auction?.title ?? 'Auction item';
-}
-
-function getAuctionCurrentBid(auctionId: number) {
-  const auction = auctionItems.find((item) => item.id === auctionId);
-  return auction?.currentBid ?? '₹0';
-}
 
 export function CustomerSearchPage() {
   return (
@@ -268,53 +263,172 @@ export function CustomerSellerPage() {
 }
 
 export function CustomerWishlistPage() {
+  const [wishlist, setWishlist] = useState<WishlistItemResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadWishlist = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getWishlist();
+        setWishlist(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load wishlist');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadWishlist();
+  }, []);
+
+  const items = wishlist;
+
+  if (isLoading) {
+    return (
+      <SectionShell title="Wishlist" subtitle="Saved products and auctions you want to follow">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-600 border-t-blue-500"></div>
+            <p className="mt-4 text-slate-400">Loading your wishlist...</p>
+          </div>
+        </div>
+      </SectionShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <SectionShell title="Wishlist" subtitle="Saved products and auctions you want to follow">
+        <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-6 text-slate-300">
+          <p className="text-sm font-medium text-rose-200">Wishlist Error</p>
+          <p className="mt-2">{error}</p>
+        </div>
+      </SectionShell>
+    );
+  }
+
   return (
     <SectionShell title="Wishlist" subtitle="Saved products and auctions you want to follow">
       <FlowBreadcrumbs steps={[{ label: 'Product', to: '/customer/product/1' }, { label: 'Wishlist', to: '/customer/wishlist' }, { label: 'Auction', to: '/customer/watch-auction' }]} />
-      <div className="grid gap-4 md:grid-cols-2">
-        {wishlistItems.map((item) => (
-          <div key={item.title} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-white">{item.title}</p>
-              <Heart className="h-4 w-4 text-amber-300" />
-            </div>
-            <p className="mt-2 text-sm text-slate-400">{item.note}</p>
-            <p className="mt-4 text-lg font-semibold text-white">{item.price}</p>
-            <div className="mt-4 flex gap-3">
-              <Link to="/customer/watch-auction" className="rounded-full bg-amber-500 px-4 py-2 text-sm font-medium text-slate-950">Watch</Link>
-              <Link to="/customer/place-bid" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Bid</Link>
-            </div>
-          </div>
-        ))}
-      </div>
+      {items && items.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {items.map((item: any) => {
+            const product = item.product ?? null;
+            const title = product?.name || 'Wishlist item';
+            const description = product?.description || 'Saved item';
+            const price = Number(product?.price ?? 0);
+
+            return (
+              <div key={item.id || product?.id || title} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-white">{title}</p>
+                  <Heart className="h-4 w-4 text-amber-300" />
+                </div>
+                <p className="mt-2 text-sm text-slate-400">{description}</p>
+                <p className="mt-4 text-lg font-semibold text-white">₹{price.toLocaleString()}</p>
+                <div className="mt-4 flex gap-3">
+                  <Link to="/customer/watch-auction" className="rounded-full bg-amber-500 px-4 py-2 text-sm font-medium text-slate-950">Watch</Link>
+                  <Link to="/customer/place-bid" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Bid</Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-12 text-center">
+          <Heart className="mx-auto h-12 w-12 text-slate-600" />
+          <p className="mt-4 text-slate-400">Your wishlist is empty</p>
+        </div>
+      )}
     </SectionShell>
   );
 }
 
 export function CustomerWatchAuctionPage() {
   const navigate = useNavigate();
-  const selectedAuctionId = getSelectedAuctionId() ?? auctionItems.find((item) => item.status === 'Live')?.id ?? 104;
+  const [runtimeAuction, setRuntimeAuction] = useState<{ id: number; title: string; status: string; currentBid: number; participants: number; endsIn: string } | null>(null);
+  const [selectedAuctionId, setSelectedAuctionIdState] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadRuntimeAuction = async () => {
+      try {
+        const auctions = await getAuctions();
+        if (!active) return;
+
+        const candidate = auctions.find((item: { status: string }) => item.status === 'Live') ?? auctions.find((item: { status: string }) => item.status === 'Upcoming') ?? auctions[0] ?? null;
+        if (!candidate) {
+          setRuntimeAuction(null);
+          setSelectedAuctionIdState(null);
+          return;
+        }
+
+        const nextBid = Number(String(candidate.currentBid).replace(/[^0-9.-]/g, '')) || 0;
+        const nextState = {
+          id: candidate.id,
+          title: candidate.title,
+          status: candidate.status,
+          currentBid: nextBid,
+          participants: candidate.participants || 0,
+          endsIn: candidate.endsIn,
+        };
+
+        setSelectedAuctionIdState(candidate.id);
+        setSelectedAuctionId(candidate.id);
+        setRuntimeAuction(nextState);
+      } catch {
+        setRuntimeAuction(null);
+        setSelectedAuctionIdState(null);
+      }
+    };
+
+    loadRuntimeAuction();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const effectiveSelectedAuctionId = selectedAuctionId ?? getSelectedAuctionId() ?? 0;
   const [flowState, setFlowState] = useState<AuctionFlowState>(() => {
     const initialFlowState = readAuctionFlowState();
-    if (initialFlowState.auctionId !== selectedAuctionId) {
-      return initializeAuctionFlowStateForAuction(selectedAuctionId);
+    if (effectiveSelectedAuctionId > 0 && initialFlowState.auctionId !== effectiveSelectedAuctionId) {
+      return initializeAuctionFlowStateForAuction(effectiveSelectedAuctionId);
     }
 
     if (['WINNER', 'OUTBID', 'AUCTION_ENDED', 'FINAL_PAYMENT', 'ORDER_SUCCESS', 'INVOICE'].includes(initialFlowState.auctionStage)) {
-      return initializeAuctionFlowStateForAuction(selectedAuctionId);
+      return initializeAuctionFlowStateForAuction(effectiveSelectedAuctionId || initialFlowState.auctionId);
     }
 
     return initialFlowState;
   });
 
   useEffect(() => {
-    setSelectedAuctionId(selectedAuctionId);
-  }, [selectedAuctionId]);
+    if (effectiveSelectedAuctionId > 0) {
+      setSelectedAuctionId(effectiveSelectedAuctionId);
+    }
+  }, [effectiveSelectedAuctionId]);
 
   useAuctionFlowBackGuard(false);
 
-  const auctionStatus = getAuctionStatus(selectedAuctionId);
-  const registered = isAuctionRegistered(selectedAuctionId);
+  const auctionStatus = runtimeAuction?.status || 'Ended';
+  const registered = effectiveSelectedAuctionId > 0 ? isAuctionRegistered(effectiveSelectedAuctionId) : false;
+
+  if (!runtimeAuction) {
+    return (
+      <SectionShell title="Watch auction" subtitle="No live auctions available right now">
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8 text-slate-300">
+          <p className="text-lg font-semibold text-white">No active auctions found</p>
+          <p className="mt-4">The backend response currently has no live or upcoming auctions to show.</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link to="/auctions" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Browse auctions</Link>
+          </div>
+        </div>
+      </SectionShell>
+    );
+  }
 
   if (auctionStatus === 'Ended') {
     return (
@@ -366,6 +480,10 @@ export function CustomerWatchAuctionPage() {
     navigate('/customer/place-bid', { replace: true });
   };
 
+  const auctionTitle = runtimeAuction?.title || flowState.auctionTitle;
+  const currentHighestBid = runtimeAuction ? runtimeAuction.currentBid : flowState.highestBid;
+  const participantCount = runtimeAuction ? runtimeAuction.participants : flowState.participants;
+
   return (
     <SectionShell title="Watch auction" subtitle="Follow live bidding events and be ready to act">
       <FlowBreadcrumbs steps={[{ label: 'Wishlist', to: '/customer/wishlist' }, { label: 'Watch', to: '/customer/watch-auction' }, { label: 'Bid', to: '/customer/place-bid' }]} />
@@ -374,15 +492,15 @@ export function CustomerWatchAuctionPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.24em] text-amber-300">Live countdown</p>
-            <h3 className="mt-2 text-2xl font-semibold text-white">{flowState.auctionTitle}</h3>
+            <h3 className="mt-2 text-2xl font-semibold text-white">{auctionTitle}</h3>
           </div>
           <div className="rounded-full bg-amber-500/10 px-3 py-1 text-sm text-amber-300">{auctionStatus}</div>
         </div>
         <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-300">
-            <p className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-amber-300" /> Ends in {flowState.secondsLeft}s</p>
-            <p className="mt-3">Current highest bid: ₹{flowState.highestBid.toLocaleString()}</p>
-            <p className="mt-2">Participants: {flowState.participants}</p>
+            <p className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-amber-300" /> {runtimeAuction ? runtimeAuction.endsIn : `Ends in ${flowState.secondsLeft}s`}</p>
+            <p className="mt-3">Current highest bid: ₹{currentHighestBid.toLocaleString()}</p>
+            <p className="mt-2">Participants: {participantCount}</p>
             <div className="mt-4 flex flex-wrap gap-3">
               <button type="button" onClick={beginBidFlow} className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Place bid</button>
             </div>
@@ -559,6 +677,30 @@ export function CustomerBidConfirmationPage() {
 export function CustomerWalletPaymentPage() {
   const navigate = useNavigate();
   const [flowState] = useState<AuctionFlowState>(() => readAuctionFlowState());
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletError, setWalletError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadBalance = async () => {
+      try {
+        const { getWallet } = await import('../../api/walletApi');
+        const wallet = await getWallet();
+        if (isMounted) {
+          setWalletBalance(Number(wallet?.balance ?? 0));
+        }
+      } catch (err) {
+        if (isMounted) {
+          setWalletError(err instanceof Error ? err.message : 'Failed to load wallet balance');
+          setWalletBalance(0);
+        }
+      }
+    };
+
+    loadBalance();
+    return () => { isMounted = false; };
+  }, []);
 
   useAuctionFlowBackGuard(true);
 
@@ -580,7 +722,10 @@ export function CustomerWalletPaymentPage() {
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Available balance</p>
-          <p className="mt-3 text-3xl font-semibold text-white">₹82,500</p>
+          <p className="mt-3 text-3xl font-semibold text-white">₹{walletBalance.toLocaleString()}</p>
+          {walletError ? (
+            <p className="mt-3 text-sm text-rose-300">{walletError}</p>
+          ) : null}
           <div className="mt-5 space-y-3 text-sm text-slate-300">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Fee due: ₹20</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Auction balance reserve: ₹2,50,000</div>
@@ -604,7 +749,53 @@ export function CustomerAuctionLivePage() {
   const [bidAmount, setBidAmount] = useState(String(initialFlowState.highestBid + 5000));
   const [highlightedBidId, setHighlightedBidId] = useState<string | null>(null);
   const [highestBidHighlight, setHighestBidHighlight] = useState(false);
+  const [runtimeAuction, setRuntimeAuction] = useState<{ id: number; title: string; status: string; currentBid: number; participants: number; endsIn: string } | null>(null);
   const previousBidsRef = useRef(flowState.bids);
+
+  useEffect(() => {
+    let active = true;
+
+    const syncRuntimeAuction = async () => {
+      try {
+        const auctions = await getAuctions();
+        if (!active) return;
+
+        const candidate = auctions.find((item: { status: string }) => item.status === 'Live') ?? auctions.find((item: { status: string }) => item.status === 'Upcoming') ?? auctions[0] ?? null;
+        if (!candidate) {
+          setRuntimeAuction(null);
+          return;
+        }
+
+        const amountValue = Number(String(candidate.currentBid).replace(/[^0-9.-]/g, '')) || 0;
+
+        setRuntimeAuction({
+          id: candidate.id,
+          title: candidate.title,
+          status: candidate.status,
+          currentBid: amountValue,
+          participants: candidate.participants || 0,
+          endsIn: candidate.endsIn,
+        });
+
+        setSelectedAuctionId(candidate.id);
+        setFlowState((prev) => ({
+          ...prev,
+          auctionId: candidate.id,
+          auctionTitle: candidate.title,
+          highestBid: amountValue,
+          participants: candidate.participants || prev.participants,
+          auctionEndTime: candidate.endsIn,
+        }));
+      } catch {
+        setRuntimeAuction(null);
+      }
+    };
+
+    syncRuntimeAuction();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useAuctionFlowBackGuard(true);
 
@@ -1201,10 +1392,31 @@ export function CustomerShippingPage() {
   );
 }
 
+const AUCTION_ORDER_ID_STORAGE_PREFIX = 'bidzo_auction_order_id_';
+
+function readStoredAuctionOrderId(auctionId: number): number | null {
+  if (typeof window === 'undefined') return null;
+  const raw = window.localStorage.getItem(`${AUCTION_ORDER_ID_STORAGE_PREFIX}${auctionId}`);
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function saveStoredAuctionOrderId(auctionId: number, orderId: number) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(`${AUCTION_ORDER_ID_STORAGE_PREFIX}${auctionId}`, String(orderId));
+}
+
 export function CustomerPaymentPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [flowState, setFlowState] = useState<AuctionFlowState>(() => readAuctionFlowState());
+  const [order, setOrder] = useState<OrderResponseDto | null>(null);
+  const [paymentData, setPaymentData] = useState<RazorpayOrderResponse | null>(null);
   const [isPaymentSuccessful, setIsPaymentSuccessful] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useAuctionFlowBackGuard(true);
 
@@ -1217,6 +1429,144 @@ export function CustomerPaymentPage() {
     }, 2400);
     return () => window.clearTimeout(timer);
   }, [isPaymentSuccessful, navigate]);
+
+  useEffect(() => {
+    if (flowState.auctionStage !== 'FINAL_PAYMENT') return undefined;
+
+    let cancelled = false;
+
+    const preparePayment = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        let currentOrder: OrderResponseDto | null = null;
+        const storedOrderId = readStoredAuctionOrderId(flowState.auctionId);
+
+        if (storedOrderId) {
+          try {
+            currentOrder = await getOrderById(storedOrderId);
+          } catch {
+            currentOrder = null;
+          }
+        }
+
+        if (!currentOrder) {
+          try {
+            currentOrder = await createAuctionOrder(flowState.auctionId);
+            saveStoredAuctionOrderId(flowState.auctionId, currentOrder.id);
+          } catch (createError: any) {
+            const message = String(createError?.message || 'Unable to create auction order');
+            if (/already exists/i.test(message) && storedOrderId) {
+              currentOrder = await getOrderById(storedOrderId);
+            } else {
+              throw createError;
+            }
+          }
+        }
+
+        if (!currentOrder) {
+          throw new Error('Unable to prepare your order');
+        }
+
+        if (!cancelled) {
+          setOrder(currentOrder);
+        }
+
+        const paymentOrder = await createRazorpayPayment(currentOrder.id);
+        if (!cancelled) {
+          setPaymentData(paymentOrder);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'Unable to prepare payment');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    preparePayment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [flowState.auctionStage, flowState.auctionId]);
+
+  const handlePaymentVerification = async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+    if (!order) {
+      setError('Missing order information.');
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+
+    try {
+      await verifyRazorpayPayment(order.id, {
+        razorpayPaymentId: response.razorpay_payment_id,
+        razorpayOrderId: response.razorpay_order_id,
+        razorpaySignature: response.razorpay_signature,
+      });
+      setIsPaymentSuccessful(true);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to verify payment.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const openRazorpayCheckout = () => {
+    if (!paymentData || !order) {
+      setError('Payment session is not ready yet.');
+      return;
+    }
+
+    const Razorpay = (window as any).Razorpay;
+    if (typeof Razorpay !== 'function') {
+      setError('Razorpay checkout is unavailable. Please refresh and try again.');
+      return;
+    }
+
+    const options = {
+      key: paymentData.razorpayKeyId,
+      amount: paymentData.amount,
+      currency: paymentData.currency,
+      order_id: paymentData.razorpayOrderId,
+      name: 'Bidzo',
+      description: 'Auction payment',
+      prefill: {
+        name: user?.name || undefined,
+        email: user?.email || undefined,
+        contact: undefined,
+      },
+      handler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+        handlePaymentVerification(response);
+      },
+      modal: {
+        ondismiss: () => {
+          setError('Payment was cancelled.');
+        },
+      },
+      theme: {
+        color: '#2563eb',
+      },
+    };
+
+    const checkout = new Razorpay(options);
+    checkout.open();
+  };
+
+  if (loading) {
+    return (
+      <FlowTransitionScreen
+        heading="Preparing payment"
+        message="Creating your order and payment session"
+        detail="Please wait while we connect to Razorpay."
+      />
+    );
+  }
 
   if (isPaymentSuccessful) {
     return (
@@ -1244,17 +1594,56 @@ export function CustomerPaymentPage() {
     return <Navigate to="/customer/watch-auction" replace />;
   }
 
-  const handleConfirmOrder = () => {
-    setIsPaymentSuccessful(true);
-  };
-
   return (
     <SectionShell title="Payment" subtitle="Choose a secure payment method for your order">
       <FlowBreadcrumbs steps={[{ label: 'Shipping', to: '/customer/shipping' }, { label: 'Payment', to: '/customer/payment' }, { label: 'Success', to: '/customer/order-success' }]} />
-      <div className="grid gap-4 md:grid-cols-3">
-        {['UPI', 'Credit card', 'Wallet'].map((method) => <div key={method} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">{method}</div>)}
+      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-4">
+          <div>
+            <p className="text-sm text-slate-400">Order</p>
+            <p className="mt-1 text-lg font-semibold text-white">{order?.orderNumber || `#${order?.id}`}</p>
+            <p className="mt-1 text-sm text-slate-400">Status: {order?.orderStatus || 'Pending'}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-slate-400">Total amount</p>
+            <p className="mt-1 text-2xl font-semibold text-white">₹{Number(order?.totalAmount ?? 0).toLocaleString()}</p>
+          </div>
+        </div>
       </div>
-      <button type="button" onClick={handleConfirmOrder} className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Confirm order <ArrowRight className="h-4 w-4" /></button>
+
+      <div className="grid gap-4 md:grid-cols-3 mt-6">
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+          <p className="font-semibold text-white">UPI • Razorpay</p>
+          <p className="mt-3 text-slate-400">Pay securely through Razorpay with your preferred UPI app.</p>
+        </div>
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+          <p className="font-semibold text-white">Order ID</p>
+          <p className="mt-3 text-slate-400">{paymentData?.razorpayOrderId || 'Preparing...'}</p>
+        </div>
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+          <p className="font-semibold text-white">Payment processor</p>
+          <p className="mt-3 text-slate-400">Razorpay Checkout</p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-6">
+          <div className="rounded-[24px] border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-200">
+            <p className="font-semibold">Payment error</p>
+            <p className="mt-1 text-red-300">{error}</p>
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={openRazorpayCheckout}
+        disabled={!paymentData || processing}
+        className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-600"
+      >
+        {processing ? 'Processing payment...' : 'Pay with Razorpay'}
+        <ArrowRight className="h-4 w-4" />
+      </button>
     </SectionShell>
   );
 }
@@ -1450,10 +1839,83 @@ export function VendorCreateProductWizardPage() {
 
   const steps = ['Category', 'Basic info', 'Category fields', 'Images', 'Pricing', 'Shipping', 'Auction', 'Preview', 'Publish'];
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<any>({ title: '', category: 'Electronics', price: '', fields: {}, description: '' });
+  const [formData, setFormData] = useState<any>({ title: '', category: 'Electronics', price: '', quantity: '', fields: {}, description: '', sellingType: 'DIRECT_BUY', categoryId: 2, status: 'PUBLISHED' });
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
   const [productFormValid, setProductFormValid] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<File[] | undefined>(undefined);
+  const [productImageUrl, setProductImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const buildProductPayload = (draft: any) => {
+    const safeName = String(draft.title || '').trim();
+    const safeDescription = String(draft.description || '').trim();
+    const parsedPrice = Number(String(draft.price || '').replace(/[^\d.]/g, ''));
+    const parsedQuantity = Number(String(draft.quantity ?? '').trim());
+    const normalizedQuantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? Math.trunc(parsedQuantity) : 0;
+    const normalizedSellingType = String(draft.sellingType || 'DIRECT_BUY').trim().toUpperCase();
+    const sku = String(draft.sku || '').trim() || `${safeName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '').toUpperCase() || 'PRODUCT'}-${Date.now()}`;
+
+    return {
+      name: safeName,
+      description: safeDescription,
+      price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+      quantity: normalizedQuantity,
+      sku,
+      status: String(draft.status || 'PUBLISHED').toUpperCase(),
+      categoryId: Number(draft.categoryId ?? 2),
+      sellingType: (normalizedSellingType === 'AUCTION' || normalizedSellingType === 'DIRECT_BUY' ? normalizedSellingType : 'DIRECT_BUY') as SellingType,
+    };
+  };
+
+  const handleNext = async () => {
+    if (step === 8) {
+      try {
+        setSubmitting(true);
+        setSubmitError(null);
+
+        const selectedFile = uploadedImages?.[0];
+        let resolvedPublicImageUrl = String(productImageUrl || '').trim();
+
+        if (selectedFile) {
+          setUploadingImage(true);
+          try {
+            resolvedPublicImageUrl = await uploadToCloudinary(selectedFile);
+            setProductImageUrl(resolvedPublicImageUrl);
+          } finally {
+            setUploadingImage(false);
+          }
+        }
+
+        if (!resolvedPublicImageUrl || !(resolvedPublicImageUrl.startsWith('http://') || resolvedPublicImageUrl.startsWith('https://'))) {
+          setSubmitError('A valid public image URL is required before the product can be published.');
+          return;
+        }
+
+        const createdProduct = await createVendorProduct(buildProductPayload(formData));
+        const productId = Number(createdProduct?.id ?? 0);
+
+        if (!productId) {
+          throw new Error('Product creation did not return a valid product ID.');
+        }
+
+        await createProductImage(productId, {
+          url: resolvedPublicImageUrl,
+          altText: `${String(formData.title || 'Product').trim() || 'Product'} Main Image`,
+        });
+
+        setStep(9);
+      } catch (error) {
+        setSubmitError(error instanceof Error ? error.message : 'Unable to create product');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    setStep(Math.min(steps.length, step + 1));
+  };
 
   useEffect(() => {
     setAutosaveStatus('Autosaving...');
@@ -1473,7 +1935,11 @@ export function VendorCreateProductWizardPage() {
     const imgs = uploadedImages || formData.images || [];
     canContinue = imgs.length > 0;
   } else if (step === 5) {
-    canContinue = !!(formData.price && formData.price.toString().trim().length > 0);
+    const quantityValue = Number(formData.quantity);
+    canContinue = !!(formData.price && formData.price.toString().trim().length > 0 && formData.quantity !== undefined && formData.quantity !== null && formData.quantity !== '' && Number.isFinite(quantityValue) && quantityValue >= 0 && Number.isInteger(quantityValue));
+  } else if (step === 8) {
+    const quantityValue = Number(formData.quantity);
+    canContinue = !!(formData.title && formData.title.toString().trim().length > 0 && formData.price && formData.price.toString().trim().length > 0 && formData.quantity !== undefined && formData.quantity !== null && formData.quantity !== '' && Number.isFinite(quantityValue) && quantityValue >= 0 && Number.isInteger(quantityValue));
   }
 
   return (
@@ -1482,12 +1948,12 @@ export function VendorCreateProductWizardPage() {
         <Wizard
           steps={steps}
           step={step}
-          canContinue={canContinue}
+          canContinue={canContinue && !submitting}
           onPrev={() => setStep(Math.max(1, step - 1))}
-          onNext={() => setStep(Math.min(steps.length, step + 1))}
+          onNext={handleNext}
           onSaveDraft={() => alert('Draft saved (UI only)')}
           onPreview={() => alert('Preview (UI only)')}
-          autosaveStatus={autosaveStatus}
+          autosaveStatus={submitting ? 'Submitting...' : autosaveStatus}
         >
           {step === 1 && (
             <div className="space-y-4">
@@ -1515,17 +1981,36 @@ export function VendorCreateProductWizardPage() {
 
           {step === 4 && (
             <div>
-              <p className="text-sm text-slate-400">Upload product gallery images and a hero image.</p>
+              <p className="text-sm text-slate-400">Select an image and upload it to the configured Cloudinary unsigned preset. The backend image API requires a permanent public URL, not a browser blob URL.</p>
               <div className="mt-3">
                 <UploadField onChange={(files) => { setUploadedImages(files); setFormData({ ...formData, images: files }); }} />
+              </div>
+              <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                <label className="mb-2 block text-sm font-medium text-slate-200">Cloudinary public URL</label>
+                <input
+                  value={productImageUrl}
+                  onChange={(e) => setProductImageUrl(e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white"
+                  placeholder="https://res.cloudinary.com/.../image/upload/...jpg"
+                />
+                {uploadingImage && (
+                  <p className="mt-3 text-sm text-blue-200">Uploading selected image to Cloudinary...</p>
+                )}
               </div>
             </div>
           )}
 
           {step === 5 && (
             <div className="space-y-4">
-              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} placeholder="Price" />
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Set price, promotions, and installment options (UI only).</div>
+              <div className="grid gap-3 md:grid-cols-[1.3fr_1fr_0.8fr]">
+                <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} placeholder="Price" />
+                <input type="number" min="0" step="1" className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.quantity ?? ''} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} placeholder="Quantity" />
+                <select className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.sellingType || 'DIRECT_BUY'} onChange={(e) => setFormData({ ...formData, sellingType: e.target.value })}>
+                  <option value="DIRECT_BUY">Direct Buy</option>
+                  <option value="AUCTION">Auction</option>
+                </select>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Set price, stock quantity, promotions, and installment options (UI only).</div>
             </div>
           )}
 
@@ -1551,7 +2036,10 @@ export function VendorCreateProductWizardPage() {
               <p className="font-semibold text-white">Preview</p>
               <p className="mt-2">{formData.title}</p>
               <p className="mt-2">Category: {formData.category}</p>
+              <p className="mt-2">Selling type: {formData.sellingType === 'AUCTION' ? 'Auction' : 'Direct Buy'}</p>
               <p className="mt-2">Price: {formData.price}</p>
+              <p className="mt-2">Quantity: {formData.quantity}</p>
+              {submitError && <p className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{submitError}</p>}
             </div>
           )}
 
@@ -1688,6 +2176,7 @@ export function VendorEditProductWizardPage() {
 }
 
 export function VendorCreateAuctionWizardPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const typeParam = searchParams.get('type');
   const isBikeAuction = typeParam === 'bike';
@@ -1696,12 +2185,60 @@ export function VendorCreateAuctionWizardPage() {
   const [step, setStep] = useState(1);
   const [data, setData] = useState<any>({
     title: isBikeAuction ? 'Bike Auction Bundle' : 'Vintage Camera Kit',
+    description: 'New auction listing for your selected product.',
     reserve: isBikeAuction ? '₹75,000' : '₹1,00,000',
     durationDays: isBikeAuction ? 5 : 3,
     bidIncrement: isBikeAuction ? '₹2,000' : '₹1,000',
+    startAt: '',
+    endAt: '',
+    productId: null as number | null,
+    vendorId: null as number | null,
   });
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
   const [auctionFormValid, setAuctionFormValid] = useState(false);
+  const [products, setProducts] = useState<Array<{ id: number; name: string; price: number | string; sellingType?: string | null }>>([]);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadVendorAuctionOptions = async () => {
+      try {
+        const [vendorProducts, vendorProfile] = await Promise.all([
+          getVendorProducts(),
+          getVendorProfile(),
+        ]);
+
+        if (!active) return;
+
+        const auctionProducts = vendorProducts.filter((product: { sellingType?: string | null }) => String(product.sellingType || '').toUpperCase() === 'AUCTION');
+        const availableProducts = auctionProducts.length > 0 ? auctionProducts : vendorProducts;
+
+        setProducts(availableProducts);
+
+        const firstProductId = availableProducts[0]?.id ?? null;
+        setSelectedProductId(firstProductId);
+        setData((prev: any) => ({
+          ...prev,
+          productId: firstProductId,
+          vendorId: vendorProfile?.id ?? prev.vendorId,
+        }));
+      } catch {
+        if (active) {
+          setProducts([]);
+          setSelectedProductId(null);
+        }
+      }
+    };
+
+    loadVendorAuctionOptions();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     setAutosaveStatus('Autosaving...');
@@ -1709,11 +2246,63 @@ export function VendorCreateAuctionWizardPage() {
     return () => clearTimeout(t);
   }, [data]);
 
+  const formatLocalDateTime = (value: string) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
+  };
+
+  const handlePublish = async () => {
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+      setSubmitSuccess(null);
+
+      const productId = Number(selectedProductId ?? data.productId ?? 0);
+      const vendorId = Number(data.vendorId ?? 0);
+      const parsedPrice = Number(String(data.reserve || '').replace(/[^\d.]/g, ''));
+      const startAt = formatLocalDateTime(data.startAt || new Date().toISOString());
+      const endAt = formatLocalDateTime(data.endAt || new Date(Date.now() + 10 * 60 * 1000).toISOString());
+
+      if (!productId) {
+        throw new Error('Please select a vendor product for this auction.');
+      }
+      if (!vendorId) {
+        throw new Error('Unable to resolve the authenticated vendor profile.');
+      }
+      if (!startAt || !endAt) {
+        throw new Error('Both start and end times are required.');
+      }
+
+      const payload = {
+        title: String(data.title || '').trim(),
+        description: String(data.description || '').trim(),
+        startAt,
+        endAt,
+        startingPrice: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+        productId,
+        vendorId,
+      };
+
+      const createdAuction = await createAuction(payload);
+      setSubmitSuccess(`Auction created successfully: ${createdAuction.title} (${createdAuction.status || 'LIVE'})`);
+      navigate('/vendor/auction-analytics', { replace: true });
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to create auction');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   let canContinueAuction = true;
   if (step === 1) {
     canContinueAuction = !!(data.title && data.title.toString().trim().length > 0 && data.reserve && data.bidIncrement);
   } else if (step === 2) {
     canContinueAuction = auctionFormValid;
+  } else if (step === 3) {
+    canContinueAuction = !!(selectedProductId || data.productId);
   }
 
   return (
@@ -1722,17 +2311,66 @@ export function VendorCreateAuctionWizardPage() {
         <Wizard
           steps={steps}
           step={step}
-          canContinue={canContinueAuction}
+          canContinue={canContinueAuction && !isSubmitting}
           onPrev={() => setStep(Math.max(1, step - 1))}
-          onNext={() => setStep(Math.min(steps.length, step + 1))}
+          onNext={() => {
+            if (step === steps.length) {
+              void handlePublish();
+              return;
+            }
+            setStep(Math.min(steps.length, step + 1));
+          }}
           onSaveDraft={() => alert('Auction draft saved (UI only)')}
           onPreview={() => alert('Auction preview (UI only)')}
-          autosaveStatus={autosaveStatus}
+          autosaveStatus={isSubmitting ? 'Submitting...' : autosaveStatus}
         >
-          {step === 1 && <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Choose item, audience and reserve rules.</div>}
-          {step === 2 && <AuctionForm initial={data} onValidate={(v) => setAuctionFormValid(v)} onChange={(d) => setData(d)} />}
-          {step === 3 && (<div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Preview start time, increments and promotional placement.</div>)}
-          {step === 4 && (<div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6 text-sm text-slate-300"><p className="text-lg font-semibold text-white">Auction published</p><p className="mt-2">{data.title} is now live for buyers and ready for instant bidding.</p><Link to="/vendor/auctions" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Manage auctions</Link></div>)}
+          {step === 1 && (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                <p className="font-medium text-white">Choose your product</p>
+                <div className="mt-3 space-y-2">
+                  {products.length === 0 ? (
+                    <p className="text-slate-400">No vendor products were returned by the authenticated vendor profile.</p>
+                  ) : (
+                    products.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedProductId(product.id);
+                          setData((prev: any) => ({ ...prev, productId: product.id }));
+                        }}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left text-sm ${selectedProductId === product.id ? 'border-blue-500/40 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}
+                      >
+                        {product.name} • ₹{Number(product.price ?? 0).toLocaleString()} • {product.sellingType === 'AUCTION' ? 'Auction' : 'Direct Buy'}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {step === 2 && <AuctionForm initial={data} onValidate={(v) => setAuctionFormValid(v)} onChange={(d) => setData((prev: any) => ({ ...prev, ...d }))} />}
+          {step === 3 && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+              <p className="text-lg font-semibold text-white">Preview</p>
+              <p className="mt-2">Title: {data.title}</p>
+              <p className="mt-2">Description: {data.description}</p>
+              <p className="mt-2">Start: {data.startAt || 'Not set'}</p>
+              <p className="mt-2">End: {data.endAt || 'Not set'}</p>
+              <p className="mt-2">Starting price: ₹{String(data.reserve || '').replace(/[^\d.]/g, '') || '0'}</p>
+              <p className="mt-2">Product ID: {selectedProductId ?? data.productId ?? 'Not selected'}</p>
+              <p className="mt-2">Vendor ID: {data.vendorId ?? 'Not resolved'}</p>
+            </div>
+          )}
+          {step === 4 && (
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6 text-sm text-slate-300">
+              <p className="text-lg font-semibold text-white">Auction published</p>
+              <p className="mt-2">{submitSuccess || `${data.title} is ready to go live.`}</p>
+              {submitError && <p className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{submitError}</p>}
+              <Link to="/vendor/auction-analytics" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Manage auctions</Link>
+            </div>
+          )}
         </Wizard>
       </div>
     </SectionShell>

@@ -1,13 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { BadgeCheck, BellRing, CreditCard, Heart, MapPin, MessageCircleMore, PackageCheck, ReceiptText, Search, Settings, ShieldCheck, Sparkles, Store, Wallet2 } from 'lucide-react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { BadgeCheck, BellRing, CreditCard, Heart, MapPin, MessageCircleMore, PackageCheck, ReceiptText, Search, Settings, ShieldCheck, Sparkles, Store, Wallet2, ChevronLeft, X, Check, Clock, Eye, MessageSquare } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { Card } from '../../components/common/Card';
 import { Table } from '../../components/common/Table';
 import { Badge, PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
-import { EmptyState, SkeletonTable } from '../../components/loading/LoadingComponents';
+import { EmptyState, ErrorState, SkeletonCard, SkeletonTable } from '../../components/loading/LoadingComponents';
 import VendorSidebar from '../../components/layout/VendorSidebar';
-import { addresses, customerBids, customerOrders, invoices, notifications, popularSearches, recentlyViewed, reviews, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorInventory, vendorProducts, vendorOrders, vendorAuctions, vendorReports, vendorShippingRules, vendorWithdrawals, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
+import { getCustomerProfile, saveCustomerProfile } from '../../api/customerApi';
+import { getOrders } from '../../api/orderApi';
+import { getAuctionById, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus } from '../../api/auctionApi';
+import { getAuctionBids, placeBid } from '../../api/bidApi';
+import { getPaymentsForOrder } from '../../api/paymentApi';
+import { getAddresses, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
+import { useAuth } from '../../context/AuthContext';
+import type { OrderResponseDto } from '../../types';
+import { getMyBids, type BidResponse } from '../../api/bidApi';
+import { getVendorProducts, getProductImage, formatCurrency as formatProductCurrency, mapSellingTypeLabel, type VendorProductApiResponse } from '../../api/vendorProductApi';
+import { getVendorAuctions, type VendorAuctionApiResponse } from '../../api/vendorAuctionApi';
+import { getVendorOrders, type VendorOrderApiResponse } from '../../api/vendorOrderApi';
+import { getVendorRevenue } from '../../api/vendorRevenueApi';
+import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
+import { addresses, customerBids, invoices, notifications, popularSearches, recentlyViewed, reviews, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorInventory, vendorProducts, vendorOrders, vendorAuctions, vendorReports, vendorShippingRules, vendorWithdrawals, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
+
+
 
 function SubtlePanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -18,53 +34,294 @@ function SubtlePanel({ title, children }: { title: string; children: React.React
   );
 }
 
+function toMoney(value: number | string | null | undefined): string {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) {
+    return '₹0';
+  }
+
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(numeric);
+}
+
+function statusTone(status: string | null | undefined) {
+  return status === 'COMPLETE' ? 'text-emerald-300' : 'text-amber-300';
+}
+
 export function CustomerProfilePage() {
+  const [profile, setProfile] = useState<null | { id: number; firstName: string; lastName: string; phone: string; addressId: number | null; userId: number }>(null);
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', addressId: null as number | null });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getCustomerProfile();
+        setProfile(data);
+        setForm({
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          phone: data.phone || '',
+          addressId: data.addressId ?? null,
+        });
+      } catch (err: any) {
+        if (!String(err?.message).toLowerCase().includes('not found')) {
+          setError(err?.message || 'Unable to load your profile.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  const canEdit = profile === null;
+
+  const saveProfile = async () => {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const saved = await saveCustomerProfile(form);
+      setProfile(saved);
+      setForm({
+        firstName: saved.firstName || '',
+        lastName: saved.lastName || '',
+        phone: saved.phone || '',
+        addressId: saved.addressId ?? null,
+      });
+      setMessage('Profile created successfully.');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to save your profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SectionShell title="My profile" subtitle="Your verified buyer identity and delivery preferences">
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <SubtlePanel title="Account overview">
-          <div className="space-y-3 text-sm text-slate-300">
-            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-              <span>Name</span>
-              <span className="font-semibold text-white">Asha Patel</span>
-            </div>
-            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-              <span>Verified status</span>
-              <span className="font-semibold text-emerald-300">KYC approved</span>
-            </div>
-            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-              <span>Primary location</span>
-              <span className="font-semibold text-white">Bengaluru</span>
-            </div>
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+          <div className="mb-6 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
+            <BadgeCheck className="h-4 w-4" /> Customer profile
           </div>
-        </SubtlePanel>
-        <SubtlePanel title="Preferred delivery">
-          <div className="rounded-[20px] border border-white/10 bg-gradient-to-br from-blue-600/10 to-amber-500/10 p-5 text-sm text-slate-300">
-            <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-300" /> Fast express shipping to office and home</p>
-            <p className="mt-3">Preferred payment methods: UPI, cards, and wallet.</p>
+          {loading ? (
+            <SkeletonCard />
+          ) : (
+            <div className="space-y-5">
+              {error ? <ErrorState title="Profile error" description={error} /> : null}
+              {message ? <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-300">First name</span>
+                  <input
+                    value={form.firstName}
+                    onChange={(e) => setForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                    disabled={!canEdit}
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/40"
+                    placeholder="Enter first name"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-300">Last name</span>
+                  <input
+                    value={form.lastName}
+                    onChange={(e) => setForm((prev) => ({ ...prev, lastName: e.target.value }))}
+                    disabled={!canEdit}
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/40"
+                    placeholder="Enter last name"
+                  />
+                </label>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-300">Phone</span>
+                  <input
+                    value={form.phone}
+                    onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    disabled={!canEdit}
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/40"
+                    placeholder="Enter phone number"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-300">Address ID</span>
+                  <input
+                    value={form.addressId ?? ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, addressId: e.target.value ? Number(e.target.value) : null }))}
+                    disabled={!canEdit}
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/40"
+                    placeholder="Enter address ID"
+                    type="number"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  onClick={saveProfile}
+                  disabled={saving || !canEdit}
+                  className="inline-flex items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? 'Saving…' : profile ? 'Profile created' : 'Create profile'}
+                </button>
+                {profile ? (
+                  <p className="text-sm text-slate-400">Your profile is already stored on the backend. Profile updates are not supported by the current backend contract.</p>
+                ) : (
+                  <p className="text-sm text-slate-400">Complete these details to enable faster checkout and verified buyer access.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">{profile ? 'Profile summary' : 'Why your profile matters'}</div>
+          <div className="mt-6 space-y-4 text-sm text-slate-300">
+            {profile ? (
+              <>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <p className="text-slate-400">Full name</p>
+                  <p className="mt-2 text-white">{profile.firstName} {profile.lastName}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <p className="text-slate-400">Phone</p>
+                  <p className="mt-2 text-white">{profile.phone || 'Not provided'}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <p className="text-slate-400">Address ID</p>
+                  <p className="mt-2 text-white">{profile.addressId ?? 'Not set'}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">A complete customer profile unlocks faster checkout, personalized recommendations, and better order tracking.</p>
+                <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Your address reference keeps delivery and shipping options aligned with your current location.</p>
+              </>
+            )}
           </div>
-        </SubtlePanel>
+        </div>
       </div>
     </SectionShell>
   );
 }
 
 export function CustomerOrdersPage() {
+  const [orders, setOrders] = useState<OrderResponseDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'processing' | 'shipped' | 'delivered'>('all');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadOrders = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getOrders();
+        if (!cancelled) {
+          setOrders(data);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'Unable to load your orders.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadOrders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredOrders = useMemo(() => {
+    const query = searchTerm.toLowerCase();
+    let filtered = orders.filter(
+      (order) =>
+        (order.orderNumber?.toLowerCase().includes(query) || `Order #${order.id}`.toLowerCase().includes(query)) &&
+        (filterStatus === 'all' || order.orderStatus?.toLowerCase() === filterStatus)
+    );
+    return filtered;
+  }, [orders, filterStatus, searchTerm]);
+
+  if (loading) {
+    return (
+      <SectionShell title="My orders" subtitle="Your shipment and delivery history">
+        <SkeletonTable />
+      </SectionShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <SectionShell title="My orders" subtitle="Your shipment and delivery history">
+        <ErrorState title="Unable to load orders" description={error} />
+      </SectionShell>
+    );
+  }
+
   return (
     <SectionShell title="My orders" subtitle="Your shipment and delivery history">
-      <div className="space-y-3">
-        {customerOrders.map((order) => (
-          <div key={order.id} className="flex flex-wrap items-center justify-between rounded-[20px] border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300">
-            <div>
-              <p className="font-semibold text-white">{order.item}</p>
-              <p>{order.id}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-semibold text-white">{order.total}</p>
-              <p className="text-emerald-300">{order.status}</p>
-            </div>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <input
+            type="text"
+            placeholder="Search orders..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+          />
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as any)}
+            className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+          >
+            <option value="all">All orders</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+          </select>
+        </div>
+
+        {filteredOrders.length === 0 ? (
+          <EmptyState title="No orders found" description="Your orders will appear here once you make a purchase." />
+        ) : (
+          <div className="space-y-3">
+            {filteredOrders.map((order) => (
+              <Link
+                key={order.id}
+                to={`/customer/orders/${order.id}`}
+                className="flex flex-wrap items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300 transition hover:border-blue-400/40 hover:bg-slate-900/90"
+              >
+                <div>
+                  <p className="font-semibold text-white">{order.orderNumber || `Order #${order.id}`}</p>
+                  <p className="mt-1 text-slate-400">{order.items?.length ? `${order.items.length} item${order.items.length > 1 ? 's' : ''}` : 'No items'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-white">₹{Number(order.totalAmount).toLocaleString()}</p>
+                  <p className="text-emerald-300">{order.orderStatus}</p>
+                </div>
+              </Link>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </SectionShell>
   );
@@ -75,13 +332,13 @@ export function CustomerAuctionsPage() {
     <SectionShell title="My auctions" subtitle="Items you listed or are watching as a buyer">
       <div className="space-y-3">
         {customerBids.map((bid) => (
-          <div key={bid.item} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
+          <Link key={bid.item} to={`/customer/auctions/${bid.item.toLowerCase().replace(/ /g, '-')}`} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300 transition hover:border-blue-400/40 hover:bg-slate-900/90">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-white">{bid.item}</p>
               <p className="text-white">{bid.bid}</p>
             </div>
             <p className="mt-2">{bid.progress}</p>
-          </div>
+          </Link>
         ))}
       </div>
     </SectionShell>
@@ -89,33 +346,606 @@ export function CustomerAuctionsPage() {
 }
 
 export function CustomerBidsPage() {
+  const [bids, setBids] = useState<BidResponse[]>([]);
+  const [activeTab, setActiveTab] = useState<
+    'all' | 'winning' | 'outbid' | 'closed'
+  >('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBids = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const data = await getMyBids();
+
+        if (!cancelled) {
+          setBids(Array.isArray(data) ? data : []);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(
+            err?.message ||
+              'Unable to load your bids. Please try again.'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadBids();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const getBidStatus = (bid: BidResponse) => {
+    const status = String(bid.status || '').toUpperCase();
+
+    if (status === 'OUTBID') {
+      return 'outbid';
+    }
+
+    if (
+      status === 'ACCEPTED' ||
+      status === 'WINNING' ||
+      status === 'PENDING'
+    ) {
+      return 'winning';
+    }
+
+    return 'closed';
+  };
+
+  const filteredBids = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    return bids.filter((bid) => {
+      const statusType = getBidStatus(bid);
+
+      const matchesTab =
+        activeTab === 'all' ||
+        (activeTab === 'winning' && statusType === 'winning') ||
+        (activeTab === 'outbid' && statusType === 'outbid') ||
+        (activeTab === 'closed' && statusType === 'closed');
+
+      const matchesSearch =
+        !query ||
+        String(bid.id).includes(query) ||
+        String(bid.auctionId).includes(query) ||
+        String(bid.amount).includes(query) ||
+        String(bid.status).toLowerCase().includes(query);
+
+      return matchesTab && matchesSearch;
+    });
+  }, [bids, activeTab, searchTerm]);
+
+  const allCount = bids.length;
+
+  const winningCount = bids.filter(
+    (bid) => getBidStatus(bid) === 'winning'
+  ).length;
+
+  const outbidCount = bids.filter(
+    (bid) => getBidStatus(bid) === 'outbid'
+  ).length;
+
+  const closedCount = bids.filter(
+    (bid) => getBidStatus(bid) === 'closed'
+  ).length;
+
+  const formatAmount = (amount: string | number) => {
+    const value = Number(amount);
+
+    if (Number.isNaN(value)) {
+      return '₹0';
+    }
+
+    return `₹${value.toLocaleString('en-IN')}`;
+  };
+
+  const formatDate = (date?: string) => {
+    if (!date) {
+      return 'Date unavailable';
+    }
+
+    const parsed = new Date(date);
+
+    if (Number.isNaN(parsed.getTime())) {
+      return date;
+    }
+
+    return parsed.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getStatusLabel = (status?: string) => {
+    const normalized = String(status || '').toUpperCase();
+
+    if (normalized === 'OUTBID') {
+      return 'Outbid';
+    }
+
+    if (normalized === 'ACCEPTED') {
+      return 'Winning';
+    }
+
+    if (normalized === 'WINNING') {
+      return 'Winning';
+    }
+
+    if (normalized === 'PENDING') {
+      return 'Pending';
+    }
+
+    if (normalized === 'CANCELLED') {
+      return 'Cancelled';
+    }
+
+    return status || 'Unknown';
+  };
+
+  const getStatusClass = (status?: string) => {
+    const normalized = String(status || '').toUpperCase();
+
+    if (
+      normalized === 'ACCEPTED' ||
+      normalized === 'WINNING'
+    ) {
+      return 'bg-emerald-500/20 text-emerald-300';
+    }
+
+    if (normalized === 'OUTBID') {
+      return 'bg-amber-500/20 text-amber-300';
+    }
+
+    if (normalized === 'PENDING') {
+      return 'bg-blue-500/20 text-blue-300';
+    }
+
+    return 'bg-slate-500/20 text-slate-300';
+  };
+
+  const tabs = [
+    {
+      id: 'all',
+      label: 'All',
+      count: allCount,
+    },
+    {
+      id: 'winning',
+      label: 'Winning',
+      count: winningCount,
+    },
+    {
+      id: 'outbid',
+      label: 'Outbid',
+      count: outbidCount,
+    },
+    {
+      id: 'closed',
+      label: 'Closed',
+      count: closedCount,
+    },
+  ];
+
+  if (loading) {
+    return (
+      <SectionShell
+        title="My active bids"
+        subtitle="Track your bids across auctions"
+      >
+        <SkeletonTable />
+      </SectionShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <SectionShell
+        title="My active bids"
+        subtitle="Track your bids across auctions"
+      >
+        <ErrorState
+          title="Unable to load bids"
+          description={error}
+        />
+      </SectionShell>
+    );
+  }
+
   return (
-    <SectionShell title="My active bids" subtitle="Live auctions currently in your watchlist">
-      <div className="grid gap-4 lg:grid-cols-2">
-        {customerBids.map((bid) => (
-          <div key={bid.item} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
-            <p className="font-semibold text-white">{bid.item}</p>
-            <p className="mt-2 text-sm text-slate-400">Current bid • {bid.bid}</p>
-            <p className="mt-4 text-sm text-amber-300">{bid.progress}</p>
+    <SectionShell
+      title="My active bids"
+      subtitle="Track your bids across auctions"
+    >
+      <div className="space-y-5">
+
+        {/* Search */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input
+            type="text"
+            placeholder="Search by bid ID, auction ID, amount or status..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full max-w-xl rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/40"
+          />
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() =>
+                setActiveTab(
+                  tab.id as
+                    | 'all'
+                    | 'winning'
+                    | 'outbid'
+                    | 'closed'
+                )
+              }
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              {tab.label}
+              <span className="ml-1 text-xs opacity-75">
+                ({tab.count})
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Empty */}
+        {filteredBids.length === 0 ? (
+          <EmptyState
+            title={
+              bids.length === 0
+                ? 'No bids yet'
+                : 'No bids found'
+            }
+            description={
+              bids.length === 0
+                ? 'Your bids will appear here when you participate in an auction.'
+                : 'Try another search or select a different bid status.'
+            }
+          />
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+
+            {filteredBids.map((bid) => {
+              const statusType = getBidStatus(bid);
+
+              return (
+                <div
+                  key={bid.id}
+                  className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 transition hover:border-blue-400/30 hover:bg-slate-900/90"
+                >
+                  {/* Header */}
+                  <div className="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                        Auction
+                      </p>
+
+                      <p className="mt-1 text-lg font-semibold text-white">
+                        Auction #{bid.auctionId}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        Bid #{bid.id}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClass(
+                        bid.status
+                      )}`}
+                    >
+                      {getStatusLabel(bid.status)}
+                    </span>
+                  </div>
+
+                  {/* Details */}
+                  <div className="space-y-3">
+
+                    <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                      <span className="text-sm text-slate-400">
+                        Your bid
+                      </span>
+
+                      <span className="text-lg font-semibold text-white">
+                        {formatAmount(bid.amount)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                      <span className="text-sm text-slate-400">
+                        Status
+                      </span>
+
+                      <span className="text-sm font-medium text-white">
+                        {getStatusLabel(bid.status)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                      <span className="text-sm text-slate-400">
+                        Placed at
+                      </span>
+
+                      <span className="text-right text-sm text-slate-300">
+                        {formatDate(bid.placedAt)}
+                      </span>
+                    </div>
+
+                  </div>
+
+                  {/* Footer */}
+                  <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4">
+                    <div className="text-xs text-slate-500">
+                      User ID: {bid.userId}
+                    </div>
+
+                    <Link
+                      to={`/customer/auctions/${bid.auctionId}`}
+                      className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
+                    >
+                      View Auction
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+
           </div>
-        ))}
+        )}
       </div>
     </SectionShell>
   );
 }
-
 export function CustomerWonAuctionsPage() {
+  const [wonAuctions, setWonAuctions] = useState<
+    Array<{
+      auctionId: number;
+      title: string;
+      finalPrice: string;
+      awardedAt: string;
+      bidId: number;
+    }>
+  >([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWonAuctions = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Get customer's real bids
+        const bids = await getMyBids();
+
+        // Only accepted/winning bids
+        const winningBids = bids.filter((bid) => {
+          const status = String(bid.status || '').toUpperCase();
+          return status === 'ACCEPTED' || status === 'WINNING';
+        });
+
+        // Get real winner information for each auction
+        const results = await Promise.all(
+          winningBids.map(async (bid) => {
+            try {
+              const winner = await getAuctionWinner(bid.auctionId);
+
+              // Make sure this bid is actually the winning bid
+              if (
+                winner.bidId !== bid.id ||
+                winner.winnerId !== bid.userId
+              ) {
+                return null;
+              }
+
+              const auction = await getAuctionById(bid.auctionId);
+
+              return {
+                auctionId: auction.id,
+                title: auction.title,
+                finalPrice: winner.finalPrice,
+                awardedAt: winner.awardedAt,
+                bidId: winner.bidId,
+              };
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        if (!cancelled) {
+          setWonAuctions(
+            results.filter(
+              (item): item is NonNullable<typeof item> => item !== null
+            )
+          );
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(
+            err?.message || 'Unable to load your won auctions.'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadWonAuctions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const formatAmount = (amount: string | number) => {
+    const value = Number(amount);
+
+    if (Number.isNaN(value)) {
+      return '₹0';
+    }
+
+    return `₹${value.toLocaleString('en-IN')}`;
+  };
+
+  const formatDate = (date?: string) => {
+    if (!date) {
+      return 'Date unavailable';
+    }
+
+    const parsed = new Date(date);
+
+    if (Number.isNaN(parsed.getTime())) {
+      return date;
+    }
+
+    return parsed.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  if (loading) {
+    return (
+      <SectionShell
+        title="Won auctions"
+        subtitle="Concluded items you successfully secured"
+      >
+        <SkeletonTable />
+      </SectionShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <SectionShell
+        title="Won auctions"
+        subtitle="Concluded items you successfully secured"
+      >
+        <ErrorState
+          title="Unable to load won auctions"
+          description={error}
+        />
+      </SectionShell>
+    );
+  }
+
   return (
-    <SectionShell title="Won auctions" subtitle="Concluded items you successfully secured">
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">
-        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-          <div>
-            <p className="font-semibold text-white">Classic Motorcycle</p>
-            <p>Won for ₹8,20,000</p>
-          </div>
-          <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">Paid</span>
+    <SectionShell
+      title="Won auctions"
+      subtitle="Concluded items you successfully secured"
+    >
+      {wonAuctions.length === 0 ? (
+        <EmptyState
+          title="No won auctions"
+          description="Auctions you successfully win will appear here."
+        />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {wonAuctions.map((auction) => (
+            <div
+              key={auction.auctionId}
+              className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300 transition hover:border-emerald-400/30 hover:bg-slate-900/90"
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                    Auction
+                  </p>
+
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {auction.title}
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    Auction #{auction.auctionId}
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-300">
+                  Won
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                  <span className="text-sm text-slate-400">
+                    Final price
+                  </span>
+
+                  <span className="text-lg font-semibold text-white">
+                    {formatAmount(auction.finalPrice)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                  <span className="text-sm text-slate-400">
+                    Winning bid
+                  </span>
+
+                  <span className="text-sm font-medium text-emerald-300">
+                    Bid #{auction.bidId}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                  <span className="text-sm text-slate-400">
+                    Awarded at
+                  </span>
+
+                  <span className="text-right text-sm text-slate-300">
+                    {formatDate(auction.awardedAt)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-white/10 pt-4">
+                <Link
+                  to={`/customer/auctions/${auction.auctionId}`}
+                  className="inline-flex rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
+                >
+                  View Auction
+                </Link>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
     </SectionShell>
   );
 }
@@ -136,79 +966,555 @@ export function CustomerRecentlyViewedPage() {
 }
 
 export function CustomerWatchlistPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'price'>('name');
+  const [localWishlist, setLocalWishlist] = useState(wishlistItems);
+
+  const filteredWishlist = useMemo(() => {
+    let filtered = localWishlist.filter((item) => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (sortBy === 'price') {
+      filtered.sort((a, b) => {
+        const priceA = parseInt(a.price.replace(/[^0-9]/g, ''));
+        const priceB = parseInt(b.price.replace(/[^0-9]/g, ''));
+        return priceA - priceB;
+      });
+    }
+    return filtered;
+  }, [localWishlist, searchTerm, sortBy]);
+
   return (
-    <SectionShell title="Watchlist" subtitle="Items you want to track for future deals">
-      <div className="grid gap-4 md:grid-cols-2">
-        {wishlistItems.map((item) => (
-          <div key={item.title} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
-            <p className="font-semibold text-white">{item.title}</p>
-            <p className="mt-2 text-sm text-slate-400">{item.note}</p>
-            <p className="mt-4 text-lg font-semibold text-white">{item.price}</p>
+    <SectionShell title="Wishlist" subtitle="Items you want to track for future deals">
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <input
+            type="text"
+            placeholder="Search wishlist..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+          />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+          >
+            <option value="name">Sort by name</option>
+            <option value="price">Sort by price</option>
+          </select>
+        </div>
+
+        {filteredWishlist.length === 0 ? (
+          <EmptyState title="Wishlist is empty" description="Add items to your wishlist to save them for later." />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {filteredWishlist.map((item) => (
+              <div key={item.title} className="flex flex-col justify-between rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+                <div>
+                  <p className="font-semibold text-white">{item.title}</p>
+                  <p className="mt-2 text-sm text-slate-400">{item.note}</p>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <p className="text-lg font-semibold text-white">{item.price}</p>
+                  <div className="flex gap-2">
+                    <Link to="#" className="flex-1 text-center rounded-full bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500">
+                      View
+                    </Link>
+                    <button
+                      onClick={() => setLocalWishlist((prev) => prev.filter((i) => i.title !== item.title))}
+                      className="rounded-full border border-rose-400/30 px-3 py-2 text-xs font-medium text-rose-400 hover:bg-rose-400/10"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </SectionShell>
   );
 }
 
 export function CustomerSavedSearchesPage() {
+  const [showNewSearch, setShowNewSearch] = useState(false);
+  const [newSearch, setNewSearch] = useState('');
+  const [localSearches, setLocalSearches] = useState(savedSearches);
+  const [activeAlerts, setActiveAlerts] = useState<Record<string, boolean>>({});
+
+  const handleAddSearch = () => {
+    if (newSearch.trim()) {
+      setLocalSearches((prev) => [...prev, newSearch]);
+      setActiveAlerts((prev) => ({ ...prev, [newSearch]: false }));
+      setNewSearch('');
+      setShowNewSearch(false);
+    }
+  };
+
+  const toggleAlert = (search: string) => {
+    setActiveAlerts((prev) => ({ ...prev, [search]: !prev[search] }));
+  };
+
   return (
     <SectionShell title="Saved searches" subtitle="Search filters you revisit often">
-      <div className="grid gap-3 md:grid-cols-2">
-        {savedSearches.map((item) => (
-          <div key={item} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">{item}</div>
-        ))}
+      <div className="space-y-4">
+        <button
+          onClick={() => setShowNewSearch(!showNewSearch)}
+          className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+        >
+          + Save search
+        </button>
+
+        {showNewSearch && (
+          <div className="flex gap-2 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+            <input
+              value={newSearch}
+              onChange={(e) => setNewSearch(e.target.value)}
+              placeholder="e.g., Luxury SUV, Gaming laptops"
+              className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+              onKeyDown={(e) => e.key === 'Enter' && handleAddSearch()}
+            />
+            <button onClick={handleAddSearch} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500">
+              Save
+            </button>
+            <button onClick={() => setShowNewSearch(false)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {localSearches.length === 0 ? (
+          <EmptyState title="No saved searches" description="Create saved searches to quickly find items you're interested in." />
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {localSearches.map((search) => (
+              <div key={search} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300">
+                <div className="flex-1">
+                  <p className="font-semibold text-white">{search}</p>
+                  <p className="text-xs text-slate-400">Created recently</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => toggleAlert(search)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${activeAlerts[search] ? 'bg-blue-600 text-white' : 'border border-white/10 text-slate-300 hover:bg-white/5'}`}
+                  >
+                    {activeAlerts[search] ? 'Alerts On' : 'Alerts Off'}
+                  </button>
+                  <button
+                    onClick={() => setLocalSearches((prev) => prev.filter((s) => s !== search))}
+                    className="text-xs text-rose-400 hover:text-rose-300"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </SectionShell>
   );
 }
 
 export function CustomerTransactionsPage() {
+  const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredTransactions = useMemo(() => {
+    const query = searchTerm.toLowerCase();
+    let filtered = transactions.filter((tx) => tx.id.toLowerCase().includes(query) || tx.type.toLowerCase().includes(query));
+
+    if (filterType === 'credit') filtered = filtered.filter((tx) => tx.amount.startsWith('+'));
+    if (filterType === 'debit') filtered = filtered.filter((tx) => tx.amount.startsWith('-'));
+
+    return filtered;
+  }, [filterType, searchTerm]);
+
   return (
-    <SectionShell title="Transactions" subtitle="Your wallet history and credit activity">
-      <div className="space-y-3">
-        {transactions.map((tx) => (
-          <div key={tx.id} className="flex items-center justify-between rounded-[20px] border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300">
-            <div>
-              <p className="font-semibold text-white">{tx.type}</p>
-              <p>{tx.id}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-semibold text-white">{tx.amount}</p>
-              <p>{tx.status}</p>
-            </div>
+    <SectionShell title="Wallet transactions" subtitle="Your transaction history and activity">
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <input
+            type="text"
+            placeholder="Search transactions..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+          />
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as any)}
+            className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+          >
+            <option value="all">All</option>
+            <option value="credit">Credit</option>
+            <option value="debit">Debit</option>
+          </select>
+        </div>
+
+        {filteredTransactions.length === 0 ? (
+          <EmptyState title="No transactions found" description="Your wallet transactions will appear here." />
+        ) : (
+          <div className="space-y-2">
+            {filteredTransactions.map((tx) => (
+              <Link key={tx.id} to={`#`} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300 transition hover:bg-slate-900/90">
+                <div>
+                  <p className="font-semibold text-white">{tx.type}</p>
+                  <p className="text-xs text-slate-400">{tx.id}</p>
+                </div>
+                <div className="text-right">
+                  <p className={`font-semibold ${tx.amount.startsWith('+') ? 'text-emerald-400' : 'text-slate-300'}`}>{tx.amount}</p>
+                  <p className="text-xs text-slate-400">{tx.status}</p>
+                </div>
+              </Link>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </SectionShell>
   );
 }
 
 export function CustomerAddressesPage() {
+  const [addressList, setAddressList] = useState<AddressResponse[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState<AddressRequest>({ fullName: '', phoneNumber: '', addressLine1: '', addressLine2: '', city: '', state: '', zipCode: '', country: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadAddresses = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAddresses();
+        setAddressList(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load addresses');
+        console.log('Using mock data due to API error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAddresses();
+  }, []);
+
+  const handleSave = async () => {
+    if (!form.fullName || !form.addressLine1 || !form.city || !form.state || !form.zipCode) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      if (editingId) {
+        const updated = await updateAddress(editingId, form);
+        setAddressList((prev) => prev.map((a) => (a.id === editingId ? updated : a)));
+        setMessage('Address updated successfully');
+      } else {
+        const created = await createAddress(form);
+        setAddressList((prev) => [...prev, created]);
+        setMessage('Address added successfully');
+      }
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save address');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (addr: AddressResponse) => {
+    setForm({
+      fullName: addr.fullName,
+      phoneNumber: addr.phoneNumber,
+      addressLine1: addr.addressLine1,
+      addressLine2: addr.addressLine2,
+      city: addr.city,
+      state: addr.state,
+      zipCode: addr.zipCode,
+      country: addr.country,
+    });
+    setEditingId(addr.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this address?')) return;
+
+    try {
+      await deleteAddress(id);
+      setAddressList((prev) => prev.filter((a) => a.id !== id));
+      setMessage('Address deleted successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete address');
+    }
+  };
+
+  const resetForm = () => {
+    setForm({ fullName: '', phoneNumber: '', addressLine1: '', addressLine2: '', city: '', state: '', zipCode: '', country: '' });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const displayAddresses = addressList && addressList.length > 0 ? addressList : addresses.map((a, i) => ({ id: i, customerId: 0, ...a, isDefault: i === 0, createdAt: new Date().toISOString() }));
+
   return (
     <SectionShell title="Addresses" subtitle="Saved delivery destinations">
-      <div className="grid gap-4 lg:grid-cols-2">
-        {addresses.map((address) => (
-          <div key={address.label} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
-            <p className="font-semibold text-white">{address.label}</p>
-            <p className="mt-2">{address.detail}</p>
+      <div className="space-y-4">
+        {error && <ErrorState title="Address error" description={error} />}
+        {message && <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div>}
+
+        <button
+          onClick={() => {
+            if (showForm) resetForm();
+            else {
+              setShowForm(true);
+              setEditingId(null);
+            }
+          }}
+          className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+        >
+          + Add address
+        </button>
+
+        {showForm && (
+          <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-300">Full name *</span>
+                <input
+                  value={form.fullName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
+                  placeholder="John Doe"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-300">Phone *</span>
+                <input
+                  value={form.phoneNumber}
+                  onChange={(e) => setForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+                  placeholder="+91 9876543210"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Address line 1 *</span>
+              <input
+                value={form.addressLine1}
+                onChange={(e) => setForm((prev) => ({ ...prev, addressLine1: e.target.value }))}
+                placeholder="Street address"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Address line 2</span>
+              <input
+                value={form.addressLine2}
+                onChange={(e) => setForm((prev) => ({ ...prev, addressLine2: e.target.value }))}
+                placeholder="Apartment, suite, etc."
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+              />
+            </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-300">City *</span>
+                <input
+                  value={form.city}
+                  onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
+                  placeholder="Bangalore"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-300">State *</span>
+                <input
+                  value={form.state}
+                  onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value }))}
+                  placeholder="Karnataka"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+              </label>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-300">Zip code *</span>
+                <input
+                  value={form.zipCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, zipCode: e.target.value }))}
+                  placeholder="560001"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-300">Country</span>
+                <input
+                  value={form.country}
+                  onChange={(e) => setForm((prev) => ({ ...prev, country: e.target.value }))}
+                  placeholder="India"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : editingId ? 'Update' : 'Add'} address
+              </button>
+              <button onClick={resetForm} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">
+                Cancel
+              </button>
+            </div>
           </div>
-        ))}
+        )}
+
+        {loading ? (
+          <SkeletonCard />
+        ) : displayAddresses && displayAddresses.length > 0 ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {displayAddresses.map((addr: any) => (
+              <div key={addr.id} className="flex flex-col justify-between rounded-2xl border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
+                <div>
+                  <p className="font-semibold text-white">{addr.fullName || addr.label}</p>
+                  <p className="mt-1 text-xs text-slate-400">{addr.phoneNumber}</p>
+                  <p className="mt-2">{addr.addressLine1}</p>
+                  {addr.addressLine2 && <p>{addr.addressLine2}</p>}
+                  <p className="mt-1 text-xs">
+                    {addr.city}, {addr.state} {addr.zipCode}
+                  </p>
+                  {addr.isDefault && <p className="mt-2 text-xs font-medium text-emerald-300">Default address</p>}
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <button onClick={() => handleEdit(addr)} className="text-xs text-blue-400 hover:text-blue-300">
+                    Edit
+                  </button>
+                  <button onClick={() => handleDelete(addr.id)} className="text-xs text-rose-400 hover:text-rose-300">
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="No addresses" description="Add your first delivery address to get started" />
+        )}
       </div>
     </SectionShell>
   );
 }
 
 export function CustomerMessagesPage() {
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [messageText, setMessageText] = useState('');
+  const [messages, setMessages] = useState<Array<{ id: string; sender: string; text: string; time: string }>>([
+    { id: '1', sender: 'Nova Tech', text: 'We can arrange a same-day handoff for your MacBook purchase.', time: '2:30 PM' },
+    { id: '2', sender: 'You', text: 'That would be perfect. I can meet anytime after 4 PM today.', time: '2:35 PM' },
+  ]);
+
+  const conversations = [
+    { name: 'Nova Tech', lastMessage: 'We can arrange a same-day handoff...', online: true, unread: 0 },
+    { name: 'Support', lastMessage: 'Your KYC review is in progress...', online: false, unread: 1 },
+    { name: 'Luxury Motors', lastMessage: 'The bike is in excellent condition...', online: true, unread: 0 },
+  ];
+
+  const handleSendMessage = () => {
+    if (messageText.trim()) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: String(prev.length + 1),
+          sender: 'You',
+          text: messageText,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setMessageText('');
+    }
+  };
+
   return (
     <SectionShell title="Messages" subtitle="Direct conversations with sellers and support">
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-        <div className="rounded-[20px] border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-white">Nova Tech</p>
-            <span className="text-emerald-300">Online</span>
+      <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70">
+          <div className="border-b border-white/10 p-4">
+            <h3 className="text-sm font-semibold text-white">Conversations</h3>
           </div>
-          <p className="mt-2">We can arrange a same-day handoff for your MacBook purchase.</p>
+          <div className="max-h-96 space-y-1 overflow-y-auto">
+            {conversations.map((conv) => (
+              <button
+                key={conv.name}
+                onClick={() => setSelectedConversation(conv.name)}
+                className={`w-full border-l-2 px-4 py-3 text-left text-sm transition ${
+                  selectedConversation === conv.name
+                    ? 'border-blue-500 bg-blue-600/10 text-white'
+                    : 'border-transparent text-slate-300 hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{conv.name}</span>
+                  {conv.online && <span className="h-2 w-2 rounded-full bg-emerald-400" />}
+                </div>
+                <p className="mt-1 truncate text-xs text-slate-400">{conv.lastMessage}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col rounded-2xl border border-white/10 bg-slate-900/70">
+          {selectedConversation ? (
+            <>
+              <div className="border-b border-white/10 p-4">
+                <h3 className="text-sm font-semibold text-white">{selectedConversation}</h3>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-3 p-4">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.sender === 'You' ? 'justify-end' : 'justify-start'}`}>
+                    <div
+                      className={`rounded-2xl px-4 py-2 text-sm max-w-xs ${
+                        msg.sender === 'You'
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-white/10 bg-white/5 text-slate-300'
+                      }`}
+                    >
+                      <p>{msg.text}</p>
+                      <p className="mt-1 text-xs opacity-70">{msg.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-white/10 p-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Type a message..."
+                    className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center p-12 text-slate-400">Select a conversation to start messaging</div>
+          )}
         </div>
       </div>
     </SectionShell>
@@ -231,54 +1537,288 @@ export function CustomerReviewsPage() {
 }
 
 export function CustomerSupportPage() {
+  const [showNewTicket, setShowNewTicket] = useState(false);
+  const [form, setForm] = useState({ subject: '', description: '', priority: 'Medium' });
+  const [localTickets, setLocalTickets] = useState(supportTickets);
+
+  const handleCreateTicket = () => {
+    if (form.subject && form.description) {
+      const newTicket = {
+        id: `TK-${Math.floor(Math.random() * 1000)}`,
+        subject: form.subject,
+        status: 'Pending',
+      };
+      setLocalTickets((prev) => [newTicket, ...prev]);
+      setForm({ subject: '', description: '', priority: 'Medium' });
+      setShowNewTicket(false);
+    }
+  };
+
   return (
     <SectionShell title="Support tickets" subtitle="Service requests and dispute updates">
-      <div className="space-y-3">
-        {supportTickets.map((ticket) => (
-          <div key={ticket.id} className="flex items-center justify-between rounded-[20px] border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300">
-            <div>
-              <p className="font-semibold text-white">{ticket.subject}</p>
-              <p>{ticket.id}</p>
+      <div className="space-y-4">
+        <button
+          onClick={() => setShowNewTicket(!showNewTicket)}
+          className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+        >
+          + Create ticket
+        </button>
+
+        {showNewTicket && (
+          <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Subject</span>
+              <input
+                value={form.subject}
+                onChange={(e) => setForm((prev) => ({ ...prev, subject: e.target.value }))}
+                placeholder="What is this about?"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Priority</span>
+              <select
+                value={form.priority}
+                onChange={(e) => setForm((prev) => ({ ...prev, priority: e.target.value }))}
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+              >
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Description</span>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe the issue..."
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                rows={4}
+              />
+            </label>
+            <div className="flex gap-2">
+              <button onClick={handleCreateTicket} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500">
+                Create ticket
+              </button>
+              <button onClick={() => setShowNewTicket(false)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">
+                Cancel
+              </button>
             </div>
-            <span className="rounded-full bg-blue-500/10 px-3 py-1 text-blue-300">{ticket.status}</span>
           </div>
-        ))}
+        )}
+
+        <div className="space-y-2">
+          {localTickets.length === 0 ? (
+            <EmptyState title="No support tickets" description="Create a ticket to get help from our support team." />
+          ) : (
+            localTickets.map((ticket) => (
+              <Link key={ticket.id} to={`#${ticket.id}`} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300 transition hover:bg-slate-900/90">
+                <div>
+                  <p className="font-semibold text-white">{ticket.subject}</p>
+                  <p className="text-xs text-slate-400">{ticket.id}</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${ticket.status === 'Resolved' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                  {ticket.status}
+                </span>
+              </Link>
+            ))
+          )}
+        </div>
       </div>
     </SectionShell>
   );
 }
 
 export function CustomerInvoicesPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending'>('all');
+
+  const filteredInvoices = useMemo(() => {
+    const query = searchTerm.toLowerCase();
+    let filtered = invoices.filter((inv) => inv.id.toLowerCase().includes(query) || inv.amount.toLowerCase().includes(query));
+
+    if (filterStatus === 'paid') filtered = filtered.filter((inv) => inv.due === 'Paid');
+    if (filterStatus === 'pending') filtered = filtered.filter((inv) => inv.due !== 'Paid');
+
+    return filtered;
+  }, [filterStatus, searchTerm]);
+
   return (
     <SectionShell title="Invoices" subtitle="Receipts for your completed purchases">
-      <div className="space-y-3">
-        {invoices.map((invoice) => (
-          <div key={invoice.id} className="flex items-center justify-between rounded-[20px] border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300">
-            <div>
-              <p className="font-semibold text-white">{invoice.id}</p>
-              <p>Due • {invoice.due}</p>
-            </div>
-            <span className="text-white">{invoice.amount}</span>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <input
+            type="text"
+            placeholder="Search invoices..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+          />
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as any)}
+            className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+          >
+            <option value="all">All</option>
+            <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+
+        {filteredInvoices.length === 0 ? (
+          <EmptyState title="No invoices found" description="Your invoices will appear here." />
+        ) : (
+          <div className="space-y-2">
+            {filteredInvoices.map((invoice) => (
+              <div key={invoice.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300 hover:bg-slate-900/90 transition">
+                <div>
+                  <p className="font-semibold text-white">{invoice.id}</p>
+                  <p className="text-xs text-slate-400">{invoice.due}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-right">
+                    <p className="font-semibold text-white">{invoice.amount}</p>
+                    <p className="text-xs text-slate-400">
+                      {invoice.due === 'Paid' ? 'Paid' : 'Scheduled'}
+                    </p>
+                  </span>
+                  <button className="text-xs text-blue-400 hover:text-blue-300 px-3 py-1 rounded-full border border-blue-400/30 hover:bg-blue-400/10">
+                    View
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </SectionShell>
   );
 }
 
 export function CustomerSettingsPage() {
+  const [settings, setSettings] = useState({
+    emailNotifications: true,
+    pushNotifications: true,
+    auctionReminders: true,
+    orderUpdates: true,
+    bidUpdates: true,
+    twoFactorAuth: true,
+    profilePrivate: false,
+    marketingEmails: false,
+  });
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleToggle = (key: keyof typeof settings) => {
+    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handlePasswordChange = () => {
+    if (passwordForm.new === passwordForm.confirm && passwordForm.new.length >= 8) {
+      // Frontend only - show success
+      setPasswordForm({ current: '', new: '', confirm: '' });
+      alert('Password changed successfully!');
+    }
+  };
+
   return (
     <SectionShell title="Settings" subtitle="Customize your account experience">
-      <div className="grid gap-6 lg:grid-cols-2">
-        <SubtlePanel title="Notification preferences">
+      <div className="space-y-6">
+        {/* Notification Preferences */}
+        <SubtlePanel title="Notification Preferences">
           <div className="space-y-3 text-sm text-slate-300">
-            {notifications.slice(0, 2).map((note) => <div key={note.title} className="rounded-2xl border border-white/10 bg-white/5 p-3">{note.title}</div>)}
+            {[
+              { key: 'emailNotifications' as const, label: 'Email notifications' },
+              { key: 'pushNotifications' as const, label: 'Push notifications' },
+              { key: 'auctionReminders' as const, label: 'Auction reminders' },
+              { key: 'orderUpdates' as const, label: 'Order updates' },
+              { key: 'bidUpdates' as const, label: 'Bid activity' },
+              { key: 'marketingEmails' as const, label: 'Marketing emails' },
+            ].map((pref) => (
+              <div key={pref.key} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span>{pref.label}</span>
+                <button
+                  onClick={() => handleToggle(pref.key)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${settings[pref.key] ? 'bg-emerald-600' : 'bg-slate-600'}`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${settings[pref.key] ? 'translate-x-6' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            ))}
           </div>
         </SubtlePanel>
-        <SubtlePanel title="Security and payments">
+
+        {/* Security */}
+        <SubtlePanel title="Security">
+          <div className="space-y-4 text-sm text-slate-300">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center justify-between">
+                <span>Two-factor authentication</span>
+                <button
+                  onClick={() => handleToggle('twoFactorAuth')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${settings.twoFactorAuth ? 'bg-emerald-600' : 'bg-slate-600'}`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${settings.twoFactorAuth ? 'translate-x-6' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="mb-3 font-semibold text-white">Change Password</p>
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  placeholder="Current password"
+                  value={passwordForm.current}
+                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+                <input
+                  type="password"
+                  placeholder="New password"
+                  value={passwordForm.new}
+                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, new: e.target.value }))}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  value={passwordForm.confirm}
+                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                />
+                <button
+                  onClick={handlePasswordChange}
+                  disabled={!passwordForm.current || !passwordForm.new || passwordForm.new.length < 8}
+                  className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Update Password
+                </button>
+              </div>
+            </div>
+          </div>
+        </SubtlePanel>
+
+        {/* Privacy */}
+        <SubtlePanel title="Privacy">
           <div className="space-y-3 text-sm text-slate-300">
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-3"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Two-step verification enabled</div>
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-3"><CreditCard className="h-4 w-4 text-blue-300" /> Saved payment methods are protected</div>
+            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+              <span>Private profile</span>
+              <button
+                onClick={() => handleToggle('profilePrivate')}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${settings.profilePrivate ? 'bg-emerald-600' : 'bg-slate-600'}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${settings.profilePrivate ? 'translate-x-6' : 'translate-x-1'}`}
+                />
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">When enabled, other users won't see your activity and profile details.</p>
           </div>
         </SubtlePanel>
       </div>
@@ -286,21 +1826,549 @@ export function CustomerSettingsPage() {
   );
 }
 
+// Detail Pages
+export function CustomerOrderDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  // Mock order detail
+  const order = {
+    id: id || 'ORD-1001',
+    orderNumber: 'ORD-1001',
+    item: 'Designer Watch',
+    vendor: 'Premium Watches',
+    price: '₹86,000',
+    status: 'Delivered',
+    date: '15 Aug 2026',
+    deliveryDate: '20 Aug 2026',
+    shippingAddress: 'Bangalore, Karnataka • 560001',
+    paymentMethod: 'Wallet',
+    trackingNumber: 'TRK-123456789',
+  };
+
+  return (
+    <SectionShell title={`Order ${order.orderNumber}`} subtitle="Order details and tracking information">
+      <div className="space-y-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
+        >
+          <ChevronLeft className="h-4 w-4" /> Back
+        </button>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Order Summary</h3>
+              <div className="space-y-3 text-sm text-slate-300">
+                <div className="flex justify-between">
+                  <span>Product</span>
+                  <span className="text-white font-medium">{order.item}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Seller</span>
+                  <span className="text-white font-medium">{order.vendor}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Price</span>
+                  <span className="text-white font-medium">{order.price}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Order Date</span>
+                  <span className="text-white font-medium">{order.date}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Delivery Information</h3>
+              <div className="space-y-3 text-sm text-slate-300">
+                <div>
+                  <p className="text-slate-400">Shipping Address</p>
+                  <p className="mt-1 text-white">{order.shippingAddress}</p>
+                </div>
+                <div>
+                  <p className="text-slate-400">Tracking Number</p>
+                  <p className="mt-1 text-white font-mono">{order.trackingNumber}</p>
+                </div>
+                <div>
+                  <p className="text-slate-400">Expected Delivery</p>
+                  <p className="mt-1 text-white">{order.deliveryDate}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+              <p className="text-sm text-slate-400 mb-2">Status</p>
+              <span className="rounded-full bg-emerald-500/20 text-emerald-300 px-3 py-1 text-sm font-medium">
+                {order.status}
+              </span>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+              <p className="text-sm text-slate-400 mb-3 font-semibold">Actions</p>
+              <div className="space-y-2">
+                <button className="w-full rounded-full border border-blue-400/30 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-400/10">
+                  Track Package
+                </button>
+                <button className="w-full rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">
+                  Contact Support
+                </button>
+                <button className="w-full rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">
+                  Download Invoice
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </SectionShell>
+  );
+}
+
+export function CustomerAuctionDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Core backend states
+  const [auctionDetails, setAuctionDetails] = useState<any>(null);
+  const [bids, setBids] = useState<any[]>([]);
+  const [registrationStatus, setRegistrationStatus] = useState<any>(null);
+  const [winner, setWinner] = useState<any>(null);
+  const [paymentStatus, setPaymentStatus] = useState<any>(null);
+
+  // UI states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [bidAmount, setBidAmount] = useState('');
+  const [showBidForm, setShowBidForm] = useState(false);
+  const [bidSubmitting, setBidSubmitting] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState('');
+
+  // Helper: Format currency
+  const formatCurrency = (value: string | number): string => {
+    const numeric = typeof value === 'number' ? value : Number(String(value).replace(/[^0-9.-]/g, ''));
+    if (Number.isNaN(numeric)) return '₹0';
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(numeric);
+  };
+
+  // Helper: Calculate time remaining
+  const calculateTimeRemaining = (endAt?: string, status?: string): string => {
+    if (!endAt || !status) return 'Loading...';
+    if (status !== 'RUNNING') return status === 'ENDED' ? 'Ended' : status;
+
+    const now = Date.now();
+    const end = new Date(endAt).getTime();
+    const diff = end - now;
+
+    if (diff <= 0) return 'Ended';
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+    return `${hours}h ${minutes}m ${seconds}s left`;
+  };
+
+  // Fetch auction details
+  const fetchAuctionDetails = async () => {
+    if (!id) return;
+    try {
+      const auctionId = Number(id);
+      const auctionData = await getAuctionById(auctionId);
+      setAuctionDetails(auctionData);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load auction details');
+    }
+  };
+
+  // Fetch bids for the auction
+  const fetchBids = async () => {
+    if (!id) return;
+    try {
+      const auctionId = Number(id);
+      const bidsData = await getAuctionBids(auctionId);
+      setBids(bidsData);
+    } catch (err: any) {
+      console.warn('Failed to load bids:', err?.message);
+    }
+  };
+
+  // Fetch registration status
+  const fetchRegistrationStatus = async () => {
+    if (!id) return;
+    try {
+      const auctionId = Number(id);
+      const regStatus = await getAuctionRegistrationStatus(auctionId);
+      setRegistrationStatus(regStatus);
+    } catch (err: any) {
+      console.warn('Failed to load registration status:', err?.message);
+    }
+  };
+
+  // Fetch winner info (may return 404 if not finalized yet)
+  const fetchWinner = async () => {
+    if (!id) return;
+    try {
+      const auctionId = Number(id);
+      const winnerData = await getAuctionWinner(auctionId);
+      setWinner(winnerData);
+    } catch (err: any) {
+      // 404 or not-finalized-yet is expected, not an error
+      if (err?.message?.includes('404') || err?.message?.includes('not found')) {
+        setWinner(null);
+      } else {
+        console.warn('Failed to load winner:', err?.message);
+      }
+    }
+  };
+
+  // Fetch payment status for auction winner
+  const fetchPaymentStatus = async () => {
+    if (!id || !winner) return;
+    try {
+      const auctionId = Number(id);
+      // Try to fetch auction-specific payment or check through winner's order
+      // For now, we'll store the winner ID and check payment separately if needed
+      const payments = await getPaymentsForOrder(winner.auctionId);
+      if (payments && payments.length > 0) {
+        setPaymentStatus(payments[0]);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load payment status:', err?.message);
+    }
+  };
+
+  // Initial load: fetch all data
+  useEffect(() => {
+    const loadAllData = async () => {
+      setLoading(true);
+      await Promise.all([fetchAuctionDetails(), fetchBids(), fetchRegistrationStatus()]);
+      setLoading(false);
+    };
+
+    loadAllData();
+  }, [id]);
+
+  // After auction loads, check if it's ended to fetch winner
+  useEffect(() => {
+    if (auctionDetails?.status === 'ENDED') {
+      fetchWinner();
+    }
+  }, [auctionDetails?.status]);
+
+  // After winner loads, fetch payment status if user is winner
+  useEffect(() => {
+    if (winner && user && Number(user.id) === winner.winnerId) {
+      fetchPaymentStatus();
+    }
+  }, [winner, user]);
+
+  // Timer: Update time remaining every second
+  useEffect(() => {
+    if (!auctionDetails) return;
+
+    const interval = setInterval(() => {
+      setTimeRemaining(calculateTimeRemaining(auctionDetails.endAt, auctionDetails.status));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [auctionDetails]);
+
+  // Polling: Refresh auction status while RUNNING
+  useEffect(() => {
+    if (!auctionDetails || auctionDetails.status !== 'RUNNING') return;
+
+    const pollInterval = setInterval(async () => {
+      await fetchAuctionDetails();
+      await fetchBids();
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [auctionDetails?.status, id]);
+
+  // When countdown reaches zero, re-fetch and check if status changed to ENDED
+  useEffect(() => {
+    if (!auctionDetails || timeRemaining !== '0h 0m 0s left') return;
+
+    (async () => {
+      await fetchAuctionDetails();
+      await fetchBids();
+    })();
+  }, [timeRemaining]);
+
+  // Handle place bid
+  const handlePlaceBid = async () => {
+    if (!bidAmount || !id || !user) return;
+
+    setBidSubmitting(true);
+    try {
+      const auctionId = Number(id);
+      const bidValue = Number(String(bidAmount).replace(/[^0-9.-]/g, ''));
+      const result = await placeBid(auctionId, bidValue);
+
+      // Success: refresh bids and auction details
+      await fetchAuctionDetails();
+      await fetchBids();
+
+      setBidAmount('');
+      setShowBidForm(false);
+      // Show success feedback (could use toast here)
+      alert('Bid placed successfully!');
+    } catch (err: any) {
+      alert(`Failed to place bid: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setBidSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SectionShell title="Loading..." subtitle="Auction details">
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </SectionShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <SectionShell title="Error" subtitle="Auction details">
+        <ErrorState title="Failed to load auction" description={error} />
+      </SectionShell>
+    );
+  }
+
+  if (!auctionDetails) {
+    return (
+      <SectionShell title="Not found" subtitle="Auction details">
+        <EmptyState title="Auction not found" description="This auction does not exist or has been removed." />
+      </SectionShell>
+    );
+  }
+
+  const currentBidAmount = bids.length > 0
+    ? Math.max(...bids.map(b => Number(String(b.amount).replace(/[^0-9.-]/g, '')) || 0))
+    : Number(String(auctionDetails.startingPrice).replace(/[^0-9.-]/g, '') || 0);
+
+  const isAuctionEnded = auctionDetails.status === 'ENDED';
+  const isUserWinner = winner && user && Number(user.id) === winner.winnerId;
+  const isRegistered = registrationStatus?.paid === true;
+  const canBid = !isAuctionEnded && isRegistered && user;
+
+  return (
+    <SectionShell title={auctionDetails.title} subtitle="Auction details and bidding">
+      <div className="space-y-6">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300">
+          <ChevronLeft className="h-4 w-4" /> Back
+        </button>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6 overflow-hidden">
+              <div className="w-full h-96 bg-slate-950 rounded-lg mb-6 flex items-center justify-center">
+                <span className="text-slate-400">Auction Image</span>
+              </div>
+              <h2 className="text-2xl font-semibold text-white mb-2">{auctionDetails.title}</h2>
+              <p className="text-slate-300">{auctionDetails.description}</p>
+              <div className="mt-6 space-y-3 text-sm text-slate-300">
+                <p><span className="text-slate-400">Start Price:</span> {formatCurrency(auctionDetails.startingPrice)}</p>
+                <p><span className="text-slate-400">Status:</span> <span className={isAuctionEnded ? 'text-amber-400' : 'text-emerald-400'}>{auctionDetails.status}</span></p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+              <p className="text-sm text-slate-400 mb-1">Current Bid</p>
+              <p className="text-3xl font-semibold text-white">{formatCurrency(currentBidAmount)}</p>
+              <p className="text-sm text-slate-400 mt-2">{bids.length} bids</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+              <p className="text-sm text-slate-400 mb-2">Time Remaining</p>
+              <p className={`text-lg font-semibold ${isAuctionEnded ? 'text-amber-300' : 'text-amber-300'}`}>
+                {timeRemaining || calculateTimeRemaining(auctionDetails.endAt, auctionDetails.status)}
+              </p>
+            </div>
+
+            {/* Registration Status */}
+            {!isAuctionEnded && (
+              <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+                <p className="text-sm text-slate-400 mb-2">Registration</p>
+                {isRegistered ? (
+                  <span className="rounded-full bg-emerald-500/20 text-emerald-300 px-3 py-1 text-sm font-medium">
+                    Registered
+                  </span>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-slate-300">Register for ₹20 to bid</p>
+                    <Link
+                      to={`/customer/auctions/${id}/register`}
+                      className="block text-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                    >
+                      Register Now
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Bid Form */}
+            {!isAuctionEnded && isRegistered && (
+              <>
+                <button
+                  onClick={() => setShowBidForm(!showBidForm)}
+                  disabled={!canBid}
+                  className={`w-full rounded-full px-4 py-3 text-sm font-medium text-white transition ${
+                    canBid
+                      ? 'bg-blue-600 hover:bg-blue-500'
+                      : 'bg-slate-600 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  {canBid ? 'Place Bid' : 'Register to Bid'}
+                </button>
+
+                {showBidForm && (
+                  <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 space-y-3">
+                    <input
+                      type="number"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      placeholder={`Min bid: ${formatCurrency(currentBidAmount + 1000)}`}
+                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+                    />
+                    <button
+                      onClick={handlePlaceBid}
+                      disabled={bidSubmitting || !bidAmount}
+                      className="w-full rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {bidSubmitting ? 'Placing bid...' : 'Confirm Bid'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Auction Ended Info */}
+            {isAuctionEnded && (
+              <div className="rounded-2xl border border-white/10 bg-amber-500/10 p-6">
+                <p className="text-sm text-amber-300 font-semibold">Auction Ended</p>
+                <p className="text-sm text-amber-200 mt-2">This auction has ended. Bidding is no longer available.</p>
+              </div>
+            )}
+
+            {/* Winner Info */}
+            {isAuctionEnded && winner && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
+                <p className="text-sm font-semibold text-emerald-300">Winner</p>
+                <div className="mt-3 space-y-2 text-sm text-emerald-100">
+                  <p><span className="text-emerald-200">Winner ID:</span> {winner.winnerId}</p>
+                  <p><span className="text-emerald-200">Final Price:</span> {formatCurrency(winner.finalPrice)}</p>
+                  <p><span className="text-emerald-200">Bid ID:</span> {winner.bidId}</p>
+                  <p><span className="text-emerald-200">Awarded:</span> {new Date(winner.awardedAt).toLocaleString()}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Section for Winner */}
+            {isUserWinner && isAuctionEnded && (
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-6">
+                <p className="text-sm font-semibold text-blue-300">Winner Payment</p>
+                {paymentStatus?.status === 'COMPLETED' || paymentStatus?.status === 'SUCCESS' ? (
+                  <div className="mt-3 rounded-full bg-emerald-500/20 text-emerald-300 px-3 py-2 text-sm font-medium text-center">
+                    Payment Completed
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-blue-100 mt-2">Amount: {formatCurrency(winner.finalPrice)}</p>
+                    <Link
+                      to={`/customer/auctions/${id}/pay`}
+                      className="mt-3 block text-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                    >
+                      Pay Now
+                    </Link>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bid History */}
+        {bids.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Bid History</h3>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {[...bids].reverse().map((bid, idx) => (
+                <div key={idx} className="flex justify-between items-center text-sm text-slate-300 border-b border-white/5 pb-2">
+                  <span>Bid #{bid.id}</span>
+                  <span className="font-semibold text-white">{formatCurrency(bid.amount)}</span>
+                  <span className="text-xs text-slate-500">{new Date(bid.placedAt).toLocaleTimeString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </SectionShell>
+  );
+}
+
 export function VendorBusinessInfoPage() {
+  const [verification, setVerification] = useState<{ businessDetails?: { status?: string; lastUpdated?: string; remarks?: string | null } } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await getVendorVerificationStatus();
+        if (active) {
+          setVerification(response);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Unable to load business verification status.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <SectionShell title="Business information" subtitle="Set your storefront identity and legal profile">
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <SubtlePanel title="Store identity">
           <div className="space-y-3 text-sm text-slate-300">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Business name: Nova Retail Ltd.</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Contact email: ops@novaretail.com</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Operational hours: 9AM–9PM</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Business details: {verification?.businessDetails?.status ?? 'PENDING'}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Last updated: {verification?.businessDetails?.lastUpdated ?? 'Not available'}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Remarks: {verification?.businessDetails?.remarks ?? 'No remarks'}</div>
           </div>
         </SubtlePanel>
         <SubtlePanel title="Trust signals">
           <div className="rounded-[20px] border border-white/10 bg-gradient-to-br from-emerald-600/10 to-blue-500/10 p-5 text-sm text-slate-300">
-            <p className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-emerald-300" /> Verified business profile recognised by buyers</p>
-            <p className="mt-3">Your brand highlights are live on product pages and auction listings.</p>
+            <p className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-emerald-300" /> {loading ? 'Loading vendor status…' : error ? 'Verification unavailable' : verification?.businessDetails?.status === 'COMPLETE' ? 'Verified business profile recognised by buyers' : 'Business verification is still pending'}</p>
+            <p className="mt-3">{error ? error : 'Your brand highlights are live on product pages and auction listings once backend verification is complete.'}</p>
           </div>
         </SubtlePanel>
       </div>
@@ -309,42 +2377,158 @@ export function VendorBusinessInfoPage() {
 }
 
 export function VendorGstPage() {
+  const [verification, setVerification] = useState<{ gstAndBank?: { status?: string; lastUpdated?: string; remarks?: string | null } } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await getVendorVerificationStatus();
+        if (active) {
+          setVerification(response);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Unable to load GST and bank status.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <SectionShell title="GST details" subtitle="Tax compliance information for your seller account">
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
         <div className="grid gap-3 md:grid-cols-2">
-          {['GSTIN: 29AABCN1234M1Z5', 'PAN: AABCN1234M', 'State: Karnataka'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4">{item}</div>)}
+          {[
+            `GST and bank status: ${verification?.gstAndBank?.status ?? 'PENDING'}`,
+            `Last updated: ${verification?.gstAndBank?.lastUpdated ?? 'Not available'}`,
+            `Remarks: ${verification?.gstAndBank?.remarks ?? 'No remarks'}`,
+          ].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4">{item}</div>)}
         </div>
+        {error && <div className="mt-4"><ErrorState title="Verification error" description={error} /></div>}
+        {loading && <div className="mt-4"><SkeletonCard /></div>}
       </div>
     </SectionShell>
   );
 }
 
 export function VendorBankPage() {
+  const [verification, setVerification] = useState<{ gstAndBank?: { status?: string; lastUpdated?: string; remarks?: string | null } } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await getVendorVerificationStatus();
+        if (active) {
+          setVerification(response);
+        }
+      } catch {
+        // backend verification failure is surfaced by the status badge below
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <SectionShell title="Bank details" subtitle="Secure payout and settlement setup">
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Bank: HDFC • Account ending 2410 • IFSC HDFC0001124</div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          Bank verification: <span className={statusTone(verification?.gstAndBank?.status)}>{verification?.gstAndBank?.status ?? 'PENDING'}</span>
+        </div>
+        <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">Last updated: {verification?.gstAndBank?.lastUpdated ?? 'Not available'}</div>
       </div>
     </SectionShell>
   );
 }
 
 export function VendorIdentityPage() {
+  const [verification, setVerification] = useState<{ identityVerification?: { status?: string; lastUpdated?: string; remarks?: string | null } } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await getVendorVerificationStatus();
+        if (active) {
+          setVerification(response);
+        }
+      } catch {
+        // keep section visible and show pending when backend is unavailable
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <SectionShell title="Identity verification" subtitle="Complete KYC for higher trust and limits">
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
-        <p>Director PAN, Aadhaar, and business ownership documents are submitted and pending final review.</p>
+        <p className={statusTone(verification?.identityVerification?.status)}>Identity verification status: {verification?.identityVerification?.status ?? 'PENDING'}</p>
+        <p className="mt-3">Last updated: {verification?.identityVerification?.lastUpdated ?? 'Not available'}</p>
+        <p className="mt-3">Remarks: {verification?.identityVerification?.remarks ?? 'No remarks'}</p>
       </div>
     </SectionShell>
   );
 }
 
 export function VendorStoreVerificationPage() {
+  const [verification, setVerification] = useState<{ businessDetails?: { status?: string; lastUpdated?: string; remarks?: string | null }; gstAndBank?: { status?: string }; identityVerification?: { status?: string } } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await getVendorVerificationStatus();
+        if (active) {
+          setVerification(response);
+        }
+      } catch {
+        // do not invent status
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <SectionShell title="Store verification" subtitle="Your storefront quality standards and review status">
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
-        <p>Storefront review complete. Product quality, shipping terms, and return policy are now visible to customers.</p>
+        <div className="grid gap-3 md:grid-cols-3">
+          {[
+            { label: 'Business details', value: verification?.businessDetails?.status ?? 'PENDING' },
+            { label: 'GST and bank', value: verification?.gstAndBank?.status ?? 'PENDING' },
+            { label: 'Identity verification', value: verification?.identityVerification?.status ?? 'PENDING' },
+          ].map((step) => (
+            <div key={step.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-slate-400">{step.label}</p>
+              <p className={`mt-2 font-semibold ${statusTone(step.value)}`}>{step.value}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </SectionShell>
   );
@@ -495,49 +2679,124 @@ export function VendorWithdrawPage() {
 }
 
 export function VendorSalesAnalyticsPage() {
+  const [revenue, setRevenue] = useState<{ totalRevenue?: number; completedRevenue?: number; pendingRevenue?: number; availableBalance?: number; totalOrders?: number; completedOrders?: number; dailyRevenue?: number; weeklyRevenue?: number; monthlyRevenue?: number; lastUpdated?: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await getVendorRevenue();
+        if (active) {
+          setRevenue(response);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Unable to load vendor revenue.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const metrics = [
+    { label: 'Total revenue', value: toMoney(revenue?.totalRevenue) },
+    { label: 'Completed revenue', value: toMoney(revenue?.completedRevenue) },
+    { label: 'Pending revenue', value: toMoney(revenue?.pendingRevenue) },
+    { label: 'Available balance', value: toMoney(revenue?.availableBalance) },
+    { label: 'Daily revenue', value: toMoney(revenue?.dailyRevenue) },
+    { label: 'Monthly revenue', value: toMoney(revenue?.monthlyRevenue) },
+  ];
+
   return (
     <SectionShell title="Sales analytics" subtitle="Revenue, conversion and repeat buyer trends">
-      <div className="grid gap-4 md:grid-cols-3">
-        {vendorReports.metrics.map((report) => (
-          <div key={report.label} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4">
-            <p className="text-sm text-slate-400">{report.label}</p>
-            <p className="mt-2 text-xl font-semibold text-white">{report.value}</p>
+      {loading ? <SkeletonTable /> : error ? <ErrorState title="Revenue error" description={error} /> : (
+        <div className="grid gap-4 md:grid-cols-3">
+          {metrics.map((report) => (
+            <div key={report.label} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4">
+              <p className="text-sm text-slate-400">{report.label}</p>
+              <p className="mt-2 text-xl font-semibold text-white">{report.value}</p>
+            </div>
+          ))}
+          <div className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4 md:col-span-3">
+            <p className="text-sm text-slate-400">Last updated</p>
+            <p className="mt-2 text-lg font-semibold text-white">{revenue?.lastUpdated ?? 'Not available'}</p>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </SectionShell>
   );
 }
 
 export function VendorOrdersPage() {
+  const [orders, setOrders] = useState<VendorOrderApiResponse[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 300);
-    return () => clearTimeout(timer);
+    let active = true;
+
+    const loadOrders = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getVendorOrders();
+        if (active) {
+          setOrders(data);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Unable to load vendor orders.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadOrders();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const filteredOrders = useMemo(() => {
     const query = search.toLowerCase().trim();
-    return vendorOrders.filter((order) => {
-      const matchesSearch = order.id.toLowerCase().includes(query) || order.customer.toLowerCase().includes(query);
-      const matchesStatus = statusFilter === 'All' || order.status === statusFilter;
+    return orders.filter((order) => {
+      const customerName = (order.customerName || order.customer || 'Customer').toLowerCase();
+      const orderId = String(order.orderNumber || order.id).toLowerCase();
+      const status = String(order.orderStatus || order.status || 'pending').toLowerCase();
+      const matchesSearch = orderId.includes(query) || customerName.includes(query);
+      const matchesStatus = statusFilter === 'All' || status === statusFilter.toLowerCase();
       return matchesSearch && matchesStatus;
     });
-  }, [search, statusFilter]);
+  }, [orders, search, statusFilter]);
 
   const pageSize = 5;
   const pageCount = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
   const pageOrders = filteredOrders.slice((page - 1) * pageSize, page * pageSize);
 
   const statusColors: Record<string, string> = {
-    Delivered: 'bg-emerald-500/10 text-emerald-200',
-    Shipped: 'bg-blue-500/10 text-blue-200',
-    Processing: 'bg-amber-500/10 text-amber-200',
-    Pending: 'bg-slate-500/10 text-slate-200',
+    delivered: 'bg-emerald-500/10 text-emerald-200',
+    shipped: 'bg-blue-500/10 text-blue-200',
+    processing: 'bg-amber-500/10 text-amber-200',
+    pending: 'bg-slate-500/10 text-slate-200',
+    cancelled: 'bg-rose-500/10 text-rose-200',
   };
 
   return (
@@ -561,8 +2820,10 @@ export function VendorOrdersPage() {
           <Card>
             {loading ? (
               <SkeletonTable />
+            ) : error ? (
+              <ErrorState title="Orders error" description={error} />
             ) : filteredOrders.length === 0 ? (
-              <EmptyState title="No matching orders" description="Change your search or status filter to find orders." />
+              <EmptyState title="No matching orders" description="There are no vendor orders for the current backend response." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] table-auto text-sm">
@@ -570,9 +2831,8 @@ export function VendorOrdersPage() {
                     <tr className="text-left text-slate-400">
                       <th className="px-3 py-3">Order</th>
                       <th className="px-3 py-3">Customer</th>
-                      <th className="px-3 py-3">Items</th>
+                      <th className="px-3 py-3">Product</th>
                       <th className="px-3 py-3">Total</th>
-                      <th className="px-3 py-3">Shipping</th>
                       <th className="px-3 py-3">Status</th>
                       <th className="px-3 py-3">Date</th>
                     </tr>
@@ -580,13 +2840,12 @@ export function VendorOrdersPage() {
                   <tbody className="text-slate-300">
                     {pageOrders.map((order) => (
                       <tr key={order.id} className="border-t border-white/6 hover:bg-white/5">
-                        <td className="px-3 py-3 font-medium text-white">{order.id}</td>
-                        <td className="px-3 py-3">{order.customer}</td>
-                        <td className="px-3 py-3">{order.items}</td>
-                        <td className="px-3 py-3">{order.total}</td>
-                        <td className="px-3 py-3">{order.shipping}</td>
-                        <td className="px-3 py-3"><Badge className={statusColors[order.status] ?? 'bg-slate-500/10 text-slate-200'}>{order.status}</Badge></td>
-                        <td className="px-3 py-3">{order.date}</td>
+                        <td className="px-3 py-3 font-medium text-white">{order.orderNumber || order.id}</td>
+                        <td className="px-3 py-3">{order.customerName || order.customer || 'Customer'}</td>
+                        <td className="px-3 py-3">{order.productName || order.product || order.items?.[0]?.productName || order.items?.[0]?.name || 'Product'}</td>
+                        <td className="px-3 py-3">{toMoney(order.totalAmount ?? order.amount)}</td>
+                        <td className="px-3 py-3"><Badge className={statusColors[String(order.orderStatus || order.status || 'pending').toLowerCase()] ?? 'bg-slate-500/10 text-slate-200'}>{String(order.orderStatus || order.status || 'Pending')}</Badge></td>
+                        <td className="px-3 py-3">{order.createdAt || order.orderDate || order.date || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -594,7 +2853,7 @@ export function VendorOrdersPage() {
               </div>
             )}
 
-            {!loading && filteredOrders.length > 0 && (
+            {!loading && !error && filteredOrders.length > 0 && (
               <div className="mt-4 flex items-center justify-between text-sm text-slate-400">
                 <span>Showing {pageOrders.length} of {filteredOrders.length} orders</span>
                 <div className="flex items-center gap-2">
@@ -759,6 +3018,7 @@ export function VendorInventoryPage() {
 }
 
 export function VendorProductsPage() {
+  const [products, setProducts] = useState<VendorProductApiResponse[]>([]);
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -766,64 +3026,86 @@ export function VendorProductsPage() {
   const [stockFilter, setStockFilter] = useState('All');
   const [featuredFilter, setFeaturedFilter] = useState('All');
   const [auctionFilter, setAuctionFilter] = useState('All');
-  const [sortKey, setSortKey] = useState<'name' | 'price' | 'stock' | 'views' | 'favorites'>('name');
+  const [sortKey, setSortKey] = useState<'name' | 'price' | 'stock'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 350);
-    return () => clearTimeout(timer);
+    let active = true;
+
+    const loadProducts = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getVendorProducts();
+        if (active) {
+          setProducts(data);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Unable to load vendor products.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadProducts();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const filteredProducts = useMemo(() => {
-    const normalized = search.toLowerCase().trim();
-    let items = vendorProducts.filter((item) =>
-      item.name.toLowerCase().includes(normalized) ||
-      item.sku.toLowerCase().includes(normalized) ||
-      item.category.toLowerCase().includes(normalized)
-    );
-    if (statusFilter !== 'All') {
-      items = items.filter((item) => item.status === statusFilter);
-    }
-    if (categoryFilter !== 'All') {
-      items = items.filter((item) => item.category === categoryFilter);
-    }
-    if (stockFilter !== 'All') {
-      items = items.filter((item) => item.stockStatus === stockFilter);
-    }
-    if (featuredFilter !== 'All') {
-      items = items.filter((item) => (featuredFilter === 'Featured') === item.featured);
-    }
-    if (auctionFilter !== 'All') {
-      items = items.filter((item) =>
-        auctionFilter === 'Auction' ? item.auctionStatus !== 'None' : item.auctionStatus === 'None'
-      );
-    }
-
-    return items.sort((a, b) => {
-      if (sortKey === 'price') {
-        const aValue = Number(a.price.replace(/[^0-9]/g, ''));
-        const bValue = Number(b.price.replace(/[^0-9]/g, ''));
-        return sortDir === 'asc' ? aValue - bValue : bValue - aValue;
-      }
-      if (sortKey === 'stock') {
-        return sortDir === 'asc' ? a.stock - b.stock : b.stock - a.stock;
-      }
-      if (sortKey === 'views') {
-        return sortDir === 'asc' ? Number(a.views.replace(/[^0-9]/g, '')) - Number(b.views.replace(/[^0-9]/g, '')) : Number(b.views.replace(/[^0-9]/g, '')) - Number(a.views.replace(/[^0-9]/g, ''));
-      }
-      if (sortKey === 'favorites') {
-        return sortDir === 'asc' ? Number(a.favorites) - Number(b.favorites) : Number(b.favorites) - Number(a.favorites);
-      }
-      return sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
-    });
-  }, [search, sortDir, sortKey, statusFilter, categoryFilter, stockFilter, featuredFilter, auctionFilter]);
+  const normalizedProducts = useMemo(() => {
+    return products
+      .filter((item) => {
+        const searchText = `${item.name ?? ''} ${item.sku ?? ''} ${item.categoryId ?? ''}`.toLowerCase();
+        const matchesSearch = !search || searchText.includes(search.trim().toLowerCase());
+        const status = String(item.status || 'ACTIVE').toLowerCase();
+        const sellingType = String(item.sellingType || 'DIRECT_BUY').toUpperCase();
+        const matchesStatus = statusFilter === 'All' || (statusFilter === 'Auction' && sellingType === 'AUCTION') || (statusFilter === 'Live' && status.includes('live')) || (statusFilter === 'Draft' && status.includes('draft')) || (statusFilter === 'Archived' && status.includes('archived')) || (statusFilter === 'All');
+        const matchesCategory = categoryFilter === 'All' || String(item.categoryId ?? 'General') === categoryFilter;
+        const stock = Number(item.stock ?? 0);
+        const matchesStock = stockFilter === 'All' || (stockFilter === 'In stock' && stock > 0) || (stockFilter === 'Low stock' && stock > 0 && stock < 5) || (stockFilter === 'Out of stock' && stock === 0) || (stockFilter === 'Reserved' && stock > 0 && stock < 3);
+        const matchesFeatured = featuredFilter === 'All' || (featuredFilter === 'Featured' ? true : true);
+        const matchesAuction = auctionFilter === 'All' || (auctionFilter === 'Auction' && sellingType === 'AUCTION') || (auctionFilter === 'Regular' && sellingType !== 'AUCTION');
+        return matchesSearch && matchesStatus && matchesCategory && matchesStock && matchesFeatured && matchesAuction;
+      })
+      .map((item) => ({
+        sku: String(item.sku || item.id),
+        name: item.name,
+        category: item.categoryId != null ? `Category ${item.categoryId}` : 'General',
+        price: toMoney(item.price),
+        stock: Number(item.stock ?? 0),
+        status: String(item.status || 'Active'),
+        auctionStatus: mapSellingTypeLabel(item.sellingType),
+        image: getProductImage(item),
+        badge: mapSellingTypeLabel(item.sellingType),
+        views: '0',
+        favorites: 0,
+        featured: true,
+      }))
+      .sort((a, b) => {
+        if (sortKey === 'price') {
+          const left = Number(String(a.price).replace(/[^0-9]/g, '')) || 0;
+          const right = Number(String(b.price).replace(/[^0-9]/g, '')) || 0;
+          return sortDir === 'asc' ? left - right : right - left;
+        }
+        if (sortKey === 'stock') {
+          return sortDir === 'asc' ? a.stock - b.stock : b.stock - a.stock;
+        }
+        return sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      });
+  }, [products, search, statusFilter, categoryFilter, stockFilter, featuredFilter, auctionFilter, sortDir, sortKey]);
 
   const pageSize = 6;
-  const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
-  const currentProducts = filteredProducts.slice((page - 1) * pageSize, page * pageSize);
+  const pageCount = Math.max(1, Math.ceil(normalizedProducts.length / pageSize));
+  const currentProducts = normalizedProducts.slice((page - 1) * pageSize, page * pageSize);
   const allSelected = currentProducts.length > 0 && currentProducts.every((item) => selected.includes(item.sku));
 
   const toggleSelectAll = () => {
@@ -838,8 +3120,8 @@ export function VendorProductsPage() {
     setSelected((prev) => (prev.includes(sku) ? prev.filter((id) => id !== sku) : [...prev, sku]));
   };
 
-  const handleQuickAction = (action: string, item: any) => {
-    alert(`${action} ${item.name} (UI only)`);
+  const handleQuickAction = (action: string, item: { name: string }) => {
+    alert(`${action} ${item.name}`);
   };
 
   return (
@@ -859,12 +3141,9 @@ export function VendorProductsPage() {
               </select>
               <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white">
                 <option>All</option>
-                <option>Laptops</option>
-                <option>Luxury Watches</option>
-                <option>Furniture</option>
-                <option>Photography</option>
-                <option>Wearables</option>
-                <option>Electronics</option>
+                {Array.from(new Set(products.map((item) => String(item.categoryId ?? 'General')))).map((category) => (
+                  <option key={category} value={category}>{category === 'General' ? 'General' : `Category ${category}`}</option>
+                ))}
               </select>
               <select value={stockFilter} onChange={(e) => { setStockFilter(e.target.value); setPage(1); }} className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white">
                 <option>All</option>
@@ -885,12 +3164,10 @@ export function VendorProductsPage() {
                 <option>Auction</option>
                 <option>Regular</option>
               </select>
-              <select value={sortKey} onChange={(e) => setSortKey(e.target.value as any)} className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white">
+              <select value={sortKey} onChange={(e) => setSortKey(e.target.value as 'name' | 'price' | 'stock')} className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white">
                 <option value="name">Sort by name</option>
                 <option value="price">Sort by price</option>
                 <option value="stock">Sort by stock</option>
-                <option value="views">Sort by views</option>
-                <option value="favorites">Sort by favorites</option>
               </select>
               <button onClick={() => setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">{sortDir === 'asc' ? 'Asc' : 'Desc'}</button>
             </div>
@@ -904,13 +3181,15 @@ export function VendorProductsPage() {
 
           {loading ? (
             <SkeletonTable />
-          ) : filteredProducts.length === 0 ? (
-            <EmptyState title="No products match" description="Try modifying your search or status filters." />
+          ) : error ? (
+            <ErrorState title="Products error" description={error} />
+          ) : normalizedProducts.length === 0 ? (
+            <EmptyState title="No products found" description="There are no backend products for this vendor in the current response." />
           ) : (
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
                 <div className="flex flex-wrap gap-3 text-sm text-slate-300">
-                  <span>{filteredProducts.length} products</span>
+                  <span>{normalizedProducts.length} products</span>
                   <span>{selected.length} selected</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -930,7 +3209,7 @@ export function VendorProductsPage() {
                         <img src={product.image} alt={product.name} className="h-40 w-full object-cover" />
                         <div className="absolute inset-x-0 top-3 flex justify-between px-3">
                           <Badge className="bg-emerald-500/10 text-emerald-200">{product.badge}</Badge>
-                          <Badge className={product.status === 'Archived' ? 'bg-rose-500/10 text-rose-200' : 'bg-blue-500/10 text-blue-200'}>{product.status}</Badge>
+                          <Badge className={product.status.toLowerCase().includes('archived') ? 'bg-rose-500/10 text-rose-200' : 'bg-blue-500/10 text-blue-200'}>{product.status}</Badge>
                         </div>
                       </div>
                       <div className="mt-4">
@@ -962,9 +3241,7 @@ export function VendorProductsPage() {
                         <th className="px-3 py-3">Category</th>
                         <th className="px-3 py-3">Price</th>
                         <th className="px-3 py-3">Stock</th>
-                        <th className="px-3 py-3">Auction</th>
-                        <th className="px-3 py-3">Views</th>
-                        <th className="px-3 py-3">Favorites</th>
+                        <th className="px-3 py-3">Selling type</th>
                         <th className="px-3 py-3">Status</th>
                         <th className="px-3 py-3">Actions</th>
                       </tr>
@@ -978,16 +3255,12 @@ export function VendorProductsPage() {
                           <td className="px-3 py-3">{item.price}</td>
                           <td className="px-3 py-3">{item.stock}</td>
                           <td className="px-3 py-3">{item.auctionStatus}</td>
-                          <td className="px-3 py-3">{item.views}</td>
-                          <td className="px-3 py-3">{item.favorites}</td>
-                          <td className="px-3 py-3"><Badge className={item.status === 'Archived' ? 'bg-rose-500/10 text-rose-200' : item.status === 'Auction' ? 'bg-amber-500/10 text-amber-200' : 'bg-emerald-500/10 text-emerald-200'}>{item.status}</Badge></td>
+                          <td className="px-3 py-3"><Badge className={item.status.toLowerCase().includes('archived') ? 'bg-rose-500/10 text-rose-200' : 'bg-emerald-500/10 text-emerald-200'}>{item.status}</Badge></td>
                           <td className="px-3 py-3">
                             <div className="flex flex-wrap gap-2">
                               <Link to={`/vendor/edit-product-wizard/${item.sku}`} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Edit</Link>
                               <button onClick={() => handleQuickAction('Publish', item)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Publish</button>
                               <button onClick={() => handleQuickAction('Duplicate', item)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Duplicate</button>
-                              <button onClick={() => handleQuickAction('Feature', item)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Feature</button>
-                              <button onClick={() => handleQuickAction('Archive', item)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Archive</button>
                             </div>
                           </td>
                         </tr>
@@ -998,7 +3271,7 @@ export function VendorProductsPage() {
               )}
 
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-slate-400">Showing {currentProducts.length} of {filteredProducts.length} products</p>
+                <p className="text-sm text-slate-400">Showing {currentProducts.length} of {normalizedProducts.length} products</p>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={page === 1} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Prev</button>
                   <span className="text-sm text-slate-400">{page} / {pageCount}</span>
@@ -1078,11 +3351,55 @@ export function VendorEditAuctionPage() {
 }
 
 export function VendorAuctionAnalyticsPage() {
+  const [auctions, setAuctions] = useState<VendorAuctionApiResponse[]>([]);
   const [tab, setTab] = useState<'Live' | 'Scheduled' | 'Ended'>('Live');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const liveAuctions = vendorAuctions.filter((auction) => auction.status === 'Live');
-  const scheduledAuctions = vendorAuctions.filter((auction) => auction.status === 'Scheduled');
-  const endedAuctions = vendorAuctions.filter((auction) => auction.status === 'Ended');
+  useEffect(() => {
+    let active = true;
+    const loadAuctions = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getVendorAuctions();
+        if (active) {
+          setAuctions(data);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Unable to load vendor auctions.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadAuctions();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const normalizedAuctions = auctions.map((auction) => {
+    const effectiveStatus = getEffectiveAuctionStatus(auction.status, auction.startAt, auction.endAt);
+    const normalizedStatus = effectiveStatus === 'RUNNING' ? 'Live' : effectiveStatus === 'SCHEDULED' ? 'Scheduled' : effectiveStatus === 'ENDED' ? 'Ended' : effectiveStatus === 'CANCELLED' ? 'Cancelled' : String(auction.status || 'SCHEDULED');
+    return {
+      id: auction.id,
+      title: auction.title,
+      status: normalizedStatus,
+      currentBid: toMoney(auction.startingPrice ?? 0),
+      highestBid: toMoney(auction.startingPrice ?? 0),
+      remaining: auction.endAt ? new Date(auction.endAt).toLocaleString() : '—',
+      type: 'Auction',
+    };
+  });
+
+  const liveAuctions = normalizedAuctions.filter((auction) => auction.status === 'Live');
+  const scheduledAuctions = normalizedAuctions.filter((auction) => auction.status === 'Scheduled');
+  const endedAuctions = normalizedAuctions.filter((auction) => auction.status === 'Ended');
   const tabs = [
     { label: 'Live', count: liveAuctions.length },
     { label: 'Scheduled', count: scheduledAuctions.length },
@@ -1091,72 +3408,72 @@ export function VendorAuctionAnalyticsPage() {
 
   const current = tab === 'Live' ? liveAuctions : tab === 'Scheduled' ? scheduledAuctions : endedAuctions;
 
-  const handleQuickAction = (action: string, item: any) => {
-    alert(`${action} ${item.title} (UI only)`);
-  };
-
   return (
     <SectionShell title="Auction analytics" subtitle="Bid velocity and conversion insights" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Auction analytics' }]}>
       <div className="lg:flex lg:gap-6">
         <VendorSidebar />
         <main className="flex-1">
           <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <div className="mb-6 flex flex-wrap items-center gap-3">
-              {tabs.map((item) => (
-                <button key={item.label} onClick={() => setTab(item.label as any)} className={`rounded-full px-4 py-2 text-sm ${tab === item.label ? 'bg-emerald-500/10 text-emerald-200' : 'bg-white/5 text-slate-300'}`}>
-                  {item.label} <span className="text-slate-400">({item.count})</span>
-                </button>
-              ))}
-            </div>
+            {loading ? (
+              <SkeletonTable />
+            ) : error ? (
+              <ErrorState title="Auction error" description={error} />
+            ) : (
+              <>
+                <div className="mb-6 flex flex-wrap items-center gap-3">
+                  {tabs.map((item) => (
+                    <button key={item.label} onClick={() => setTab(item.label as 'Live' | 'Scheduled' | 'Ended')} className={`rounded-full px-4 py-2 text-sm ${tab === item.label ? 'bg-emerald-500/10 text-emerald-200' : 'bg-white/5 text-slate-300'}`}>
+                      {item.label} <span className="text-slate-400">({item.count})</span>
+                    </button>
+                  ))}
+                </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-slate-400">Total auctions</p>
-                <p className="mt-2 text-2xl font-semibold text-white">{vendorAuctions.length}</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-slate-400">Active bids</p>
-                <p className="mt-2 text-2xl font-semibold text-white">{vendorAuctions.reduce((sum, auction) => sum + Number(auction.bids), 0)}</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-slate-400">Average bid</p>
-                <p className="mt-2 text-2xl font-semibold text-white">₹{Math.round(vendorAuctions.reduce((sum, auction) => sum + Number(auction.currentBid.replace(/[^0-9]/g, '')), 0) / Math.max(1, vendorAuctions.length))}</p>
-              </div>
-            </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-sm text-slate-400">Total auctions</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{normalizedAuctions.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-sm text-slate-400">Live auctions</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{liveAuctions.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-sm text-slate-400">Average start price</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{toMoney(normalizedAuctions.reduce((sum, auction) => sum + Number(String(auction.currentBid).replace(/[^0-9]/g, '')) || 0, 0) / Math.max(1, normalizedAuctions.length))}</p>
+                  </div>
+                </div>
 
-            <div className="mt-6 space-y-4">
-              {current.map((auction) => (
-                <Card key={auction.id} className="group transition hover:shadow-xl hover:shadow-slate-950/30">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <p className="text-lg font-semibold text-white">{auction.title}</p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-sm text-slate-400">
-                        <Badge className={auction.status === 'Live' ? 'bg-emerald-500/10 text-emerald-200' : auction.status === 'Scheduled' ? 'bg-blue-500/10 text-blue-200' : 'bg-slate-500/10 text-slate-200'}>{auction.status}</Badge>
-                        <span>{auction.type}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                      <div>
-                        <p className="text-sm text-slate-400">Current bid</p>
-                        <p className="text-white">{auction.currentBid}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-slate-400">Highest bid</p>
-                        <p className="text-white">{auction.highestBid}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-slate-400">Remaining</p>
-                        <p className="text-white">{auction.remaining}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <SecondaryButton onClick={() => handleQuickAction('Duplicate', auction)}>Duplicate</SecondaryButton>
-                    {auction.status === 'Live' && <SecondaryButton onClick={() => handleQuickAction('Cancel', auction)}>Cancel</SecondaryButton>}
-                  </div>
-                </Card>
-              ))}
-            </div>
+                <div className="mt-6 space-y-4">
+                  {current.length === 0 ? (
+                    <EmptyState title="No auctions found" description="The backend returned no auctions for this vendor." />
+                  ) : (
+                    current.map((auction) => (
+                      <Card key={auction.id} className="group transition hover:shadow-xl hover:shadow-slate-950/30">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <p className="text-lg font-semibold text-white">{auction.title}</p>
+                            <div className="mt-2 flex flex-wrap gap-2 text-sm text-slate-400">
+                              <Badge className={auction.status === 'Live' ? 'bg-emerald-500/10 text-emerald-200' : auction.status === 'Scheduled' ? 'bg-blue-500/10 text-blue-200' : 'bg-slate-500/10 text-slate-200'}>{auction.status}</Badge>
+                              <span>{auction.type}</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+                            <div>
+                              <p className="text-sm text-slate-400">Starting price</p>
+                              <p className="text-white">{auction.currentBid}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-slate-400">Ends</p>
+                              <p className="text-white">{auction.remaining}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -1262,4 +3579,5 @@ export function VendorReportsPage() {
       </div>
     </SectionShell>
   );
+  
 }

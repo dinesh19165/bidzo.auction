@@ -207,8 +207,16 @@ export function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      await login(identifier || 'guest', password, selectedRole);
-      navigate(selectedRole === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer', { replace: true });
+      const user = await login(identifier, password, selectedRole);
+      const redirectTo =
+        user.type === 'vendor' ? '/dashboards/vendor' :
+        user.type === 'admin' ? '/dashboards/admin' :
+        user.type === 'delivery' ? '/delivery' :
+        user.type === 'support' ? '/support-tickets' :
+        '/dashboards/customer';
+      navigate(redirectTo, { replace: true });
+    } catch (error) {
+      setErrors({ identifier: 'Login failed. Check your credentials and try again.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -440,6 +448,7 @@ export function CustomerRegisterPage() {
   const { registerCustomer } = useAuth();
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const validate = () => {
     const nextErrors: { name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string } = {};
@@ -456,9 +465,14 @@ export function CustomerRegisterPage() {
   };
 
   const submit = async () => {
+    setSubmitError(null);
     if (!validate()) return;
-    await registerCustomer(form, 'customer');
-    navigate('/otp', { replace: true, state: { role: 'customer' } });
+    try {
+      await registerCustomer(form, 'customer');
+      navigate('/otp', { replace: true, state: { role: 'customer' } });
+    } catch (error: any) {
+      setSubmitError(error?.message || 'Registration failed. Please try again.');
+    }
   };
 
   return (
@@ -470,6 +484,7 @@ export function CustomerRegisterPage() {
           </div>
           <ProgressIndicator activeStep={0} />
           <div className="mt-4 space-y-4">
+            {submitError ? <p className="text-sm text-amber-300">{submitError}</p> : null}
             <FormField label="Full name" placeholder="As shown on your ID" value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} icon={BadgeCheck} />
             {errors.name ? <p className="text-sm text-amber-300">{errors.name}</p> : null}
             <FormField label="Email address" placeholder="name@company.com" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} icon={Mail} />
@@ -547,6 +562,7 @@ export function VendorRegisterPage() {
   const { registerVendor } = useAuth();
   const [form, setForm] = useState({ businessName: '', ownerName: '', email: '', phone: '', gst: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = useState<{ businessName?: string; ownerName?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const validate = () => {
     const nextErrors: { businessName?: string; ownerName?: string; email?: string; phone?: string; password?: string; confirmPassword?: string } = {};
@@ -564,9 +580,14 @@ export function VendorRegisterPage() {
   };
 
   const submit = async () => {
+    setSubmitError(null);
     if (!validate()) return;
-    await registerVendor(form, 'vendor');
-    navigate('/otp', { replace: true, state: { role: 'vendor' } });
+    try {
+      await registerVendor(form, 'vendor');
+      navigate('/otp', { replace: true, state: { role: 'vendor' } });
+    } catch (error: any) {
+      setSubmitError(error?.message || 'Registration failed. Please try again.');
+    }
   };
 
   return (
@@ -578,6 +599,7 @@ export function VendorRegisterPage() {
           </div>
           <ProgressIndicator activeStep={0} />
           <div className="mt-4 space-y-4">
+            {submitError ? <p className="text-sm text-amber-300">{submitError}</p> : null}
             <FormField label="Business name" placeholder="Your registered business" value={form.businessName} onChange={(e) => setForm((s) => ({ ...s, businessName: e.target.value }))} icon={Building2} accent="emerald" />
             {errors.businessName ? <p className="text-sm text-amber-300">{errors.businessName}</p> : null}
             <FormField label="Owner name" placeholder="Legal representative" value={form.ownerName} onChange={(e) => setForm((s) => ({ ...s, ownerName: e.target.value }))} icon={BadgeCheck} accent="emerald" />

@@ -1,21 +1,80 @@
-import { useParams, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Heart, ShieldCheck, Truck, Share2 } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
 import { ProductCard } from '../components/cards/MarketplaceCards';
-import { products, reviews as mockReviews } from '../data/mockData';
-import { useState } from 'react';
+import { getProductById, getProducts, type ProductListItem } from '../api/productApi';
+import { reviews as mockReviews } from '../data/mockData';
+import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
+import { initializeBuyNowFlow } from '../utils/auctionFlowState';
 
 export function ProductDetailPage() {
   const { id } = useParams();
-  const product = products.find((item) => item.id === Number(id));
-
-  const [main, setMain] = useState(product?.gallery?.[0] || product?.image || '');
+  const navigate = useNavigate();
+  const [product, setProduct] = useState<ProductListItem | null>(null);
+  const [similarProducts, setSimilarProducts] = useState<ProductListItem[]>([]);
+  const [main, setMain] = useState('');
   const [zoom, setZoom] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const idNum = Number(id);
+    if (!id || !Number.isFinite(idNum)) {
+      setError('Invalid product ID');
+      setLoading(false);
+      return;
+    }
+
+    const loadProduct = async () => {
+      setError(null);
+      setLoading(true);
+      try {
+        const details = await getProductById(idNum);
+        setProduct(details);
+        setMain(details.image);
+        const list = await getProducts();
+        setSimilarProducts(list.filter((item) => item.id !== details.id).slice(0, 3));
+      } catch (err: any) {
+        setError(err?.message || 'Unable to load product details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProduct();
+  }, [id]);
+
+  const handleBuyNow = () => {
+    if (!product) return;
+    const priceNum = typeof product.price === 'string' ? parseFloat(product.price) : product.price;
+    initializeBuyNowFlow(product.id, product.title, priceNum);
+    navigate('/customer/buynow-confirm');
+  };
+
+  if (loading) {
+    return (
+      <SectionShell title="Product details" subtitle="Loading product">
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </SectionShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <SectionShell title="Product" subtitle="Error">
+        <ErrorState title="Unable to load product" description={error} />
+      </SectionShell>
+    );
+  }
 
   if (!product) {
     return (
       <SectionShell title="Product" subtitle="Not found">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8 text-slate-300">This listing is unavailable.</div>
+        <EmptyState title="Product unavailable" description="This listing could not be found or has been removed." />
       </SectionShell>
     );
   }
@@ -52,7 +111,7 @@ export function ProductDetailPage() {
           </div>
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link to="/customer/checkout" className="w-full rounded-full bg-blue-600 px-5 py-2.5 text-center text-sm font-medium text-white sm:w-auto">Buy now</Link>
+            <button onClick={handleBuyNow} className="w-full rounded-full bg-blue-600 px-5 py-2.5 text-center text-sm font-medium text-white sm:w-auto hover:bg-blue-700">Buy now</button>
             <Link to="/customer/wishlist" className="w-full rounded-full border border-white/10 px-5 py-2.5 text-center text-sm font-medium text-slate-200 sm:w-auto">Add to wishlist</Link>
             <button className="w-full rounded-full border border-white/10 px-5 py-2.5 text-sm font-medium text-slate-200 sm:w-auto">Compare</button>
           </div>
@@ -130,9 +189,13 @@ export function ProductDetailPage() {
       <div className="mt-8">
         <h3 className="text-xl font-semibold text-white">Similar products</h3>
         <div className="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {products.slice(0, 3).map((item) => (
-            <ProductCard key={item.id} id={item.id} title={item.title} description={item.description} image={item.image} price={item.price} category={item.category} condition={item.condition} seller={item.seller} />
-          ))}
+          {similarProducts.length === 0 ? (
+            <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">No similar products available.</div>
+          ) : (
+            similarProducts.map((item) => (
+              <ProductCard key={item.id} id={item.id} title={item.title} description={item.description} image={item.image} price={item.price} category={item.category} condition={item.condition} seller={item.seller} />
+            ))
+          )}
         </div>
       </div>
     </SectionShell>

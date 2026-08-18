@@ -29,6 +29,9 @@ import {
 } from '../data/mockData';
 import { PrimaryButton, SecondaryButton, Badge } from '../components/common/Buttons';
 import { StatisticCard, ProductCard, ReviewCard, AuctionCard, CategoryCard, SellerCard } from '../components/cards/MarketplaceCards';
+import { getHomeData } from '../api/homeApi';
+import { getEffectiveAuctionStatus } from '../api/auctionApi';
+import type { HomeDataResponse, CategoryResponse, ProductResponse, AuctionResponse } from '../api/homeApi';
 
 const pieData = [
   { name: 'Auctions', value: 44 },
@@ -40,6 +43,11 @@ export function HomePage() {
   const [searchCategory, setSearchCategory] = useState('All Categories');
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [counterValues, setCounterValues] = useState({ activeAuctions: 0, buyers: 0, sellers: 0, sold: 0 });
+
+  // API data states
+  const [homeData, setHomeData] = useState<HomeDataResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const categoryIcons = [
     <Smartphone className="h-5 w-5" />, <Truck className="h-5 w-5" />, <Store className="h-5 w-5" />, <Heart className="h-5 w-5" />,
@@ -68,10 +76,17 @@ export function HomePage() {
     },
   ];
 
-  const featuredAuctions = auctionItems.slice(0, 3);
-  const featuredProductsList = featuredProducts.slice(0, 4);
-  const trendingAuctions = auctionItems.slice(0, 6);
-  const popularCategories = marketplaceCategories.slice(0, 6);
+  // Fallback to mock data if API data is not available
+  const featuredProductsList = homeData?.featuredProducts?.slice(0, 4) || featuredProducts.slice(0, 4);
+  const popularCategories = homeData?.categories?.slice(0, 6) || marketplaceCategories.slice(0, 6);
+  const stats = homeData?.stats || { totalProducts: 0, liveAuctions: 0, upcomingAuctions: 0, totalCategories: 0, totalVendors: 0, totalCustomers: 0 };
+  
+  // Combine live and upcoming auctions for trending section
+  const trendingAuctions = [
+    ...(homeData?.liveAuctions || []),
+    ...(homeData?.upcomingAuctions || []),
+  ].slice(0, 6) || auctionItems.slice(0, 6);
+  
   const sellerHighlights = verifiedVendors.slice(0, 3);
   const [activeTrendingIndex, setActiveTrendingIndex] = useState(0);
   const trendingScrollRef = useRef<HTMLDivElement | null>(null);
@@ -97,19 +112,48 @@ export function HomePage() {
     setActiveTrendingIndex(Math.min(trendingAuctions.length - 1, Math.max(0, index)));
   };
 
+  // Fetch home data on component mount
+  useEffect(() => {
+    const loadHomeData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getHomeData();
+        setHomeData(data);
+      } catch (err) {
+        console.error('Error loading home data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load home data');
+        // Continue with mock data as fallback
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadHomeData();
+  }, []);
+
   useEffect(() => {
     const interval = window.setInterval(() => setActiveTestimonial((value) => (value + 1) % testimonials.length), 8000);
     return () => window.clearInterval(interval);
   }, []);
 
+  // Update counter values based on stats from API
   useEffect(() => {
-    const targets = { activeAuctions: 214, buyers: 86000, sellers: 1400, sold: 48000 };
+    if (!stats) return;
+
+    const targets = {
+      activeAuctions: stats.liveAuctions || 0,
+      buyers: stats.totalCustomers || 0,
+      sellers: stats.totalVendors || 0,
+      sold: stats.totalProducts || 0,
+    };
+
     const steps = 70;
     const increments = {
-      activeAuctions: Math.ceil(targets.activeAuctions / steps),
-      buyers: Math.ceil(targets.buyers / steps),
-      sellers: Math.ceil(targets.sellers / steps),
-      sold: Math.ceil(targets.sold / steps),
+      activeAuctions: Math.ceil(Math.max(1, targets.activeAuctions) / steps),
+      buyers: Math.ceil(Math.max(1, targets.buyers) / steps),
+      sellers: Math.ceil(Math.max(1, targets.sellers) / steps),
+      sold: Math.ceil(Math.max(1, targets.sold) / steps),
     };
 
     let current = { activeAuctions: 0, buyers: 0, sellers: 0, sold: 0 };
@@ -132,10 +176,53 @@ export function HomePage() {
     }, 30);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [stats]);
 
   const { theme } = useThemeContext();
   const { translate, formatCurrency } = useLocaleContext();
+
+  // Helper function to format auction status
+  const getAuctionStatus = (status?: string, startAt?: string, endAt?: string) => {
+    const effectiveStatus = getEffectiveAuctionStatus(status, startAt, endAt);
+    if (effectiveStatus === 'RUNNING') return 'Live';
+    if (effectiveStatus === 'SCHEDULED') return 'Upcoming';
+    if (effectiveStatus === 'ENDED') return 'Ended';
+    if (effectiveStatus === 'CANCELLED') return 'Cancelled';
+    return 'Unknown';
+  };
+
+  // Helper function to format countdown timer
+  const getCountdownText = (endAt?: string, status?: string, startAt?: string) => {
+    if (!endAt) return 'Unavailable';
+    try {
+      const effectiveStatus = getEffectiveAuctionStatus(status, startAt, endAt);
+      if (effectiveStatus === 'ENDED') return 'Ended';
+      if (effectiveStatus === 'SCHEDULED') {
+        const start = new Date(startAt || endAt).getTime();
+        const diff = start - Date.now();
+        if (diff <= 0) return 'Starting soon';
+        const hours = Math.floor(diff / 3600000);
+        const minutes = Math.floor((diff % 3600000) / 60000);
+        return `${hours}h ${minutes}m until start`;
+      }
+
+      const now = Date.now();
+      const end = new Date(endAt).getTime();
+      const diff = end - now;
+      if (diff <= 0) return 'Ended';
+
+      const hours = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+
+      if (hours > 24) {
+        const days = Math.floor(hours / 24);
+        return `${days}d left`;
+      }
+      return `${hours}h ${minutes}m left`;
+    } catch {
+      return 'Unavailable';
+    }
+  };
 
   return (
     <>
@@ -192,17 +279,17 @@ export function HomePage() {
               <div className="grid gap-4 sm:grid-cols-3">
               <Link to="/auctions" className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'} hover:-translate-y-1 hover:shadow-[0_20px_60px_-20px_rgba(15,23,42,0.12)]`}>
                 <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Live auctions</p>
-                <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>214</p>
+                <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{counterValues.activeAuctions}</p>
                 <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Active auctions right now</p>
               </Link>
                 <div className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
                   <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Registered buyers</p>
-                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>86k+</p>
+                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{counterValues.buyers > 0 ? `${Math.round(counterValues.buyers / 1000)}k+` : '0'}</p>
                   <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Premium buyers on Bidzo</p>
                 </div>
                 <div className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
                   <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Verified sellers</p>
-                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>1.4k</p>
+                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{counterValues.sellers > 0 ? `${Math.round(counterValues.sellers / 1000)}k+` : '0'}</p>
                   <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Curated seller network</p>
                 </div>
               </div>
@@ -261,16 +348,22 @@ export function HomePage() {
           <Link to="/categories" className="text-sm font-medium text-slate-300 transition hover:text-white">View all categories</Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {popularCategories.map((item, index) => (
-            <div key={item.title} className="group rounded-[28px] border border-white/10 bg-slate-900/80 p-6 transition hover:-translate-y-1 hover:border-cyan-400/20 hover:bg-slate-950/90">
-              <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-slate-950/70 text-cyan-300 transition group-hover:bg-cyan-500/10">
-                {categoryIcons[index]}
-              </div>
-              <p className="mt-6 text-sm uppercase tracking-[0.24em] text-slate-400">{item.title}</p>
-              <p className="mt-3 text-2xl font-semibold text-white">{item.count}</p>
-              <p className="mt-4 text-sm leading-6 text-slate-400">Premium listings curated for buyers seeking quality.</p>
+          {popularCategories && popularCategories.length > 0 ? (
+            popularCategories.map((item: any, index: number) => (
+              <Link key={item.id} to={`/marketplace?category=${item.id || item.title}`} className="group rounded-[28px] border border-white/10 bg-slate-900/80 p-6 transition hover:-translate-y-1 hover:border-cyan-400/20 hover:bg-slate-950/90">
+                <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-slate-950/70 text-cyan-300 transition group-hover:bg-cyan-500/10">
+                  {categoryIcons[index % categoryIcons.length]}
+                </div>
+                <p className="mt-6 text-sm uppercase tracking-[0.24em] text-slate-400">{item.name || item.title}</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{item.count || '0'}</p>
+                <p className="mt-4 text-sm leading-6 text-slate-400">{item.description || 'Premium listings curated for buyers seeking quality.'}</p>
+              </Link>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-12">
+              <p className="text-slate-400">No categories available</p>
             </div>
-          ))}
+          )}
         </div>
       </section>
 
@@ -283,37 +376,49 @@ export function HomePage() {
           <Link to="/auctions" className="text-sm font-medium text-slate-300 transition hover:text-white">Browse all live auctions</Link>
         </div>
         <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-visible">
-          {trendingAuctions.map((item) => (
-            <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`w-full rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] whitespace-nowrap ${item.status === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : item.status === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{item.status}</span>
-                <span className={`text-xs uppercase tracking-[0.18em] whitespace-nowrap ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.endsIn}</span>
-              </div>
-              <div className={`mb-4 h-44 overflow-hidden rounded-[20px] ${theme === 'dark' ? 'bg-slate-950/50' : 'bg-[var(--surface-muted)]'}`}>
-                <img src={item.image} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
-              </div>
-              <h3 className={`text-lg font-semibold break-words ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
-              <p className={`mt-3 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.currentBid)}</span></p>
-              <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
-            </Link>
-          ))}
+          {trendingAuctions && trendingAuctions.length > 0 ? (
+            trendingAuctions.map((item: any) => (
+              <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`w-full rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] whitespace-nowrap ${getAuctionStatus(item.status) === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : getAuctionStatus(item.status) === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{getAuctionStatus(item.status)}</span>
+                  <span className={`text-xs uppercase tracking-[0.18em] whitespace-nowrap ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{getCountdownText(item.endAt, item.status)}</span>
+                </div>
+                <div className={`mb-4 h-44 overflow-hidden rounded-[20px] ${theme === 'dark' ? 'bg-slate-950/50' : 'bg-[var(--surface-muted)]'}`}>
+                  <img src={item.image || '/logo.png'} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
+                </div>
+                <h3 className={`text-lg font-semibold break-words ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
+                <p className={`mt-3 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.startingPrice || 0)}</span></p>
+                <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants || 0} bidders • {item.watchers || 0} watchers</p>
+              </Link>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-12">
+              <p className="text-slate-400">No auctions available at the moment</p>
+            </div>
+          )}
         </div>
         <div className="relative md:hidden">
           <div className="flex gap-4 overflow-x-auto pb-2 pl-1 scrollbar-hidden snap-x snap-mandatory" ref={trendingScrollRef} onScroll={handleTrendingScroll}>
-            {trendingAuctions.map((item) => (
-              <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`snap-start flex-shrink-0 min-w-[calc(100%-48px)] max-w-[calc(100%-48px)] rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                  <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] whitespace-nowrap ${item.status === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : item.status === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{item.status}</span>
-                  <span className={`text-xs uppercase tracking-[0.18em] whitespace-nowrap ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.endsIn}</span>
-                </div>
-                <div className={`mb-4 h-44 overflow-hidden rounded-[20px] ${theme === 'dark' ? 'bg-slate-950/50' : 'bg-[var(--surface-muted)]'}`}>
-                  <img src={item.image} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
-                </div>
-                <h3 className={`text-lg font-semibold break-words ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
-                <p className={`mt-3 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.currentBid)}</span></p>
-                <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants ?? item.watchers} bidders • {item.watchers} watchers</p>
-              </Link>
-            ))}
+            {trendingAuctions && trendingAuctions.length > 0 ? (
+              trendingAuctions.map((item: any) => (
+                <Link key={item.id} to={`/auctions/${item.id}`} title={`View ${item.title}`} className={`snap-start flex-shrink-0 min-w-[calc(100%-48px)] max-w-[calc(100%-48px)] rounded-[28px] border p-5 shadow-xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_-26px_rgba(15,23,42,0.16)] ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20 hover:border-blue-400/40' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] hover:border-slate-300/40'}`}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-[0.18em] whitespace-nowrap ${getAuctionStatus(item.status) === 'Live' ? (theme === 'dark' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700') : getAuctionStatus(item.status) === 'Upcoming' ? (theme === 'dark' ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700') : (theme === 'dark' ? 'bg-slate-700/80 text-slate-300' : 'bg-slate-200 text-slate-700')}`}>{getAuctionStatus(item.status)}</span>
+                    <span className={`text-xs uppercase tracking-[0.18em] whitespace-nowrap ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{getCountdownText(item.endAt, item.status, item.startAt)}</span>
+                  </div>
+                  <div className={`mb-4 h-44 overflow-hidden rounded-[20px] ${theme === 'dark' ? 'bg-slate-950/50' : 'bg-[var(--surface-muted)]'}`}>
+                    <img src={item.image || '/logo.png'} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
+                  </div>
+                  <h3 className={`text-lg font-semibold break-words ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
+                  <p className={`mt-3 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.startingPrice || 0)}</span></p>
+                  <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants || 0} bidders • {item.watchers || 0} watchers</p>
+                </Link>
+              ))
+            ) : (
+              <div className="flex-shrink-0 w-full text-center py-12">
+                <p className="text-slate-400">No auctions available</p>
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -361,26 +466,35 @@ export function HomePage() {
           <Link to="/marketplace" className="text-sm font-medium text-slate-300 transition hover:text-white">Explore the full marketplace</Link>
         </div>
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {featuredProductsList.map((item) => (
-            <ProductCard
-              key={item.id}
-              id={item.id}
-              title={item.title}
-              description={item.description}
-              image={item.image}
-              price={item.price}
-              category={item.category}
-              condition={item.condition}
-              seller={item.seller}
-              rating={item.rating}
-              reviews={item.reviews}
-              verified={item.verified}
-              badge={item.badge}
-              location={item.location}
-              actionLabel={item.badge === 'Auction' ? 'Bid now' : 'Buy now'}
-              actionLink={`/marketplace/${item.id}`}
-            />
-          ))}
+          {featuredProductsList && featuredProductsList.length > 0 ? (
+            featuredProductsList.map((item: any) => {
+              const sellingTypeLabel = item.sellingType === 'AUCTION' ? 'Auction' : item.sellingType === 'DIRECT_BUY' ? 'Direct Buy' : 'Product';
+              return (
+                <ProductCard
+                  key={item.id}
+                  id={item.id}
+                  title={item.name || item.title || 'Product'}
+                  description={item.description || ''}
+                  image={item.image || '/logo.png'}
+                  price={`₹${item.price || 0}`}
+                  category={item.categoryId ? `Category ${item.categoryId}` : 'Uncategorized'}
+                  condition="New"
+                  seller={item.vendorId ? `Vendor ${item.vendorId}` : 'Unknown Seller'}
+                  rating={4.5}
+                  reviews={0}
+                  verified={true}
+                  badge={sellingTypeLabel}
+                  location="India"
+                  actionLabel={item.sellingType === 'AUCTION' ? 'Bid now' : 'Buy now'}
+                  actionLink={`/marketplace/${item.id}`}
+                />
+              );
+            })
+          ) : (
+            <div className="col-span-full text-center py-12">
+              <p className="text-slate-400">No featured products available</p>
+            </div>
+          )}
         </div>
       </section>
 

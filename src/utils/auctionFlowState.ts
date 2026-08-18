@@ -309,6 +309,83 @@ export function markRegistrationPaid() {
   return writeAuctionFlowState(nextState);
 }
 
+export type BuyNowFlowState = {
+  productId: number;
+  flowStage: 'CONFIRM' | 'PAYMENT' | 'ORDER_SUCCESS' | 'INVOICE';
+  productTitle: string;
+  productPrice: number;
+  orderId?: number;
+};
+
+const BUYNOW_FLOW_STORAGE_KEY = 'bidzo_buynow_flow';
+
+export function readBuyNowFlowState(): BuyNowFlowState {
+  if (typeof window === 'undefined') {
+    return { productId: 0, flowStage: 'CONFIRM', productTitle: '', productPrice: 0 };
+  }
+  const raw = window.localStorage.getItem(BUYNOW_FLOW_STORAGE_KEY);
+  if (!raw) {
+    return { productId: 0, flowStage: 'CONFIRM', productTitle: '', productPrice: 0 };
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { productId: 0, flowStage: 'CONFIRM', productTitle: '', productPrice: 0 };
+  }
+}
+
+export function writeBuyNowFlowState(state: BuyNowFlowState) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(BUYNOW_FLOW_STORAGE_KEY, JSON.stringify(state));
+}
+
+export function initializeBuyNowFlow(productId: number, productTitle: string, productPrice: number): BuyNowFlowState {
+  const state: BuyNowFlowState = {
+    productId,
+    flowStage: 'CONFIRM',
+    productTitle,
+    productPrice,
+  };
+  writeBuyNowFlowState(state);
+  return state;
+}
+
+export function startBuyNowPayment(): BuyNowFlowState {
+  const current = readBuyNowFlowState();
+  const next: BuyNowFlowState = {
+    ...current,
+    flowStage: 'PAYMENT',
+  };
+  writeBuyNowFlowState(next);
+  return next;
+}
+
+export function markBuyNowOrderConfirmed(orderId: number): BuyNowFlowState {
+  const current = readBuyNowFlowState();
+  const next: BuyNowFlowState = {
+    ...current,
+    flowStage: 'ORDER_SUCCESS',
+    orderId,
+  };
+  writeBuyNowFlowState(next);
+  return next;
+}
+
+export function markBuyNowInvoiceReady(): BuyNowFlowState {
+  const current = readBuyNowFlowState();
+  const next: BuyNowFlowState = {
+    ...current,
+    flowStage: 'INVOICE',
+  };
+  writeBuyNowFlowState(next);
+  return next;
+}
+
+export function clearBuyNowFlowState() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(BUYNOW_FLOW_STORAGE_KEY);
+}
+
 export function beginFinalPayment() {
   const state = readAuctionFlowState();
   const nextState: AuctionFlowState = {

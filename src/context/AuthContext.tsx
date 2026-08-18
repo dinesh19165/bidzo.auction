@@ -1,16 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from '../types';
+import { login as loginApi, authMe, register as registerApi } from '../api/authApi';
 
-export type UserType = 'customer' | 'vendor' | 'admin';
+export type UserType = 'customer' | 'vendor' | 'admin' | 'delivery' | 'support';
 
 type AuthContextType = {
   user: User | null;
+  authReady: boolean;
   pendingRole: UserType | null;
   login: (identifier: string, password?: string, selectedRole?: UserType) => Promise<User>;
   logout: () => void;
-  registerCustomer: (data: any, selectedRole?: UserType) => Promise<User>;
-  registerVendor: (data: any, selectedRole?: UserType) => Promise<User>;
+  registerCustomer: (data: any, selectedRole?: UserType) => Promise<void>;
+  registerVendor: (data: any, selectedRole?: UserType) => Promise<void>;
   clearPendingRole: () => void;
 };
 
@@ -23,25 +25,35 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const raw = window.localStorage.getItem('bidzo_user');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      window.localStorage.removeItem('bidzo_user');
+      return null;
+    }
+  });
+  const [authReady, setAuthReady] = useState(false);
   const [pendingRole, setPendingRole] = useState<UserType | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const raw = localStorage.getItem('bidzo_user');
-    if (raw) {
-      try {
-        setUser(JSON.parse(raw));
-      } catch {
-        localStorage.removeItem('bidzo_user');
-      }
-    }
+    setAuthReady(true);
   }, []);
 
   useEffect(() => {
-    if (user) localStorage.setItem('bidzo_user', JSON.stringify(user));
-    else localStorage.removeItem('bidzo_user');
-  }, [user]);
+    if (!authReady) return;
+    if (typeof window === 'undefined') return;
+
+    if (user) {
+      window.localStorage.setItem('bidzo_user', JSON.stringify(user));
+    } else {
+      window.localStorage.removeItem('bidzo_user');
+    }
+  }, [authReady, user]);
 
   const fakeUser = (overrides: Partial<User> = {}): User => ({
     id: String(Math.floor(Math.random() * 100000)),
@@ -57,13 +69,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (identifier: string, password?: string, selectedRole?: UserType) => {
-    const resolvedType = selectedRole === 'vendor' ? 'vendor' : selectedRole === 'admin' ? 'admin' : identifier.toLowerCase().includes('vendor') ? 'vendor' : 'customer';
-    const u = fakeUser({
-      name: identifier.split('@')[0] || 'User',
-      email: identifier.includes('@') ? identifier : `${identifier}@example.com`,
-      type: resolvedType,
-      vendorVerified: resolvedType === 'vendor',
+    if (!password) {
+      throw new Error('Password is required');
+    }
+
+    const loginResponse = await loginApi({
+      email: identifier,
+      password,
     });
+
+    const me = await authMe(loginResponse.token);
+    const role = me.role || 'CUSTOMER';
+    const type: UserType = role === 'VENDOR'
+      ? 'vendor'
+      : role === 'SUPER_ADMIN' || role === 'FRANCHISE_ADMIN'
+        ? 'admin'
+        : role === 'DELIVERY_PARTNER'
+          ? 'delivery'
+          : role === 'SUPPORT'
+            ? 'support'
+            : 'customer';
+
+    const displayName = me.name || me.username || (me.email ? me.email.split('@')[0] : 'User');
+    const u: User = {
+      id: String(me.id),
+      name: displayName,
+      username: me.username,
+      email: me.email,
+      phone: me.phone,
+      role,
+      type,
+      token: loginResponse.token,
+    };
     setUser(u);
     setPendingRole(null);
     return u;
@@ -71,34 +108,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
-    navigate('/');
+    localStorage.removeItem('bidzo_user');
+    navigate('/login', { replace: true });
   };
 
   const registerCustomer = async (data: any, selectedRole: UserType = 'customer') => {
-    setPendingRole(selectedRole === 'vendor' ? 'vendor' : 'customer');
-    const u = fakeUser({
-      name: data.name || data.email,
+    setPendingRole('customer');
+    if (!data?.name || !data?.email || !data?.password) {
+      throw new Error('Name, email, and password are required');
+    }
+
+    await registerApi({
+      username: data.name,
       email: data.email,
-      type: selectedRole === 'vendor' ? 'vendor' : 'customer',
+      password: data.password,
+      role: 'CUSTOMER',
     });
-    setUser(null);
-    return u;
   };
 
   const registerVendor = async (data: any, selectedRole: UserType = 'vendor') => {
-    setPendingRole(selectedRole === 'vendor' ? 'vendor' : 'customer');
-    const u = fakeUser({
-      name: data.businessName || data.ownerName || data.email,
+    setPendingRole('vendor');
+    if (!data?.businessName || !data?.email || !data?.password) {
+      throw new Error('Business name, email, and password are required');
+    }
+
+    await registerApi({
+      username: data.businessName,
       email: data.email,
-      type: selectedRole === 'vendor' ? 'vendor' : 'customer',
-      vendorVerified: false,
+      password: data.password,
+      role: 'VENDOR',
     });
-    setUser(null);
-    return u;
   };
 
   return (
-    <AuthContext.Provider value={{ user, pendingRole, login, logout, registerCustomer, registerVendor, clearPendingRole }}>
+    <AuthContext.Provider value={{ user, authReady, pendingRole, login, logout, registerCustomer, registerVendor, clearPendingRole }}>
       {children}
     </AuthContext.Provider>
   );

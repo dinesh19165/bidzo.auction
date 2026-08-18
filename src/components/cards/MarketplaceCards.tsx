@@ -318,7 +318,7 @@ interface AuctionCardProps {
   rating?: number;
 }
 
-export function AuctionCard({ id, title, image, status, currentBid, endsIn, seller='Bidzo Seller', verified=true, watchers=120, participants=18, condition='Excellent', rating=4.8 }: AuctionCardProps) {
+export function AuctionCard({ id, title, image, status, currentBid, endsIn, seller='Bidzo Seller', verified=true, watchers=0, participants=0, condition='Excellent', rating }: AuctionCardProps) {
   const { translate, formatCurrency } = useLocaleContext();
   return (
     <motion.article whileHover={{ y: -8, scale: 1.01, boxShadow: '0 32px 80px -24px rgba(59,130,246,0.35)' }} transition={{ duration: 0.24 }} className="group w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300 hover:border-blue-400/40">
@@ -349,9 +349,13 @@ export function AuctionCard({ id, title, image, status, currentBid, endsIn, sell
         </div>
         <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Users className="h-3 w-3" /> {watchers} watchers</span>
+          {typeof watchers === 'number' && watchers > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Users className="h-3 w-3" /> {watchers} watchers</span>
+          ) : null}
           <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Gavel className="h-3 w-3" /> {participants} bids</span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Star className="h-3 w-3" /> {rating}</span>
+          {typeof rating === 'number' ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1"><Star className="h-3 w-3" /> {rating}</span>
+          ) : null}
         </div>
         <p className="mt-4 text-sm text-slate-400">{translate('currentBid')} {formatCurrency(currentBid)}</p>
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">

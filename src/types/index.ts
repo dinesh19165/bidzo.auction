@@ -15,13 +15,16 @@ export interface PaginationMeta {
 export interface User {
   id: string;
   name: string;
+  username?: string;
   email: string;
   phone?: string;
   roleId?: string;
+  role?: string;
   status?: 'active' | 'inactive' | 'pending';
   createdAt?: string;
   updatedAt?: string;
-  type?: 'customer' | 'vendor' | 'admin';
+  type?: 'customer' | 'vendor' | 'admin' | 'delivery' | 'support';
+  token?: string;
   avatar?: string;
   vendorVerified?: boolean;
 }
@@ -144,6 +147,70 @@ export interface OrderItem {
   unitPrice: number;
 }
 
+export interface OrderItemRequestDto {
+  productVariantId: number;
+  quantity: number;
+}
+
+export interface OrderRequestDto {
+  items: OrderItemRequestDto[];
+}
+
+export interface OrderItemResponseDto {
+  id: number;
+  orderId: number;
+  productVariantId: number;
+  quantity: number;
+  price: number;
+}
+
+export interface OrderResponseDto {
+  id: number;
+  orderDate: string;
+  orderNumber: string;
+  orderStatus: string;
+  totalAmount: number;
+  customerId: number;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+  items?: OrderItemResponseDto[];
+}
+
+export interface RazorpayOrderResponse {
+  registrationId?: number;
+  paymentId?: number;
+  razorpayKeyId: string;
+  razorpayOrderId: string;
+  amount: number;
+  currency: string;
+  orderId?: number;
+}
+
+export interface RazorpayVerifyRequestDto {
+  razorpayPaymentId: string;
+  razorpayOrderId: string;
+  razorpaySignature: string;
+}
+
+export interface AuctionRegistrationStatusResponse {
+  paid: boolean;
+  status?: string;
+  amount?: number;
+  paidAt?: string;
+  registrationId?: number;
+}
+
+export interface PaymentResponseDto {
+  id: number;
+  amount: number;
+  paidAt?: string;
+  paymentRef?: string;
+  status: string;
+  orderId: number;
+}
+
 export interface Order {
   id: string;
   customerId: string;
@@ -244,5 +311,148 @@ export interface Settings {
   id: string;
   key: string;
   value: string;
+  updatedAt?: string;
+}
+
+// Customer API Response Types
+export interface AddressDto {
+  id: number;
+  customerId: number;
+  fullName: string;
+  phoneNumber: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface WishlistItemDto {
+  id: number;
+  productId: number;
+  customerId: number;
+  addedAt: string;
+  product?: {
+    id: number;
+    name: string;
+    price: number;
+    image?: string;
+    description?: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface NotificationDto {
+  id: number;
+  customerId: number;
+  type: string;
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  isRead: boolean;
+  readAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface MessageDto {
+  id: number;
+  conversationId: number;
+  senderId: number;
+  senderName: string;
+  content: string;
+  isRead: boolean;
+  readAt?: string;
+  createdAt: string;
+}
+
+export interface ConversationDto {
+  id: number;
+  participantId: number;
+  participantName: string;
+  lastMessage?: string;
+  lastMessageAt?: string;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ReviewDto {
+  id: number;
+  productId: number;
+  customerId: number;
+  rating: number;
+  title: string;
+  content: string;
+  isVerifiedPurchase: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface InvoiceDto {
+  id: number;
+  orderId: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  totalAmount: number;
+  taxAmount: number;
+  discountAmount: number;
+  status: string;
+  downloadUrl?: string;
+  createdAt: string;
+}
+
+export interface SupportTicketDto {
+  id: number;
+  ticketNumber: string;
+  subject: string;
+  description: string;
+  category: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'in_progress' | 'waiting_customer' | 'resolved' | 'closed';
+  customerId: number;
+  createdAt: string;
+  updatedAt?: string;
+  resolvedAt?: string;
+}
+
+export interface WalletDto {
+  id: number;
+  customerId: number;
+  balance: number;
+  currency: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface TransactionDto {
+  id: number;
+  walletId: number;
+  type: 'credit' | 'debit';
+  amount: number;
+  description: string;
+  referenceId?: string;
+  referenceType?: string;
+  balanceAfter: number;
+  createdAt: string;
+}
+
+export interface SettingsDto {
+  id: number;
+  customerId: number;
+  emailNotifications: boolean;
+  smsNotifications: boolean;
+  pushNotifications: boolean;
+  marketingEmails: boolean;
+  language: string;
+  timezone: string;
+  currency: string;
+  twoFactorEnabled: boolean;
+  createdAt?: string;
   updatedAt?: string;
 }

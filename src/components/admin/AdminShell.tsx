@@ -21,13 +21,13 @@ const navItems = [
   { label: 'Settings', to: '/admin/settings', icon: Settings2 },
   { label: 'CMS', to: '/admin/cms', icon: Megaphone },
   { label: 'Reports', to: '/admin/reports', icon: FileText },
-  { label: 'Franchise', to: '/admin/franchise-dashboard', icon: Building2 },
-  { label: 'Vendors', to: '/admin/franchises', icon: Store },
-  { label: 'Orders', to: '/customer/orders', icon: Boxes },
-  { label: 'Delivery', to: '/delivery', icon: Truck },
-  { label: 'Wallet', to: '/wallet', icon: Wallet2 },
-  { label: 'Auctions', to: '/auctions', icon: Gavel },
-  { label: 'Content', to: '/blog', icon: BookOpen },
+  { label: 'Franchise', to: '/admin/franchise', icon: Building2 },
+  { label: 'Vendors', to: '/admin/vendors', icon: Store },
+  { label: 'Orders', to: '/admin/orders', icon: Boxes },
+  { label: 'Delivery', to: '/admin/delivery', icon: Truck },
+  { label: 'Wallet', to: '/admin/wallet', icon: Wallet2 },
+  { label: 'Auctions', to: '/admin/auctions', icon: Gavel },
+  { label: 'Content', to: '/admin/content', icon: BookOpen },
 ];
 
 export function AdminShell({ title, subtitle, breadcrumbs = [], children, activePath, actions }: AdminShellProps) {
