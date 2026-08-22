@@ -189,6 +189,7 @@ export function AuctionDetailPage() {
 
     try {
       const status = await getAuctionRegistrationStatus(auctionId);
+      if (import.meta.env.DEV) console.debug('AUCTION REGISTRATION STATUS', status);
       const statusRegistered = isAuctionRegistrationSuccessful(status);
       if (statusRegistered) {
         markAuctionAsRegistered(auctionId);
@@ -381,7 +382,7 @@ export function AuctionDetailPage() {
   };
 
   const handleRegisterNow = async () => {
-    if (!auction || registrationStatus?.paid) return;
+    if (!auction || isEnded || registrationStatus?.paid) return;
     if (!authReady) {
       setRegistrationErrorAction('Checking login status. Please wait.');
       return;
@@ -402,6 +403,10 @@ export function AuctionDetailPage() {
 
     try {
       const session = await createAuctionRegistrationPayment(auctionId, 20);
+      if (import.meta.env.DEV) {
+        console.debug('AUCTION REGISTRATION PAYMENT INIT', session);
+        console.debug('AUCTION REGISTRATION RAZORPAY ORDER ID', session.razorpayOrderId);
+      }
       setRegistrationPaymentSession(session);
       setIsRegistrationReady(true);
 
@@ -451,11 +456,13 @@ export function AuctionDetailPage() {
     setRegistrationLoadingAction(true);
 
     try {
-      await verifyAuctionRegistrationPayment(auctionId, {
+      if (import.meta.env.DEV) console.debug('AUCTION REGISTRATION PAYMENT ID', response.razorpay_payment_id);
+      const verifyResponse = await verifyAuctionRegistrationPayment(auctionId, {
         razorpayPaymentId: response.razorpay_payment_id,
         razorpayOrderId: response.razorpay_order_id,
         razorpaySignature: response.razorpay_signature,
       });
+      if (import.meta.env.DEV) console.debug('AUCTION REGISTRATION VERIFY RESPONSE', verifyResponse);
       await loadRegistrationStatus();
       setRegistrationSuccessMessage('Registration successful. You may now bid.');
       setIsRegistrationReady(false);
@@ -670,7 +677,8 @@ export function AuctionDetailPage() {
               />
               {bidError ? <p className="text-sm text-rose-300">{bidError}</p> : null}
               {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
-              {!registered ? (
+              {isEnded ? <p className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-300">Auction Ended</p> : null}
+              {!registered && !isEnded ? (
                 <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-300">
                   {registrationLoading ? (
                     <p>Checking auction registration status…</p>
