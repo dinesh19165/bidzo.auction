@@ -35,6 +35,8 @@ export interface AuctionFlowState {
   winningAmount: number;
   auctionStage: AuctionFlowStage;
   auctionEndTime: string;
+  addressId?: number;
+  deliveryAddress?: string;
 }
 
 const AUCTION_FLOW_STORAGE_KEY = 'bidzo_auction_flow_state';
@@ -315,6 +317,8 @@ export type BuyNowFlowState = {
   productTitle: string;
   productPrice: number;
   orderId?: number;
+  addressId?: number;
+  deliveryAddress?: string;
 };
 
 const BUYNOW_FLOW_STORAGE_KEY = 'bidzo_buynow_flow';
@@ -360,12 +364,13 @@ export function startBuyNowPayment(): BuyNowFlowState {
   return next;
 }
 
-export function markBuyNowOrderConfirmed(orderId: number): BuyNowFlowState {
+export function markBuyNowOrderConfirmed(orderId: number, deliveryAddress?: string): BuyNowFlowState {
   const current = readBuyNowFlowState();
   const next: BuyNowFlowState = {
     ...current,
     flowStage: 'ORDER_SUCCESS',
     orderId,
+    deliveryAddress,
   };
   writeBuyNowFlowState(next);
   return next;

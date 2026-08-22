@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from '../types';
 import { login as loginApi, authMe, register as registerApi } from '../api/authApi';
@@ -11,6 +11,7 @@ type AuthContextType = {
   pendingRole: UserType | null;
   login: (identifier: string, password?: string, selectedRole?: UserType) => Promise<User>;
   logout: () => void;
+  clearSession: () => void;
   registerCustomer: (data: any, selectedRole?: UserType) => Promise<void>;
   registerVendor: (data: any, selectedRole?: UserType) => Promise<void>;
   clearPendingRole: () => void;
@@ -79,10 +80,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     const me = await authMe(loginResponse.token);
-    const role = me.role || 'CUSTOMER';
-    const type: UserType = role === 'VENDOR'
-      ? 'vendor'
-      : role === 'SUPER_ADMIN' || role === 'FRANCHISE_ADMIN'
+    const role = me.role || loginResponse.role || 'CUSTOMER';
+    const type: UserType = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'FRANCHISE_ADMIN'
+      ? 'admin'
+      : role === 'VENDOR'
+        ? 'vendor'
+        : role === 'SUPER_ADMIN' || role === 'FRANCHISE_ADMIN'
         ? 'admin'
         : role === 'DELIVERY_PARTNER'
           ? 'delivery'
@@ -101,21 +104,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       type,
       token: loginResponse.token,
     };
+    if (import.meta.env.DEV) {
+      console.debug('[Bidzo auth] auth-me and final user', {
+        authMeRole: me.role,
+        userRole: u.role,
+        userType: u.type,
+      });
+    }
     setUser(u);
     setPendingRole(null);
     return u;
   };
 
-  const logout = () => {
+  const clearSession = useCallback(() => {
     setUser(null);
     localStorage.removeItem('bidzo_user');
-    navigate('/login', { replace: true });
+  }, []);
+
+  const logout = () => {
+    const destination = user && ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user.role || '') ? '/admin/login' : '/login';
+    clearSession();
+    navigate(destination, { replace: true });
   };
 
   const registerCustomer = async (data: any, selectedRole: UserType = 'customer') => {
     setPendingRole('customer');
-    if (!data?.name || !data?.email || !data?.password) {
-      throw new Error('Name, email, and password are required');
+    if (!data?.name || !data?.email || !data?.password || !data?.phone) {
+      throw new Error('Name, email, password, and phone number are required');
     }
 
     await registerApi({
@@ -123,13 +138,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: data.email,
       password: data.password,
       role: 'CUSTOMER',
+      phoneNumber: data.phone,
     });
   };
 
   const registerVendor = async (data: any, selectedRole: UserType = 'vendor') => {
     setPendingRole('vendor');
-    if (!data?.businessName || !data?.email || !data?.password) {
-      throw new Error('Business name, email, and password are required');
+    if (!data?.businessName || !data?.email || !data?.password || !data?.phone) {
+      throw new Error('Business name, email, password, and phone number are required');
     }
 
     await registerApi({
@@ -137,11 +153,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: data.email,
       password: data.password,
       role: 'VENDOR',
+      phoneNumber: data.phone,
     });
   };
 
   return (
-    <AuthContext.Provider value={{ user, authReady, pendingRole, login, logout, registerCustomer, registerVendor, clearPendingRole }}>
+    <AuthContext.Provider value={{ user, authReady, pendingRole, login, logout, clearSession, registerCustomer, registerVendor, clearPendingRole }}>
       {children}
     </AuthContext.Provider>
   );

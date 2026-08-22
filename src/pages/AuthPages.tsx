@@ -181,7 +181,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      navigate(user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer', { replace: true });
+      navigate(user.role === 'ADMIN' ? '/admin/super-dashboard' : user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer', { replace: true });
     }
   }, [navigate, user]);
 
@@ -209,8 +209,8 @@ export function LoginPage() {
     try {
       const user = await login(identifier, password, selectedRole);
       const redirectTo =
+        user.role === 'ADMIN' ? '/admin/super-dashboard' :
         user.type === 'vendor' ? '/dashboards/vendor' :
-        user.type === 'admin' ? '/dashboards/admin' :
         user.type === 'delivery' ? '/delivery' :
         user.type === 'support' ? '/support-tickets' :
         '/dashboards/customer';
@@ -455,6 +455,7 @@ export function CustomerRegisterPage() {
     if (!form.name.trim()) nextErrors.name = 'Full name is required.';
     if (!form.email.trim()) nextErrors.email = 'Email is required.';
     if (!form.phone.trim()) nextErrors.phone = 'Phone number is required.';
+    else if (!/^[6-9]\d{9}$/.test(form.phone.trim())) nextErrors.phone = 'Enter a valid 10-digit Indian mobile number.';
     if (!form.password.trim()) nextErrors.password = 'Password is required.';
     if (!form.confirmPassword.trim()) nextErrors.confirmPassword = 'Please confirm your password.';
     if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
@@ -570,6 +571,7 @@ export function VendorRegisterPage() {
     if (!form.ownerName.trim()) nextErrors.ownerName = 'Owner name is required.';
     if (!form.email.trim()) nextErrors.email = 'Email is required.';
     if (!form.phone.trim()) nextErrors.phone = 'Phone number is required.';
+    else if (!/^[6-9]\d{9}$/.test(form.phone.trim())) nextErrors.phone = 'Enter a valid 10-digit Indian mobile number.';
     if (!form.password.trim()) nextErrors.password = 'Password is required.';
     if (!form.confirmPassword.trim()) nextErrors.confirmPassword = 'Please confirm your password.';
     if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {

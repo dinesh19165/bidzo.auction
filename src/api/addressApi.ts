@@ -4,13 +4,14 @@ import type { ApiResponse } from '../types';
 export interface AddressResponse {
   id: number;
   customerId: number;
+  label: string;
   fullName: string;
-  phoneNumber: string;
+  phone: string;
   addressLine1: string;
   addressLine2?: string;
   city: string;
   state: string;
-  zipCode: string;
+  postalCode: string;
   country: string;
   isDefault: boolean;
   createdAt?: string;
@@ -18,14 +19,42 @@ export interface AddressResponse {
 }
 
 export interface AddressRequest {
+  label: string;
   fullName: string;
-  phoneNumber: string;
+  phone: string;
   addressLine1: string;
   addressLine2?: string;
   city: string;
   state: string;
-  zipCode: string;
+  postalCode: string;
   country: string;
+  isDefault: boolean;
+}
+
+export function buildAddressPayload(form: Pick<AddressRequest, 'fullName' | 'phone' | 'addressLine1' | 'addressLine2' | 'city' | 'state' | 'postalCode' | 'country'>): AddressRequest | string {
+  const payload: AddressRequest = {
+    label: 'Home',
+    fullName: form.fullName.trim(),
+    phone: form.phone.trim(),
+    addressLine1: form.addressLine1.trim(),
+    addressLine2: form.addressLine2?.trim() || '',
+    city: form.city.trim(),
+    state: form.state.trim(),
+    postalCode: form.postalCode.trim(),
+    country: form.country.trim(),
+    isDefault: true,
+  };
+
+  if (!payload.fullName) return 'Full name is required.';
+  if (!payload.phone) return 'Phone number is required.';
+  if (!/^[0-9]{10}$/.test(payload.phone)) return 'Phone number must be exactly 10 digits.';
+  if (!payload.addressLine1) return 'Address line 1 is required.';
+  if (!payload.city) return 'City is required.';
+  if (!payload.state) return 'State is required.';
+  if (!/^[0-9]{6}$/.test(payload.postalCode)) return 'Postal code must be exactly 6 digits.';
+  if (!payload.country) return 'Country is required.';
+
+  return payload;
 }
 
 export async function getAddresses(): Promise<AddressResponse[]> {

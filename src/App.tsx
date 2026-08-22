@@ -63,13 +63,29 @@ import { OrganizationHierarchyPage, FranchiseManagementPage, LocationManagementP
 import { SuperAdminDashboardPage, FranchiseDashboardAdminPage, RolePermissionMatrixPage, ApprovalCenterPage, SystemSettingsPage, CMSPage, ReportsPage, AdminLoginPage, FranchiseManagementAdminPage, VendorManagementAdminPage, OrdersManagementAdminPage, DeliveryManagementAdminPage, WalletManagementAdminPage, AuctionManagementAdminPage, ContentManagementAdminPage, CMSBannersPage, CMSCategoriesPage, CMSFaqPage, CMSBlogPage, CMSTestimonialsPage, CMSNewsletterPage, CMSPagesPage, SettingsGeneralPage, SettingsAuctionRulesPage, SettingsRegistrationFeePage, SettingsCommissionRulesPage, SettingsPlatformChargesPage, SettingsShippingRulesPage, SettingsTaxPage, SettingsEmailPage, SettingsSmsPage, SettingsNotificationTemplatesPage, SettingsSecurityPage, SettingsLocalizationPage, ApprovalVendorsPage, ApprovalFranchisesPage, ApprovalProductsPage, ApprovalAuctionsPage, ApprovalKycPage, PermissionsRolesPage, PermissionsRoleCreatePage, PermissionsRoleDetailPage, PermissionsMatrixPage, ReportsSalesPage, ReportsRevenuePage, ReportsAuctionsPage, ReportsVendorsPage, ReportsCustomersPage, ReportsOrdersPage, ReportsDeliveryPage, ReportsWalletPage, ReportsCommissionPage, ReportsFranchisePage, FranchiseDetailPage as AdminFranchiseDetailPage, FranchiseCreatePage as AdminFranchiseCreatePage, FranchiseEditPage as AdminFranchiseEditPage, FranchiseVendorsPage as AdminFranchiseVendorsPage, FranchiseOrdersPage as AdminFranchiseOrdersPage, FranchisePerformancePage as AdminFranchisePerformancePage, VendorDetailPage as AdminVendorDetailPage, VendorEditPage as AdminVendorEditPage, VendorProductsPage as AdminVendorProductsPage, VendorAuctionsPage as AdminVendorAuctionsPage, VendorOrdersPage as AdminVendorOrdersPage, VendorWalletPage as AdminVendorWalletPage, VendorKycPage as AdminVendorKycPage, VendorPerformancePage as AdminVendorPerformancePage, AdminOrderDetailPage, DeliveryPartnersPage, DeliveryPartnerDetailPage, DeliveryAssignmentsPage, DeliveryPerformancePage, WalletTransactionsPage, WalletWithdrawalsPage, WalletRefundsPage, WalletSettlementsPage, WalletCommissionsPage, WalletTransactionDetailPage, AuctionLivePage, AuctionUpcomingPage, AuctionCompletedPage, AuctionPendingPage, AuctionDetailAdminPage, AuctionBidHistoryPage, ContentCategoriesPage, ContentBannersPage, ContentAnnouncementsPage, ContentNotificationsPage, ContentFaqPage, ContentHelpPage } from './pages/extra/EnterpriseAdminPages';
 import { CustomerProfilePage, CustomerOrdersPage, CustomerAuctionsPage, CustomerBidsPage, CustomerWonAuctionsPage, CustomerRecentlyViewedPage, CustomerWatchlistPage, CustomerSavedSearchesPage, CustomerTransactionsPage, CustomerAddressesPage, CustomerMessagesPage, CustomerReviewsPage, CustomerSupportPage, CustomerInvoicesPage, CustomerSettingsPage, CustomerOrderDetailPage, CustomerAuctionDetailPage, VendorBusinessInfoPage, VendorGstPage, VendorBankPage, VendorIdentityPage, VendorStoreVerificationPage, VendorStoreProfilePage, VendorStoreSettingsPage, VendorSubscriptionPage, VendorWalletPage, VendorWithdrawPage, VendorSalesAnalyticsPage, VendorOrdersPage, VendorCustomersPage, VendorInventoryPage, VendorProductsPage, VendorProductVariantsPage, VendorCreateProductPage, VendorEditProductPage, VendorDeleteProductPage, VendorCreateAuctionPage, VendorEditAuctionPage, VendorAuctionAnalyticsPage, VendorMessagesPage, VendorNotificationsPage, VendorReviewsPage, VendorSupportTicketsPage, VendorReportsPage } from './pages/extra/CustomerVendorExtras';
 import { BuyNowConfirmPage, BuyNowPaymentPage, BuyNowOrderSuccessPage, BuyNowInvoicePage } from './pages/extra/BuyNowFlowPages';
+import { AdminDashboardApiPage, AdminReportApiPage, AdminResourceDetailPage, AdminResourcePage } from './pages/admin/AdminApiPages';
 
 function AppRouteGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, authReady } = useAuth();
   const pathname = location.pathname;
   const isCustomerRoute = pathname === '/dashboards/customer' || pathname.startsWith('/customer');
   const isVendorRoute = pathname === '/dashboards/vendor' || pathname.startsWith('/vendor');
+  const isAdminRoute = pathname === '/dashboards/admin' || pathname.startsWith('/admin');
+  const isAdminLoginRoute = pathname === '/admin/login';
+
+  if (!authReady) {
+    return null;
+  }
+
+  if (isAdminRoute && !isAdminLoginRoute) {
+    if (!user) {
+      return <Navigate to="/admin/login" replace />;
+    }
+    if (!['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user.role || '')) {
+      return <Navigate to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} replace />;
+    }
+  }
   const isAuthEntryRoute = ['/login', '/register', '/register/customer', '/register/vendor', '/onboarding'].includes(pathname);
 
   if (isAuthEntryRoute && user) {
@@ -231,8 +247,8 @@ function App() {
             <Route path="/vendor/reviews" element={<VendorReviewsPage />} />
             <Route path="/vendor/support" element={<VendorSupportTicketsPage />} />
             <Route path="/vendor/reports" element={<VendorReportsPage />} />
-            <Route path="/dashboards/admin" element={<AdminDashboardPage />} />
-            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/dashboards/admin" element={<AdminDashboardApiPage />} />
+            <Route path="/admin/dashboard" element={<AdminDashboardApiPage />} />
             <Route path="/admin/organization-hierarchy" element={<OrganizationHierarchyPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin/franchises" element={<FranchiseManagementPage />} />
@@ -240,13 +256,17 @@ function App() {
             <Route path="/admin/roles" element={<RolePermissionPage />} />
             <Route path="/admin/franchise-dashboard" element={<FranchiseDashboardPage />} />
             <Route path="/admin/franchise" element={<FranchiseManagementAdminPage />} />
-            <Route path="/admin/vendors" element={<VendorManagementAdminPage />} />
-            <Route path="/admin/orders" element={<OrdersManagementAdminPage />} />
+            <Route path="/admin/users" element={<AdminResourcePage resource="users" />} />
+            <Route path="/admin/customers" element={<AdminResourcePage resource="customers" />} />
+            <Route path="/admin/products" element={<AdminResourcePage resource="products" />} />
+            <Route path="/admin/payments" element={<AdminResourcePage resource="payments" />} />
+            <Route path="/admin/vendors" element={<AdminResourcePage resource="vendors" />} />
+            <Route path="/admin/orders" element={<AdminResourcePage resource="orders" />} />
             <Route path="/admin/delivery" element={<DeliveryManagementAdminPage />} />
             <Route path="/admin/wallet" element={<WalletManagementAdminPage />} />
-            <Route path="/admin/auctions" element={<AuctionManagementAdminPage />} />
+            <Route path="/admin/auctions" element={<AdminResourcePage resource="auctions" />} />
             <Route path="/admin/content" element={<ContentManagementAdminPage />} />
-            <Route path="/admin/super-dashboard" element={<SuperAdminDashboardPage />} />
+            <Route path="/admin/super-dashboard" element={<AdminDashboardApiPage />} />
             <Route path="/admin/permissions" element={<RolePermissionMatrixPage />} />
             <Route path="/admin/approvals" element={<ApprovalCenterPage />} />
             <Route path="/admin/settings" element={<SystemSettingsPage />} />
@@ -284,11 +304,12 @@ function App() {
             <Route path="/admin/permissions/matrix" element={<PermissionsMatrixPage />} />
             <Route path="/admin/reports" element={<ReportsPage />} />
             <Route path="/admin/reports/sales" element={<ReportsSalesPage />} />
-            <Route path="/admin/reports/revenue" element={<ReportsRevenuePage />} />
-            <Route path="/admin/reports/auctions" element={<ReportsAuctionsPage />} />
-            <Route path="/admin/reports/vendors" element={<ReportsVendorsPage />} />
-            <Route path="/admin/reports/customers" element={<ReportsCustomersPage />} />
-            <Route path="/admin/reports/orders" element={<ReportsOrdersPage />} />
+            <Route path="/admin/reports/revenue" element={<AdminReportApiPage report="revenue" />} />
+            <Route path="/admin/reports/auctions" element={<AdminReportApiPage report="auctions" />} />
+            <Route path="/admin/reports/vendors" element={<AdminReportApiPage report="users" />} />
+            <Route path="/admin/reports/customers" element={<AdminReportApiPage report="users" />} />
+            <Route path="/admin/reports/orders" element={<AdminReportApiPage report="orders" />} />
+            <Route path="/admin/reports/payments" element={<AdminReportApiPage report="payments" />} />
             <Route path="/admin/reports/delivery" element={<ReportsDeliveryPage />} />
             <Route path="/admin/reports/wallet" element={<ReportsWalletPage />} />
             <Route path="/admin/reports/commission" element={<ReportsCommissionPage />} />
@@ -300,8 +321,8 @@ function App() {
             <Route path="/admin/franchise/:id/vendors" element={<AdminFranchiseVendorsPage />} />
             <Route path="/admin/franchise/:id/orders" element={<AdminFranchiseOrdersPage />} />
             <Route path="/admin/franchise/:id/performance" element={<AdminFranchisePerformancePage />} />
-            <Route path="/admin/vendors" element={<VendorManagementAdminPage />} />
-            <Route path="/admin/vendors/:id" element={<AdminVendorDetailPage />} />
+            <Route path="/admin/vendors" element={<AdminResourcePage resource="vendors" />} />
+            <Route path="/admin/vendors/:id" element={<AdminResourceDetailPage resource="vendors" />} />
             <Route path="/admin/vendors/:id/edit" element={<AdminVendorEditPage />} />
             <Route path="/admin/vendors/:id/products" element={<AdminVendorProductsPage />} />
             <Route path="/admin/vendors/:id/auctions" element={<AdminVendorAuctionsPage />} />
@@ -309,8 +330,8 @@ function App() {
             <Route path="/admin/vendors/:id/wallet" element={<AdminVendorWalletPage />} />
             <Route path="/admin/vendors/:id/kyc" element={<AdminVendorKycPage />} />
             <Route path="/admin/vendors/:id/performance" element={<AdminVendorPerformancePage />} />
-            <Route path="/admin/orders" element={<OrdersManagementAdminPage />} />
-            <Route path="/admin/orders/:id" element={<AdminOrderDetailPage />} />
+            <Route path="/admin/orders" element={<AdminResourcePage resource="orders" />} />
+            <Route path="/admin/orders/:id" element={<AdminResourceDetailPage resource="orders" />} />
             <Route path="/admin/delivery" element={<DeliveryManagementAdminPage />} />
             <Route path="/admin/delivery/partners" element={<DeliveryPartnersPage />} />
             <Route path="/admin/delivery/partners/:id" element={<DeliveryPartnerDetailPage />} />
@@ -323,12 +344,12 @@ function App() {
             <Route path="/admin/wallet/settlements" element={<WalletSettlementsPage />} />
             <Route path="/admin/wallet/commissions" element={<WalletCommissionsPage />} />
             <Route path="/admin/wallet/transactions/:id" element={<WalletTransactionDetailPage />} />
-            <Route path="/admin/auctions" element={<AuctionManagementAdminPage />} />
+            <Route path="/admin/auctions" element={<AdminResourcePage resource="auctions" />} />
             <Route path="/admin/auctions/live" element={<AuctionLivePage />} />
             <Route path="/admin/auctions/upcoming" element={<AuctionUpcomingPage />} />
             <Route path="/admin/auctions/completed" element={<AuctionCompletedPage />} />
             <Route path="/admin/auctions/pending" element={<AuctionPendingPage />} />
-            <Route path="/admin/auctions/:id" element={<AuctionDetailAdminPage />} />
+            <Route path="/admin/auctions/:id" element={<AdminResourceDetailPage resource="auctions" />} />
             <Route path="/admin/auctions/:id/bids" element={<AuctionBidHistoryPage />} />
             <Route path="/admin/content" element={<ContentManagementAdminPage />} />
             <Route path="/admin/content/categories" element={<ContentCategoriesPage />} />

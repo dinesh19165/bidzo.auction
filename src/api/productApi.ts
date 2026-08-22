@@ -13,6 +13,11 @@ export interface CreateProductImageRequest {
   altText?: string | null;
 }
 
+export interface ProductSpecificationResponse {
+  name: string;
+  value: string;
+}
+
 export interface ProductApiResponse {
   id: number;
   name: string;
@@ -27,6 +32,7 @@ export interface ProductApiResponse {
   image?: string | null;
   imageUrl?: string | null;
   images?: Array<{ url?: string | null; imageUrl?: string | null }> | string[] | null;
+  specifications?: ProductSpecificationResponse[];
 }
 
 export interface ProductListItem {
@@ -99,6 +105,20 @@ function findPrimaryProductImage(response: ProductApiResponse): string {
   return resolveImageUrl(directImage);
 }
 
+function mapProductSpecifications(specs?: ProductSpecificationResponse[] | null): Array<{ label: string; value: string }> {
+  if (!Array.isArray(specs)) {
+    return [];
+  }
+
+  return specs
+    .filter((spec): spec is ProductSpecificationResponse => Boolean(spec && typeof spec === 'object' && typeof spec.name === 'string' && typeof spec.value === 'string'))
+    .map((spec) => ({
+      label: spec.name.trim(),
+      value: spec.value.trim(),
+    }))
+    .filter((spec) => Boolean(spec.label) && Boolean(spec.value));
+}
+
 function mapProduct(response: ProductApiResponse, imageOverride?: string): ProductListItem {
   const price = formatPrice(response.price);
   const status = response.status || 'ACTIVE';
@@ -128,6 +148,7 @@ function mapProduct(response: ProductApiResponse, imageOverride?: string): Produ
     sellingType: sellingType === 'UNKNOWN' ? undefined : sellingType,
     isAuction,
     isDirectBuy,
+    specifications: mapProductSpecifications(response.specifications),
   };
 }
 
@@ -192,10 +213,10 @@ export async function getProductById(id: number): Promise<ProductListItem> {
   }
 }
 
-export async function createBuyNowOrder(productId: number): Promise<any> {
+export async function createBuyNowOrder(productId: number, addressId: number): Promise<any> {
   const response = await fetchJson<ApiResponse<any>>(`/api/products/${productId}/buy-now`, {
     method: 'POST',
-    body: JSON.stringify({ quantity: 1 }),
+    body: JSON.stringify({ quantity: 1, addressId }),
   });
   
   // Handle different response structures

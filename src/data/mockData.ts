@@ -396,11 +396,6 @@ export const walletActivity = [
   { id: 'WA-004', title: 'Order payout', amount: '+₹18,500', type: 'Payout', time: '3 days ago' },
 ];
 
-export const vendorWithdrawals = [
-  { id: 'WD-1203', amount: '₹48,000', status: 'Pending', requested: '10 Aug 2026', source: 'Available balance' },
-  { id: 'WD-1199', amount: '₹32,000', status: 'Completed', requested: '28 Jul 2026', source: 'Weekly payout' },
-];
-
 export const vendorFeeHistory = [
   { id: 'FEE-001', title: 'Auction fee', amount: '-₹1,200', date: '09 Aug 2026', category: 'Auction' },
   { id: 'FEE-002', title: 'Listing fee', amount: '-₹450', date: '08 Aug 2026', category: 'Product' },

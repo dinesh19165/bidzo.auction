@@ -8,6 +8,8 @@ import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentA
 import { createProductImage, createBuyNowOrder } from '../../api/productApi';
 import { getOrderById } from '../../api/orderApi';
 import { readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
+import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
+import type { AddressResponse } from '../../api/addressApi';
 
 function FlowTransitionScreen({ heading, message, detail }: { heading: string; message: string; detail?: string }) {
   return (
@@ -37,6 +39,7 @@ export function BuyNowConfirmPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
 
   if (!flowState.productId) {
     return <Navigate to="/marketplace" replace />;
@@ -48,13 +51,17 @@ export function BuyNowConfirmPage() {
       setError('Please accept the terms and conditions to proceed');
       return;
     }
+    if (!selectedAddress) {
+      setError('Please select a delivery address before continuing to payment.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
       // Create order via buy-now endpoint
-      const orderData = await createBuyNowOrder(flowState.productId);
+      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id);
       
       if (!orderData) {
         setError('No order data returned from server');
@@ -70,7 +77,8 @@ export function BuyNowConfirmPage() {
       }
 
       // Update flow state with order ID and move to payment
-      markBuyNowOrderConfirmed(orderData.id);
+      markBuyNowOrderConfirmed(orderData.id, orderData.deliveryAddress);
+      writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress });
       startBuyNowPayment();
       
       navigate('/customer/buynow-payment');
@@ -99,6 +107,11 @@ export function BuyNowConfirmPage() {
               </div>
               <p className="mt-2 text-sm text-slate-400">Direct purchase - No bidding required</p>
             </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                <h4 className="font-semibold text-white">Delivery Address</h4>
+                <div className="mt-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={setSelectedAddress} /></div>
+              </div>
 
             {/* Buyer Info */}
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
@@ -268,6 +281,7 @@ export function BuyNowPaymentPage() {
                   <span className="text-white">₹{flowState.productPrice.toLocaleString()}</span>
                 </div>
                 <div className="border-t border-white/10 pt-2"></div>
+                <div className="text-sm text-slate-300">Delivery address: {flowState.deliveryAddress || 'Selected address on order'}</div>
                 <div className="flex justify-between font-semibold">
                   <span className="text-white">Total Amount</span>
                   <span className="text-emerald-400">₹{flowState.productPrice.toLocaleString()}</span>

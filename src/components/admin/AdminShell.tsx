@@ -1,7 +1,8 @@
 import { Link, NavLink } from 'react-router-dom';
 import Logo from '../Logo';
 import type { ReactNode } from 'react';
-import { Activity, Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, LayoutGrid, Megaphone, Search, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
+import { Activity, Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, LayoutGrid, LogOut, Megaphone, Search, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 type Breadcrumb = { label: string; to?: string };
 
@@ -31,6 +32,8 @@ const navItems = [
 ];
 
 export function AdminShell({ title, subtitle, breadcrumbs = [], children, activePath, actions }: AdminShellProps) {
+  const { logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_25%),linear-gradient(135deg,_#020617,_#0f172a)] text-slate-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row lg:px-8">
@@ -51,6 +54,10 @@ export function AdminShell({ title, subtitle, breadcrumbs = [], children, active
               );
             })}
           </nav>
+          <button type="button" onClick={logout} className="mt-6 flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm text-slate-300 transition hover:bg-rose-500/10 hover:text-rose-200">
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
         </aside>
 
         <div className="flex-1">

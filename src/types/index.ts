@@ -74,6 +74,7 @@ export interface Vendor {
   id: string;
   userId: string;
   businessName: string;
+  phoneNumber: string | null;
   gstNumber?: string;
   verified?: boolean;
   rating?: number;
@@ -154,14 +155,20 @@ export interface OrderItemRequestDto {
 
 export interface OrderRequestDto {
   items: OrderItemRequestDto[];
+  addressId: number;
 }
 
 export interface OrderItemResponseDto {
   id: number;
   orderId: number;
   productVariantId: number;
+  productId?: number;
   quantity: number;
   price: number;
+  productName?: string;
+  name?: string;
+  vendorName?: string;
+  sellerName?: string;
 }
 
 export interface OrderResponseDto {
@@ -171,6 +178,9 @@ export interface OrderResponseDto {
   orderStatus: string;
   totalAmount: number;
   customerId: number;
+  deliveryAddress?: string | Record<string, unknown> | null;
+  trackingNumber?: string | null;
+  expectedDeliveryDate?: string | null;
   createdAt?: string;
   createdBy?: string;
   updatedAt?: string;
@@ -186,6 +196,7 @@ export interface RazorpayOrderResponse {
   amount: number;
   currency: string;
   orderId?: number;
+  internalOrderId?: number;
 }
 
 export interface RazorpayVerifyRequestDto {

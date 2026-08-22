@@ -16,31 +16,19 @@ export interface VendorOrderApiResponse {
   createdAt?: string;
   orderDate?: string;
   date?: string;
+  deliveryAddress?: Record<string, unknown> | string | null;
   items?: Array<{ productName?: string; name?: string; quantity?: number; price?: number | string }>;
 }
 
 export async function getVendorOrders(): Promise<VendorOrderApiResponse[]> {
-  const endpoints = ['/api/vendors/me/orders', '/api/orders/my'];
-
-  let lastError: Error | null = null;
-
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetchJson<ApiResponse<VendorOrderApiResponse[]>>(endpoint, { method: 'GET' });
-      if (response?.success && Array.isArray(response.data)) {
-        return response.data;
-      }
-      if (response?.message) {
-        throw new Error(response.message);
-      }
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Failed to load vendor orders');
-    }
+  const response = await fetchJson<ApiResponse<VendorOrderApiResponse[]>>('/api/vendors/me/orders', { method: 'GET' });
+  if (response?.success && Array.isArray(response.data)) {
+    return response.data;
   }
 
-  if (lastError) {
-    throw lastError;
+  if (response?.message) {
+    throw new Error(response.message);
   }
 
-  return [];
+  throw new Error('Unable to load vendor orders');
 }

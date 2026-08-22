@@ -8,6 +8,18 @@ import type {
   AuctionRegistrationStatusResponse,
 } from '../types';
 
+export async function createAuctionRazorpayPayment(auctionId: number, addressId: number): Promise<RazorpayOrderResponse> {
+  const response = await fetchJson<ApiResponse<RazorpayOrderResponse>>(`/api/auctions/${auctionId}/payments/razorpay?addressId=${encodeURIComponent(addressId)}`, { method: 'POST' });
+  if (!response?.data) throw new Error(response?.message || 'Failed to create auction payment');
+  return response.data;
+}
+
+export async function verifyAuctionRazorpayPayment(auctionId: number, internalOrderId: number, request: RazorpayVerifyRequestDto): Promise<PaymentResponseDto> {
+  const response = await fetchJson<ApiResponse<PaymentResponseDto>>(`/api/auctions/${auctionId}/payments/razorpay/verify?orderId=${encodeURIComponent(internalOrderId)}`, { method: 'POST', body: JSON.stringify(request) });
+  if (!response?.data) throw new Error(response?.message || 'Failed to verify auction payment');
+  return response.data;
+}
+
 export interface AuctionResponse {
   id: number;
   title: string;
@@ -71,6 +83,7 @@ export interface CreateAuctionRequest {
 
 export interface AuctionListItem {
   id: number;
+  productId?: number;
   title: string;
   description: string;
   image: string;
@@ -265,6 +278,8 @@ function mapAuction(
 
   return {
     id: auction.id,
+
+    productId: auction.productId,
 
     title: auction.title,
 

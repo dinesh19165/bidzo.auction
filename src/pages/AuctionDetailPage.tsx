@@ -1,19 +1,23 @@
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { SectionShell } from '../components/SectionShell';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Heart, ShieldCheck, Sparkles, Star, Users, Clock3, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getAuctionById, getAuctionImages, getAuctionWinner, getEffectiveAuctionStatus, type AuctionImageResponse, type AuctionResponse, type AuctionWinnerResponse } from '../api/auctionApi';
+import { createAuctionRazorpayPayment, getAuctionById, getAuctionImages, getAuctionWinner, getEffectiveAuctionStatus, verifyAuctionRazorpayPayment, type AuctionImageResponse, type AuctionResponse, type AuctionWinnerResponse } from '../api/auctionApi';
 import { getAuctionBids, placeBid, type BidResponse } from '../api/bidApi';
-import { createAuctionOrder, getOrderById, getOrders } from '../api/orderApi';
-import { createRazorpayPayment, verifyRazorpayPayment, getPaymentsForOrder } from '../api/paymentApi';
+import { getOrderById } from '../api/orderApi';
+import { getPaymentsForOrder } from '../api/paymentApi';
 import { getAuctionRegistrationStatus, createAuctionRegistrationPayment, verifyAuctionRegistrationPayment } from '../api/auctionApi';
-import { isAuctionRegistered, markAuctionAsRegistered } from '../utils/auctionFlowState';
-import type { AuctionRegistrationStatusResponse, OrderResponseDto, RazorpayOrderResponse, PaymentResponseDto } from '../types';
+import { isAuctionRegistered, markAuctionAsRegistered, markOrderConfirmed, readAuctionFlowState, writeAuctionFlowState } from '../utils/auctionFlowState';
+import type { AuctionRegistrationStatusResponse, RazorpayOrderResponse, PaymentResponseDto } from '../types';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
+import { ProductSpecification } from '../components/marketplace/MarketplaceComponents';
 import { formatCurrency } from '../utils/formatters';
 import { BidHistory, BidCard, CountdownTimer, WinnerBanner } from '../components/auction/AuctionComponents';
+import { getProductById } from '../api/productApi';
+import DeliveryAddressSelector from '../components/checkout/DeliveryAddressSelector';
+import type { AddressResponse } from '../api/addressApi';
 
 function formatDateTime(value?: string) {
   if (!value) return 'N/A';
@@ -62,10 +66,12 @@ function getAmountValue(amount?: string): number {
 }
 
 export function AuctionDetailPage() {
+  const navigate = useNavigate();
   const { id } = useParams();
   const auctionId = Number(id);
   const { user, authReady } = useAuth();
   const [auction, setAuction] = useState<AuctionResponse | null>(null);
+  const [productDetails, setProductDetails] = useState<Awaited<ReturnType<typeof getProductById>> | null>(null);
   const [images, setImages] = useState<AuctionImageResponse[]>([]);
   const [bids, setBids] = useState<BidResponse[]>([]);
   const [winner, setWinner] = useState<AuctionWinnerResponse | null>(null);
@@ -78,12 +84,14 @@ export function AuctionDetailPage() {
   const [registrationLoadingAction, setRegistrationLoadingAction] = useState(false);
   const [registrationErrorAction, setRegistrationErrorAction] = useState<string | null>(null);
   const [registrationSuccessMessage, setRegistrationSuccessMessage] = useState<string | null>(null);
-  const [order, setOrder] = useState<OrderResponseDto | null>(null);
   const [paymentSession, setPaymentSession] = useState<RazorpayOrderResponse | null>(null);
   const [isPaymentReady, setIsPaymentReady] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [paymentStatusLoading, setPaymentStatusLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
+  const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bidAmount, setBidAmount] = useState('');
@@ -130,6 +138,34 @@ export function AuctionDetailPage() {
   useEffect(() => {
     loadAuction(true);
   }, [auctionId]);
+
+  useEffect(() => {
+    const productId = auction?.productId;
+    if (!productId) {
+      setProductDetails(null);
+      return;
+    }
+
+    let active = true;
+
+    const loadProductDetails = async () => {
+      try {
+        const nextProduct = await getProductById(productId);
+        if (active) {
+          setProductDetails(nextProduct);
+        }
+      } catch {
+        if (active) {
+          setProductDetails(null);
+        }
+      }
+    };
+
+    loadProductDetails();
+    return () => {
+      active = false;
+    };
+  }, [auction?.productId]);
 
   const loadRegistrationStatus = async () => {
     if (!Number.isFinite(auctionId)) return;
@@ -275,47 +311,32 @@ export function AuctionDetailPage() {
   };
 
   const loadOrderPaymentState = async (orderId: number) => {
+    setPaymentStatusLoading(true);
     try {
       const payments = await getPaymentsForOrder(orderId);
-      if (getCompletedPaymentStatus(payments)) {
-        setPaymentCompleted(true);
-      }
+      setPaymentCompleted(getCompletedPaymentStatus(payments));
     } catch (err) {
       // ignore payment lookup failures, keep the order available for retry
+    } finally {
+      setPaymentStatusLoading(false);
     }
   };
 
   const restoreExistingOrder = async () => {
     if (!winner || !isWinner) return;
 
+    setPaymentStatusLoading(true);
     const storedOrderId = readStoredAuctionOrderId(auctionId);
     if (storedOrderId) {
       try {
         const existingOrder = await getOrderById(storedOrderId);
-        setOrder(existingOrder);
         await loadOrderPaymentState(existingOrder.id);
         return;
       } catch {
-        // ignore and continue with search below
+        // Ignore stale local order references; payment remains available for retry.
       }
     }
-
-    try {
-      const allOrders = await getOrders();
-      const matchingOrder = allOrders.find((o) => {
-        const orderAmount = Number(o.totalAmount);
-        const winnerAmount = getAmountValue(winner?.finalPrice);
-        return orderAmount === winnerAmount;
-      });
-
-      if (matchingOrder) {
-        setOrder(matchingOrder);
-        saveStoredAuctionOrderId(auctionId, matchingOrder.id);
-        await loadOrderPaymentState(matchingOrder.id);
-      }
-    } catch {
-      // ignore lookup failures
-    }
+    setPaymentStatusLoading(false);
   };
 
   useEffect(() => {
@@ -324,8 +345,8 @@ export function AuctionDetailPage() {
     }
   }, [isWinner, auctionId]);
 
-  const handlePaymentVerification = async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
-    if (!order) {
+  const handlePaymentVerification = async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }, internalOrderId: number, razorpayOrderId: string) => {
+    if (!internalOrderId || !razorpayOrderId) {
       setPaymentError('Missing order information.');
       return;
     }
@@ -334,14 +355,24 @@ export function AuctionDetailPage() {
     setPaymentError(null);
 
     try {
-      await verifyRazorpayPayment(order.id, {
+      if (import.meta.env.DEV) console.debug('AUCTION VERIFY', { internalOrderId, razorpayOrderId, razorpayPaymentId: response.razorpay_payment_id });
+      const verifyResponse = await verifyAuctionRazorpayPayment(auctionId, internalOrderId, {
         razorpayPaymentId: response.razorpay_payment_id,
         razorpayOrderId: response.razorpay_order_id,
         razorpaySignature: response.razorpay_signature,
       });
 
-      await loadOrderPaymentState(order.id);
+      if (import.meta.env.DEV) {
+        console.debug('AUCTION RAZORPAY SUCCESS', response);
+        console.debug('AUCTION PAYMENT VERIFY RESPONSE', verifyResponse);
+      }
       setPaymentCompleted(true);
+      if (verifyResponse.orderId) {
+        saveStoredAuctionOrderId(auctionId, verifyResponse.orderId);
+        await loadOrderPaymentState(verifyResponse.orderId);
+      }
+      markOrderConfirmed();
+      navigate('/customer/order-success', { replace: true });
     } catch (err: any) {
       setPaymentError(err?.message || 'Unable to verify payment.');
     } finally {
@@ -445,98 +476,28 @@ export function AuctionDetailPage() {
 
   const handlePayNow = async () => {
     if (!auction || paymentCompleted) return;
+    const checkoutAddressId = selectedAddress?.id || readAuctionFlowState().addressId;
+    if (!checkoutAddressId) {
+      setShowAddressSelector(true);
+      return;
+    }
     setPaymentError(null);
     setPaymentLoading(true);
     setIsPaymentReady(false);
 
     try {
-      let currentOrder = order;
-      const storedOrderId = readStoredAuctionOrderId(auctionId);
-
-      if (!currentOrder && storedOrderId) {
-        try {
-          currentOrder = await getOrderById(storedOrderId);
-          setOrder(currentOrder);
-        } catch {
-          currentOrder = null;
-        }
-      }
-
-      if (!currentOrder) {
-        try {
-          currentOrder = await createAuctionOrder(auctionId);
-          setOrder(currentOrder);
-          saveStoredAuctionOrderId(auctionId, currentOrder.id);
-        } catch (err: any) {
-          const message = String(err?.message || '');
-          if (/already exists/i.test(message)) {
-            const existingOrderId = readStoredAuctionOrderId(auctionId);
-            if (existingOrderId) {
-              currentOrder = await getOrderById(existingOrderId);
-              setOrder(currentOrder);
-            } else {
-              const allOrders = await getOrders();
-              currentOrder = allOrders.find((o) => Number(o.totalAmount) === getAmountValue(winner?.finalPrice)) ?? null;
-              if (currentOrder) {
-                saveStoredAuctionOrderId(auctionId, currentOrder.id);
-                setOrder(currentOrder);
-              }
-            }
-          }
-          if (!currentOrder) {
-            throw err;
-          }
-        }
-      }
-
-      if (currentOrder) {
-        await loadOrderPaymentState(currentOrder.id);
-        if (paymentCompleted) {
-          return;
-        }
-
-        const payments = await getPaymentsForOrder(currentOrder.id);
-        if (getCompletedPaymentStatus(payments)) {
-          setPaymentCompleted(true);
-          return;
-        }
-
-        const paymentData = await createRazorpayPayment(currentOrder.id);
-        setPaymentSession(paymentData);
-        setIsPaymentReady(true);
-
-        const Razorpay = (window as any).Razorpay;
-        if (typeof Razorpay !== 'function') {
-          throw new Error('Razorpay checkout is unavailable. Please refresh and try again.');
-        }
-
-        const options = {
-          key: paymentData.razorpayKeyId,
-          amount: paymentData.amount,
-          currency: paymentData.currency,
-          order_id: paymentData.razorpayOrderId,
-          name: 'Bidzo',
-          description: 'Auction payment',
-          prefill: {
-            name: user?.name || undefined,
-            email: user?.email || undefined,
-          },
-          handler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
-            handlePaymentVerification(response);
-          },
-          modal: {
-            ondismiss: () => {
-              setPaymentError('Payment was cancelled.');
-            },
-          },
-          theme: {
-            color: '#2563eb',
-          },
-        };
-
-        const checkout = new Razorpay(options);
-        checkout.open();
-      }
+      if (import.meta.env.DEV) console.debug('AUCTION PAY NOW - INITIALIZING', { auctionId, addressId: checkoutAddressId });
+      const paymentData = await createAuctionRazorpayPayment(auctionId, checkoutAddressId);
+      if (import.meta.env.DEV) console.debug('AUCTION PAYMENT INIT RESPONSE', paymentData);
+      const internalOrderId = paymentData.orderId ?? paymentData.internalOrderId;
+      if (!internalOrderId) throw new Error('Auction payment did not return an internal order ID.');
+      saveStoredAuctionOrderId(auctionId, internalOrderId);
+      setPaymentSession(paymentData);
+      setIsPaymentReady(true);
+      const Razorpay = (window as any).Razorpay;
+      if (typeof Razorpay !== 'function') throw new Error('Razorpay checkout is unavailable. Please refresh and try again.');
+      const checkout = new Razorpay({ key: paymentData.razorpayKeyId, amount: paymentData.amount, currency: paymentData.currency, order_id: paymentData.razorpayOrderId, name: 'Bidzo', description: 'Auction payment', prefill: { name: user?.name || undefined, email: user?.email || undefined }, handler: (razorpayResponse: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => handlePaymentVerification(razorpayResponse, internalOrderId, paymentData.razorpayOrderId), modal: { ondismiss: () => setPaymentError('Payment was cancelled. Please try again.') }, theme: { color: '#2563eb' } });
+      checkout.open();
     } catch (err: any) {
       setPaymentError(err?.message || 'Unable to initiate payment.');
     } finally {
@@ -623,6 +584,12 @@ export function AuctionDetailPage() {
               </BidCard>
             </div>
           </div>
+
+          {auction.productId && (
+            <div className="mt-4">
+              <ProductSpecification specs={productDetails?.specifications || []} />
+            </div>
+          )}
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24 }} className="space-y-4 lg:sticky lg:top-24 lg:self-start">
@@ -653,15 +620,29 @@ export function AuctionDetailPage() {
                     {isWinner ? (
                       <div className="mt-4 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
                         <p className="text-sm text-slate-300">You are the winning bidder.</p>
-                        {paymentCompleted ? (
+                        {paymentStatusLoading ? (
+                          <div className="mt-3 inline-flex items-center justify-between rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-300">
+                            Checking payment status...
+                          </div>
+                        ) : paymentCompleted ? (
                           <div className="mt-3 inline-flex items-center justify-between rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300">
                             Payment Completed
                           </div>
                         ) : (
-                          <button
+                          showAddressSelector ? <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                            <DeliveryAddressSelector
+                              selectedAddressId={selectedAddress?.id || readAuctionFlowState().addressId}
+                              onSelect={(address) => {
+                                setSelectedAddress(address);
+                                writeAuctionFlowState({ ...readAuctionFlowState(), addressId: address.id });
+                                setShowAddressSelector(false);
+                                handlePayNow();
+                              }}
+                            />
+                          </div> : <button
                             type="button"
                             onClick={handlePayNow}
-                            disabled={paymentLoading}
+                            disabled={paymentLoading || paymentStatusLoading}
                             className="mt-3 w-full rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {paymentLoading ? 'Preparing payment…' : 'Pay Now'}

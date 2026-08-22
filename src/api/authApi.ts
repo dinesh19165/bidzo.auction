@@ -11,10 +11,13 @@ export interface AuthRegisterDto {
   email: string;
   password: string;
   role: 'CUSTOMER' | 'VENDOR';
+  phoneNumber: string;
 }
 
 export interface AuthLoginResponse {
   token: string;
+  role?: string;
+  userId?: string | number;
 }
 
 export interface AuthMeResponse {
@@ -43,6 +46,13 @@ export async function login(payload: AuthLoginDto): Promise<AuthLoginResponse> {
   }, false);
   if (!response?.data?.token) {
     throw new Error('Invalid login response');
+  }
+
+  if (import.meta.env.DEV) {
+    console.debug('[Bidzo auth] login response', {
+      role: response.data.role,
+      userId: response.data.userId,
+    });
   }
 
   const persisted = (() => {

@@ -8,20 +8,22 @@ import { Badge, PrimaryButton, SecondaryButton } from '../../components/common/B
 import { EmptyState, ErrorState, SkeletonCard, SkeletonTable } from '../../components/loading/LoadingComponents';
 import VendorSidebar from '../../components/layout/VendorSidebar';
 import { getCustomerProfile, saveCustomerProfile } from '../../api/customerApi';
-import { getOrders } from '../../api/orderApi';
+import { getOrderById, getOrders } from '../../api/orderApi';
 import { getAuctionById, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus } from '../../api/auctionApi';
 import { getAuctionBids, placeBid } from '../../api/bidApi';
 import { getPaymentsForOrder } from '../../api/paymentApi';
-import { getAddresses, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
+import { buildAddressPayload, getAddresses, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
 import { useAuth } from '../../context/AuthContext';
 import type { OrderResponseDto } from '../../types';
 import { getMyBids, type BidResponse } from '../../api/bidApi';
-import { getVendorProducts, getProductImage, formatCurrency as formatProductCurrency, mapSellingTypeLabel, type VendorProductApiResponse } from '../../api/vendorProductApi';
+import { deleteVendorProduct, getVendorProducts, getProductImage, formatCurrency as formatProductCurrency, mapSellingTypeLabel, updateVendorProduct, type VendorProductApiResponse } from '../../api/vendorProductApi';
 import { getVendorAuctions, type VendorAuctionApiResponse } from '../../api/vendorAuctionApi';
 import { getVendorOrders, type VendorOrderApiResponse } from '../../api/vendorOrderApi';
+import DeliveryAddressViewer from '../../components/orders/DeliveryAddressViewer';
 import { getVendorRevenue } from '../../api/vendorRevenueApi';
 import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
-import { addresses, customerBids, invoices, notifications, popularSearches, recentlyViewed, reviews, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorInventory, vendorProducts, vendorOrders, vendorAuctions, vendorReports, vendorShippingRules, vendorWithdrawals, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
+import { createVendorWithdrawal, getVendorWithdrawalBalance, getVendorWithdrawals, type WithdrawalBalance, type WithdrawalRecord } from '../../api/withdrawalApi';
+import { addresses, customerBids, invoices, notifications, popularSearches, recentlyViewed, reviews, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorProducts, vendorAuctions, vendorReports, vendorShippingRules, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
 
 
 
@@ -54,8 +56,12 @@ function statusTone(status: string | null | undefined) {
 export function CustomerProfilePage() {
   const [profile, setProfile] = useState<null | { id: number; firstName: string; lastName: string; phone: string; addressId: number | null; userId: number }>(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', addressId: null as number | null });
+  const [addressList, setAddressList] = useState<AddressResponse[]>([]);
+  const [addressForm, setAddressForm] = useState<AddressRequest>({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', isDefault: true });
   const [loading, setLoading] = useState(true);
+  const [addressLoading, setAddressLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [creatingAddress, setCreatingAddress] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -84,9 +90,27 @@ export function CustomerProfilePage() {
     loadProfile();
   }, []);
 
-  const canEdit = profile === null;
+  useEffect(() => {
+    const loadAddresses = async () => {
+      setAddressLoading(true);
+      try {
+        setAddressList(await getAddresses());
+      } catch (err: any) {
+        setError(err?.message || 'Unable to load your addresses.');
+      } finally {
+        setAddressLoading(false);
+      }
+    };
+    loadAddresses();
+  }, []);
+
+  const canEdit = true;
 
   const saveProfile = async () => {
+    if (!/^[6-9]\d{9}$/.test(form.phone.trim())) {
+      setError('Phone must be a valid 10-digit Indian mobile number.');
+      return;
+    }
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -99,11 +123,33 @@ export function CustomerProfilePage() {
         phone: saved.phone || '',
         addressId: saved.addressId ?? null,
       });
-      setMessage('Profile created successfully.');
+      setMessage('Profile updated successfully.');
     } catch (err: any) {
       setError(err?.message || 'Unable to save your profile.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const createProfileAddress = async () => {
+    const payloadResult = buildAddressPayload(addressForm);
+    if (typeof payloadResult === 'string') {
+      setError(payloadResult);
+      return;
+    }
+    setCreatingAddress(true);
+    setError(null);
+    try {
+      console.debug('ADD ADDRESS PAYLOAD', payloadResult);
+      const created = await createAddress(payloadResult);
+      setAddressList(await getAddresses());
+      setForm((prev) => ({ ...prev, addressId: created.id }));
+      setAddressForm({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', isDefault: true });
+      setMessage('Address added successfully.');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to create your address.');
+    } finally {
+      setCreatingAddress(false);
     }
   };
 
@@ -154,16 +200,44 @@ export function CustomerProfilePage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-300">Address ID</span>
-                  <input
+                  <span className="mb-2 block text-sm font-medium text-slate-300">Address</span>
+                  <select
                     value={form.addressId ?? ''}
                     onChange={(e) => setForm((prev) => ({ ...prev, addressId: e.target.value ? Number(e.target.value) : null }))}
                     disabled={!canEdit}
                     className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/40"
-                    placeholder="Enter address ID"
-                    type="number"
-                  />
+                  >
+                    <option value="">Select an address</option>
+                    {addressList.map((address) => <option key={address.id} value={address.id}>{address.addressLine1}, {address.city}</option>)}
+                  </select>
                 </label>
+              </div>
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm font-semibold text-white">Add a new address</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {([
+                    ['fullName', 'Full name *'],
+                    ['phone', 'Phone *'],
+                    ['addressLine1', 'Address line 1 *'],
+                    ['addressLine2', 'Address line 2'],
+                    ['city', 'City *'],
+                    ['state', 'State *'],
+                    ['postalCode', 'Postal code *'],
+                    ['country', 'Country'],
+                  ] as const).map(([field, label]) => (
+                    <label key={field} className="block">
+                      <span className="mb-2 block text-sm font-medium text-slate-300">{label}</span>
+                      <input
+                        value={addressForm[field] || ''}
+                        onChange={(e) => setAddressForm((prev) => ({ ...prev, [field]: e.target.value }))}
+                        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/40"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <button type="button" onClick={createProfileAddress} disabled={creatingAddress || addressLoading} className="rounded-full border border-blue-400/30 px-4 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60">
+                  {creatingAddress ? 'Adding address...' : 'Add address'}
+                </button>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <button
@@ -172,13 +246,9 @@ export function CustomerProfilePage() {
                   disabled={saving || !canEdit}
                   className="inline-flex items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving ? 'Saving…' : profile ? 'Profile created' : 'Create profile'}
+                  {saving ? 'Saving…' : 'Update profile'}
                 </button>
-                {profile ? (
-                  <p className="text-sm text-slate-400">Your profile is already stored on the backend. Profile updates are not supported by the current backend contract.</p>
-                ) : (
-                  <p className="text-sm text-slate-400">Complete these details to enable faster checkout and verified buyer access.</p>
-                )}
+                <p className="text-sm text-slate-400">Update these details to keep checkout and delivery preferences current.</p>
               </div>
             </div>
           )}
@@ -197,8 +267,9 @@ export function CustomerProfilePage() {
                   <p className="mt-2 text-white">{profile.phone || 'Not provided'}</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <p className="text-slate-400">Address ID</p>
-                  <p className="mt-2 text-white">{profile.addressId ?? 'Not set'}</p>
+                  <p className="text-slate-400">Address</p>
+                  <p className="mt-2 text-white">{addressList.find((address) => address.id === profile.addressId)?.addressLine1 || (profile.addressId ? `Address ${profile.addressId}` : 'Not set')}</p>
+                  {addressList.find((address) => address.id === profile.addressId) ? <p className="mt-1 text-xs text-slate-400">{addressList.find((address) => address.id === profile.addressId)?.city}, {addressList.find((address) => address.id === profile.addressId)?.state}</p> : null}
                 </div>
               </>
             ) : (
@@ -1179,7 +1250,7 @@ export function CustomerAddressesPage() {
   const [addressList, setAddressList] = useState<AddressResponse[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<AddressRequest>({ fullName: '', phoneNumber: '', addressLine1: '', addressLine2: '', city: '', state: '', zipCode: '', country: '' });
+  const [form, setForm] = useState<AddressRequest>({ label: 'Home', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '', isDefault: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1203,8 +1274,9 @@ export function CustomerAddressesPage() {
   }, []);
 
   const handleSave = async () => {
-    if (!form.fullName || !form.addressLine1 || !form.city || !form.state || !form.zipCode) {
-      setError('Please fill in all required fields');
+    const payloadResult = buildAddressPayload(form);
+    if (typeof payloadResult === 'string') {
+      setError(payloadResult);
       return;
     }
 
@@ -1213,12 +1285,13 @@ export function CustomerAddressesPage() {
     setMessage(null);
 
     try {
+      console.debug('ADD ADDRESS PAYLOAD', payloadResult);
       if (editingId) {
-        const updated = await updateAddress(editingId, form);
+        const updated = await updateAddress(editingId, payloadResult);
         setAddressList((prev) => prev.map((a) => (a.id === editingId ? updated : a)));
         setMessage('Address updated successfully');
       } else {
-        const created = await createAddress(form);
+        const created = await createAddress(payloadResult);
         setAddressList((prev) => [...prev, created]);
         setMessage('Address added successfully');
       }
@@ -1233,13 +1306,15 @@ export function CustomerAddressesPage() {
   const handleEdit = (addr: AddressResponse) => {
     setForm({
       fullName: addr.fullName,
-      phoneNumber: addr.phoneNumber,
+      label: 'Home',
+      phone: addr.phone,
       addressLine1: addr.addressLine1,
       addressLine2: addr.addressLine2,
       city: addr.city,
       state: addr.state,
-      zipCode: addr.zipCode,
+      postalCode: addr.postalCode,
       country: addr.country,
+      isDefault: addr.isDefault,
     });
     setEditingId(addr.id);
     setShowForm(true);
@@ -1258,7 +1333,7 @@ export function CustomerAddressesPage() {
   };
 
   const resetForm = () => {
-    setForm({ fullName: '', phoneNumber: '', addressLine1: '', addressLine2: '', city: '', state: '', zipCode: '', country: '' });
+    setForm({ label: 'Home', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '', isDefault: true });
     setEditingId(null);
     setShowForm(false);
   };
@@ -1299,9 +1374,9 @@ export function CustomerAddressesPage() {
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-slate-300">Phone *</span>
                 <input
-                  value={form.phoneNumber}
-                  onChange={(e) => setForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
-                  placeholder="+91 9876543210"
+                  value={form.phone}
+                  onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  placeholder="9876543210"
                   className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
                 />
               </label>
@@ -1348,9 +1423,9 @@ export function CustomerAddressesPage() {
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-slate-300">Zip code *</span>
                 <input
-                  value={form.zipCode}
-                  onChange={(e) => setForm((prev) => ({ ...prev, zipCode: e.target.value }))}
-                  placeholder="560001"
+                  value={form.postalCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, postalCode: e.target.value }))}
+                  placeholder="500001"
                   className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
                 />
               </label>
@@ -1830,24 +1905,36 @@ export function CustomerSettingsPage() {
 export function CustomerOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [order, setOrder] = useState<OrderResponseDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock order detail
-  const order = {
-    id: id || 'ORD-1001',
-    orderNumber: 'ORD-1001',
-    item: 'Designer Watch',
-    vendor: 'Premium Watches',
-    price: '₹86,000',
-    status: 'Delivered',
-    date: '15 Aug 2026',
-    deliveryDate: '20 Aug 2026',
-    shippingAddress: 'Bangalore, Karnataka • 560001',
-    paymentMethod: 'Wallet',
-    trackingNumber: 'TRK-123456789',
-  };
+  useEffect(() => {
+    const loadOrder = async () => {
+      if (!id || !/^\d+$/.test(id)) {
+        setError('Invalid order identifier.');
+        setLoading(false);
+        return;
+      }
+      try {
+        setOrder(await getOrderById(Number(id)));
+      } catch (err: any) {
+        setError(err?.message || 'Unable to load order details.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadOrder();
+  }, [id]);
+
+  if (loading) return <SectionShell title="Order details" subtitle="Loading order"><SkeletonCard /></SectionShell>;
+  if (error || !order) return <SectionShell title="Order details" subtitle="Order unavailable"><ErrorState title="Unable to load order details" description={error || 'Order not found.'} /></SectionShell>;
+
+  const address = order.deliveryAddress;
+  const addressValue = (keys: string[]) => typeof address === 'object' && address ? String(keys.map((key) => address[key]).find((value) => value !== undefined && value !== null && value !== '') ?? '-') : '-';
 
   return (
-    <SectionShell title={`Order ${order.orderNumber}`} subtitle="Order details and tracking information">
+    <SectionShell title={`Order ${order.orderNumber || `#${order.id}`}`} subtitle="Order details and tracking information">
       <div className="space-y-6">
         <button
           onClick={() => navigate(-1)}
@@ -1863,19 +1950,19 @@ export function CustomerOrderDetailPage() {
               <div className="space-y-3 text-sm text-slate-300">
                 <div className="flex justify-between">
                   <span>Product</span>
-                  <span className="text-white font-medium">{order.item}</span>
+                  <span className="text-white font-medium">{order.items?.map((item) => item.productName || item.name || `Product #${item.productId}`).join(', ') || 'No items'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Seller</span>
-                  <span className="text-white font-medium">{order.vendor}</span>
+                  <span className="text-white font-medium">{order.items?.map((item) => item.vendorName || item.sellerName).filter(Boolean).join(', ') || 'Not provided'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Price</span>
-                  <span className="text-white font-medium">{order.price}</span>
+                  <span className="text-white font-medium">₹{Number(order.totalAmount).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Order Date</span>
-                  <span className="text-white font-medium">{order.date}</span>
+                  <span className="text-white font-medium">{order.orderDate || 'Not provided'}</span>
                 </div>
               </div>
             </div>
@@ -1884,17 +1971,17 @@ export function CustomerOrderDetailPage() {
               <h3 className="text-lg font-semibold text-white mb-4">Delivery Information</h3>
               <div className="space-y-3 text-sm text-slate-300">
                 <div>
-                  <p className="text-slate-400">Shipping Address</p>
-                  <p className="mt-1 text-white">{order.shippingAddress}</p>
+                  <p className="text-slate-400">Delivery Address</p>
+                  {address ? typeof address === 'string' ? <p className="mt-1 whitespace-pre-wrap text-white">{address}</p> : <div className="mt-1 space-y-1 text-white"><p>{addressValue(['fullName', 'name'])}</p><p>{addressValue(['phone'])}</p><p>{addressValue(['addressLine1'])}</p><p>{addressValue(['addressLine2'])}</p><p>{addressValue(['city'])}, {addressValue(['state'])}</p><p>{addressValue(['postalCode'])}, {addressValue(['country'])}</p></div> : <p className="mt-1 text-white">Address not available</p>}
                 </div>
-                <div>
+                {order.trackingNumber ? <div>
                   <p className="text-slate-400">Tracking Number</p>
                   <p className="mt-1 text-white font-mono">{order.trackingNumber}</p>
-                </div>
-                <div>
+                </div> : null}
+                {order.expectedDeliveryDate ? <div>
                   <p className="text-slate-400">Expected Delivery</p>
-                  <p className="mt-1 text-white">{order.deliveryDate}</p>
-                </div>
+                  <p className="mt-1 text-white">{order.expectedDeliveryDate}</p>
+                </div> : null}
               </div>
             </div>
           </div>
@@ -1903,7 +1990,7 @@ export function CustomerOrderDetailPage() {
             <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
               <p className="text-sm text-slate-400 mb-2">Status</p>
               <span className="rounded-full bg-emerald-500/20 text-emerald-300 px-3 py-1 text-sm font-medium">
-                {order.status}
+                {order.orderStatus}
               </span>
             </div>
 
@@ -2579,23 +2666,61 @@ export function VendorSubscriptionPage() {
 }
 
 export function VendorWalletPage() {
+  const [balance, setBalance] = useState<WithdrawalBalance | null>(null);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [balanceResponse, withdrawalsResponse] = await Promise.all([getVendorWithdrawalBalance(), getVendorWithdrawals()]);
+        if (active) {
+          setBalance(balanceResponse);
+          setWithdrawals(withdrawalsResponse);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Unable to load withdrawal details.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const availableBalance = balance?.availableBalance ?? balance?.balance ?? 0;
+
   return (
     <SectionShell title="Vendor wallet" subtitle="Payout balance and settlement insights" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Wallet' }]}>
       <div className="lg:flex lg:gap-6">
         <VendorSidebar />
         <main className="flex-1">
           <Card>
+            {error ? <ErrorState title="Unable to load withdrawals" description={error} /> : null}
+            {loading ? <SkeletonCard /> : (
             <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <p className="text-sm text-slate-400">Available balance</p>
-                <p className="mt-2 text-3xl font-semibold text-white">₹2,48,000</p>
-                <p className="mt-1 text-sm text-slate-400">Settled: ₹2,00,000 • Pending: ₹48,000</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{toMoney(availableBalance)}</p>
+                <p className="mt-1 text-sm text-slate-400">Settled: {toMoney(balance?.settledBalance)} • Pending: {toMoney(balance?.pendingBalance)}</p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Link to="/vendor/withdraw" className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white">Withdraw</Link>
                 <Link to="/vendor/transactions" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">View transactions</Link>
               </div>
             </div>
+            )}
           </Card>
 
           <div className="mt-6 grid gap-4 xl:grid-cols-2">
@@ -2618,11 +2743,11 @@ export function VendorWalletPage() {
                     </tr>
                   </thead>
                   <tbody className="text-slate-300">
-                    {vendorWithdrawals.map((withdrawal) => (
+                    {withdrawals.map((withdrawal) => (
                       <tr key={withdrawal.id} className="border-t border-white/6 hover:bg-white/5">
                         <td className="px-3 py-3">{withdrawal.id}</td>
-                        <td className="px-3 py-3">{withdrawal.amount}</td>
-                        <td className="px-3 py-3"><Badge className={withdrawal.status === 'Pending' ? 'bg-amber-500/10 text-amber-200' : 'bg-emerald-500/10 text-emerald-200'}>{withdrawal.status}</Badge></td>
+                        <td className="px-3 py-3">{toMoney(withdrawal.amount)}</td>
+                        <td className="px-3 py-3"><Badge className={withdrawal.status?.toLowerCase() === 'pending' ? 'bg-amber-500/10 text-amber-200' : 'bg-emerald-500/10 text-emerald-200'}>{withdrawal.status || 'Unknown'}</Badge></td>
                       </tr>
                     ))}
                   </tbody>
@@ -2637,17 +2762,74 @@ export function VendorWalletPage() {
 }
 
 export function VendorWithdrawPage() {
+  const [balance, setBalance] = useState<WithdrawalBalance | null>(null);
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getVendorWithdrawalBalance()
+      .then((response) => {
+        if (active) setBalance(response);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : 'Unable to load your balance.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const submitWithdrawal = async () => {
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setError('Enter a valid withdrawal amount.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await createVendorWithdrawal(numericAmount);
+      setAmount('');
+      setMessage('Withdrawal request submitted successfully.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to submit withdrawal.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const availableBalance = balance?.availableBalance ?? balance?.balance ?? 0;
+
   return (
     <SectionShell title="Withdraw" subtitle="Transfer your earnings securely" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Withdraw' }]}>
       <div className="lg:flex lg:gap-6">
         <VendorSidebar />
         <main className="flex-1">
           <Card>
-            <p className="text-lg font-semibold text-white">Next payout scheduled for 12 Aug 2026</p>
-            <p className="mt-2 text-sm text-slate-300">Pending: ₹48,000 • Available: ₹2,48,000</p>
+            {loading ? <SkeletonCard /> : (
+              <>
+                <p className="text-lg font-semibold text-white">Available balance: {toMoney(availableBalance)}</p>
+                <p className="mt-2 text-sm text-slate-300">Pending: {toMoney(balance?.pendingBalance)} • Settled: {toMoney(balance?.settledBalance)}</p>
+              </>
+            )}
+            {error ? <div className="mt-4"><ErrorState title="Withdrawal error" description={error} /></div> : null}
+            {message ? <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}
+            <label className="mt-4 block max-w-md">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Withdrawal amount</span>
+              <input type="number" min="1" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-blue-400/40" placeholder="Enter amount" />
+            </label>
             <div className="mt-4 flex flex-wrap gap-3">
-              <button className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white">Request payout</button>
-              <button className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">View payout history</button>
+              <button type="button" onClick={submitWithdrawal} disabled={submitting || loading} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Submitting…' : 'Request payout'}</button>
             </div>
           </Card>
 
@@ -2835,6 +3017,7 @@ export function VendorOrdersPage() {
                       <th className="px-3 py-3">Total</th>
                       <th className="px-3 py-3">Status</th>
                       <th className="px-3 py-3">Date</th>
+                      <th className="px-3 py-3">Delivery Address</th>
                     </tr>
                   </thead>
                   <tbody className="text-slate-300">
@@ -2846,6 +3029,7 @@ export function VendorOrdersPage() {
                         <td className="px-3 py-3">{toMoney(order.totalAmount ?? order.amount)}</td>
                         <td className="px-3 py-3"><Badge className={statusColors[String(order.orderStatus || order.status || 'pending').toLowerCase()] ?? 'bg-slate-500/10 text-slate-200'}>{String(order.orderStatus || order.status || 'Pending')}</Badge></td>
                         <td className="px-3 py-3">{order.createdAt || order.orderDate || order.date || '—'}</td>
+                        <td className="px-3 py-3"><DeliveryAddressViewer address={order.deliveryAddress} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -2883,6 +3067,7 @@ export function VendorCustomersPage() {
 }
 
 export function VendorInventoryPage() {
+  const [products, setProducts] = useState<VendorProductApiResponse[]>([]);
   const [search, setSearch] = useState('');
   const [healthFilter, setHealthFilter] = useState('All');
   const [sortKey, setSortKey] = useState<'name' | 'stock' | 'health'>('name');
@@ -2890,15 +3075,63 @@ export function VendorInventoryPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const loadProducts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setProducts(await getVendorProducts());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load vendor inventory.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 350);
-    return () => clearTimeout(timer);
+    let active = true;
+    void getVendorProducts()
+      .then((data) => {
+        if (active) {
+          setProducts(data);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Unable to load vendor inventory.');
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const filteredInventory = useMemo(() => {
     const normalized = search.toLowerCase().trim();
-    let items = vendorInventory.filter((item) => item.name.toLowerCase().includes(normalized) || item.sku.toLowerCase().includes(normalized));
+    let items = products.map((product) => {
+      const stock = Number(product.stock ?? product.quantity ?? 0);
+      const status = String(product.status || 'ACTIVE');
+      const health = stock === 0 ? 'Out of stock' : stock < 5 ? 'Low stock' : 'Healthy';
+
+      return {
+        id: product.id,
+        sku: String(product.sku || product.id),
+        name: product.name,
+        sellingType: String(product.sellingType || '').trim().toUpperCase(),
+        stock,
+        health,
+        status,
+        lastUpdated: 'Backend data',
+      };
+    }).filter((item) => item.name.toLowerCase().includes(normalized) || item.sku.toLowerCase().includes(normalized));
     if (healthFilter !== 'All') {
       items = items.filter((item) => item.health === healthFilter);
     }
@@ -2906,13 +3139,13 @@ export function VendorInventoryPage() {
       const left = (a as any)[sortKey];
       const right = (b as any)[sortKey];
       if (sortKey === 'stock') {
-        const aValue = Number((left as string).replace(/[^0-9]/g, ''));
-        const bValue = Number((right as string).replace(/[^0-9]/g, ''));
+        const aValue = Number(left);
+        const bValue = Number(right);
         return sortDir === 'asc' ? aValue - bValue : bValue - aValue;
       }
       return sortDir === 'asc' ? String(left).localeCompare(String(right)) : String(right).localeCompare(String(left));
     });
-  }, [healthFilter, search, sortDir, sortKey]);
+  }, [healthFilter, products, search, sortDir, sortKey]);
 
   const pageSize = 6;
   const pageCount = Math.max(1, Math.ceil(filteredInventory.length / pageSize));
@@ -2931,8 +3164,81 @@ export function VendorInventoryPage() {
     setSelected((prev) => [...new Set([...prev, ...currentInventory.map((item) => item.sku)])]);
   };
 
-  const handleBulkAction = (action: string) => {
-    alert(`Bulk ${action} ${selected.length} items (UI only)`);
+  const buildPublishPayload = (product: VendorProductApiResponse) => ({
+    name: product.name,
+    description: product.description ?? '',
+    price: product.price,
+    sku: product.sku,
+    status: 'PUBLISHED' as const,
+    brandId: product.brandId ?? null,
+    categoryId: product.categoryId ?? null,
+    sellingType: product.sellingType ?? 'DIRECT_BUY',
+    quantity: product.quantity ?? product.stock ?? 0,
+  });
+
+  const handlePublish = async (productId: number) => {
+    setError(null);
+    const product = products.find((item) => item.id === productId);
+    if (!product) {
+      setError('Unable to find the selected vendor product.');
+      return;
+    }
+
+    if (String(product.sellingType || '').trim().toUpperCase() === 'AUCTION') {
+      window.location.assign(`/vendor/create-auction-wizard?productId=${productId}`);
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await updateVendorProduct(productId, buildPublishPayload(product));
+      await loadProducts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to publish vendor product.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async (productId: number) => {
+    setActionLoading(true);
+    setError(null);
+    try {
+      await deleteVendorProduct(productId);
+      await loadProducts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete vendor product.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBulkAction = async (action: 'publish' | 'delete') => {
+    const productIds = products
+      .filter((product) => selected.includes(String(product.sku || product.id)))
+      .map((product) => product.id);
+
+    setActionLoading(true);
+    setError(null);
+    try {
+      if (action === 'publish') {
+        await Promise.all(productIds.map((productId) => {
+          const product = products.find((item) => item.id === productId);
+          if (!product) {
+            throw new Error('Unable to find one of the selected vendor products.');
+          }
+          return updateVendorProduct(productId, buildPublishPayload(product));
+        }));
+      } else {
+        await Promise.all(productIds.map((productId) => deleteVendorProduct(productId)));
+      }
+      setSelected([]);
+      await loadProducts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Unable to ${action} vendor products.`);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   return (
@@ -2958,15 +3264,16 @@ export function VendorInventoryPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <SecondaryButton onClick={() => handleBulkAction('archive')} disabled={selected.length === 0}>Archive</SecondaryButton>
-              <SecondaryButton onClick={() => handleBulkAction('publish')} disabled={selected.length === 0}>Publish</SecondaryButton>
-              <SecondaryButton onClick={() => handleBulkAction('delete')} disabled={selected.length === 0}>Delete</SecondaryButton>
+              <SecondaryButton onClick={() => handleBulkAction('publish')} disabled={selected.length === 0 || actionLoading}>Publish</SecondaryButton>
+              <SecondaryButton onClick={() => handleBulkAction('delete')} disabled={selected.length === 0 || actionLoading}>Delete</SecondaryButton>
             </div>
           </div>
 
           <Card>
             {loading ? (
               <SkeletonTable />
+            ) : error ? (
+              <ErrorState title="Inventory error" description={error} />
             ) : filteredInventory.length === 0 ? (
               <EmptyState title="No inventory found" description="Try adjusting your search or filter options to find listings." />
             ) : (
@@ -2982,6 +3289,7 @@ export function VendorInventoryPage() {
                       <th className="px-3 py-3">Stock</th>
                       <th className="px-3 py-3">Health</th>
                       <th className="px-3 py-3">Last updated</th>
+                      <th className="px-3 py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="text-slate-300">
@@ -2993,6 +3301,12 @@ export function VendorInventoryPage() {
                         <td className="px-3 py-3">{item.stock}</td>
                         <td className="px-3 py-3"><Badge className={item.health === 'Low stock' ? 'bg-rose-500/10 text-rose-200' : 'bg-emerald-500/10 text-emerald-200'}>{item.health}</Badge></td>
                         <td className="px-3 py-3">{item.lastUpdated}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex gap-2">
+                            <button onClick={() => void handlePublish(item.id)} disabled={actionLoading} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200 disabled:opacity-50">Publish</button>
+                            <button onClick={() => void handleDelete(item.id)} disabled={actionLoading} className="rounded-full border border-rose-500/20 px-3 py-1 text-xs text-rose-200 disabled:opacity-50">Delete</button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -3037,23 +3351,34 @@ export function VendorProductsPage() {
     let active = true;
 
     const loadProducts = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getVendorProducts();
-        if (active) {
-          setProducts(data);
-        }
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : 'Unable to load vendor products.');
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
+  setLoading(true);
+  setError(null);
+
+  try {
+    const data = await getVendorProducts();
+
+    if (active) {
+      setProducts(
+        data.filter(
+          (product) =>
+            String(product.status || '').toUpperCase() !== 'DISCONTINUED'
+        )
+      );
+    }
+  } catch (err) {
+    if (active) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to load vendor products.'
+      );
+    }
+  } finally {
+    if (active) {
+      setLoading(false);
+    }
+  }
+};
 
     loadProducts();
     return () => {
@@ -3077,19 +3402,20 @@ export function VendorProductsPage() {
         return matchesSearch && matchesStatus && matchesCategory && matchesStock && matchesFeatured && matchesAuction;
       })
       .map((item) => ({
-        sku: String(item.sku || item.id),
-        name: item.name,
-        category: item.categoryId != null ? `Category ${item.categoryId}` : 'General',
-        price: toMoney(item.price),
-        stock: Number(item.stock ?? 0),
-        status: String(item.status || 'Active'),
-        auctionStatus: mapSellingTypeLabel(item.sellingType),
-        image: getProductImage(item),
-        badge: mapSellingTypeLabel(item.sellingType),
-        views: '0',
-        favorites: 0,
-        featured: true,
-      }))
+  id: item.id,
+  sku: String(item.sku || item.id),
+  name: item.name,
+  category: item.categoryId != null ? `Category ${item.categoryId}` : 'General',
+  price: toMoney(item.price),
+  stock: Number(item.stock ?? 0),
+  status: String(item.status || 'Active'),
+  auctionStatus: mapSellingTypeLabel(item.sellingType),
+  image: getProductImage(item),
+  badge: mapSellingTypeLabel(item.sellingType),
+  views: '0',
+  favorites: 0,
+  featured: true,
+}))
       .sort((a, b) => {
         if (sortKey === 'price') {
           const left = Number(String(a.price).replace(/[^0-9]/g, '')) || 0;
@@ -3119,10 +3445,37 @@ export function VendorProductsPage() {
   const toggleSelect = (sku: string) => {
     setSelected((prev) => (prev.includes(sku) ? prev.filter((id) => id !== sku) : [...prev, sku]));
   };
+const handleQuickAction = (action: string, item: { name: string }) => {
+  alert(`${action} ${item.name}`);
+};
 
-  const handleQuickAction = (action: string, item: { name: string }) => {
-    alert(`${action} ${item.name}`);
-  };
+const handleDeleteProduct = async (
+  productId: number,
+  productName: string
+) => {
+  if (!confirm(`Are you sure you want to delete "${productName}"?`)) {
+    return;
+  }
+
+  try {
+    await deleteVendorProduct(productId);
+    console.log('Deleted product:', productId);
+
+    setProducts((prev) =>
+      prev.filter((product) => product.id !== productId)
+    );
+
+    setSelected((prev) =>
+      prev.filter((sku) => sku !== String(productId))
+    );
+  } catch (err) {
+    alert(
+      err instanceof Error
+        ? err.message
+        : 'Failed to delete product.'
+    );
+  }
+};
 
   return (
     <SectionShell title="Products" subtitle="Manage your active catalog and promotions" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Products' }]}>
@@ -3197,7 +3550,7 @@ export function VendorProductsPage() {
                   <SecondaryButton disabled={selected.length === 0} onClick={() => handleQuickAction('Publish', { name: `${selected.length} items` })}>Publish</SecondaryButton>
                   <SecondaryButton disabled={selected.length === 0} onClick={() => handleQuickAction('Feature', { name: `${selected.length} items` })}>Feature</SecondaryButton>
                   <SecondaryButton disabled={selected.length === 0} onClick={() => handleQuickAction('Archive', { name: `${selected.length} items` })}>Archive</SecondaryButton>
-                  <SecondaryButton disabled={selected.length === 0} onClick={() => handleQuickAction('Delete', { name: `${selected.length} items` })}>Delete</SecondaryButton>
+
                 </div>
               </div>
 

@@ -68,8 +68,8 @@ export async function getCustomerProfile(): Promise<CustomerProfileResponse> {
 }
 
 export async function saveCustomerProfile(payload: CustomerProfileRequest): Promise<CustomerProfileResponse> {
-  const response = await fetchJson<ApiResponse<CustomerProfileResponse>>('/api/customers/profile', {
-    method: 'POST',
+  const response = await fetchJson<ApiResponse<CustomerProfileResponse>>('/api/customer/profile', {
+    method: 'PUT',
     body: JSON.stringify(payload),
   });
   if (!response?.data) {

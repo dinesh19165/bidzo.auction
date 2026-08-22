@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, Bell, Boxes, CheckCircle2, Clock3, CreditCard, Download, FileText, Filter, Gavel, Globe, LayoutGrid, Megaphone, MessageSquare, Plus, Search, Settings2, ShieldCheck, Store, TrendingUp, Truck, Users, Wallet2 } from 'lucide-react';
 import { AdminShell } from '../../components/admin/AdminShell';
@@ -9,6 +9,10 @@ import { ResponsiveContainer, BarChart, Bar, LineChart, Line, CartesianGrid, XAx
 import { adminStats, chartSeries, franchiseDashboardKpis, rolePermissions } from '../../data/mockData';
 import { Link } from 'react-router-dom';
 import Logo from '../../components/Logo';
+import { useAuth } from '../../context/AuthContext';
+import { approveVendor, getPendingVendorApprovals, rejectVendor, type ApprovalRequest } from '../../api/approvalApi';
+import { approveAdminWithdrawal, getAdminWalletSummary, getAdminWalletTransactions, getPendingAdminWithdrawals, rejectAdminWithdrawal, type AdminWalletSummary, type AdminWalletTransaction, type AdminWithdrawal } from '../../api/adminWalletApi';
+import { EmptyState, ErrorState, SkeletonTable } from '../../components/loading/LoadingComponents';
 
 const dashboardKpis = [
   { label: 'Total Customers', value: '18.2k', trend: '+12%' },
@@ -47,13 +51,6 @@ const pieData = [
   { name: 'Approved', value: 74 },
   { name: 'Pending', value: 16 },
   { name: 'Needs changes', value: 10 },
-];
-
-const approvalRows = [
-  { name: 'Nova Tech', type: 'Vendor', submitted: '2h ago', risk: 'Medium' },
-  { name: 'West Coast Franchise', type: 'Franchise', submitted: '3h ago', risk: 'High' },
-  { name: 'Apex Motors', type: 'Product', submitted: '5h ago', risk: 'Low' },
-  { name: 'Blue Leaf Auction', type: 'Auction', submitted: '6h ago', risk: 'Medium' },
 ];
 
 const activityRows = [
@@ -341,8 +338,44 @@ export function RolePermissionMatrixPage() {
 }
 
 export function ApprovalCenterPage() {
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<number | string | null>(null);
+
+  const loadApprovals = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setApprovals(await getPendingVendorApprovals());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load approvals.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadApprovals();
+  }, []);
+
+  const handleAction = async (approval: ApprovalRequest, action: 'approve' | 'reject') => {
+    setProcessingId(approval.vendorProfileId);
+    setActionError(null);
+    try {
+      if (action === 'approve') await approveVendor(approval.vendorProfileId);
+      if (action === 'reject') await rejectVendor(approval.vendorProfileId);
+      await loadApprovals();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Unable to update approval.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Approval Center" breadcrumbs={[{ label: 'Admin' }, { label: 'Approvals' }]} activePath="/admin/approvals" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />}>Bulk approve</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Approval Center" breadcrumbs={[{ label: 'Admin' }, { label: 'Approvals' }]} activePath="/admin/approvals" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />} onClick={loadApprovals}>Refresh</PrimaryButton>}>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-6">
           <div className="flex items-center justify-between">
@@ -350,25 +383,28 @@ export function ApprovalCenterPage() {
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Pending review</p>
               <h3 className="mt-1 text-lg font-semibold text-white">Requests awaiting decision</h3>
             </div>
-            <Badge className="bg-amber-500/10 text-amber-200">4 objects</Badge>
+            <Badge className="bg-amber-500/10 text-amber-200">{approvals.length} objects</Badge>
           </div>
           <div className="mt-4 space-y-3">
-            {approvalRows.map((row) => (
-              <div key={row.name} className="rounded-[18px] border border-white/10 bg-white/5 p-4">
+            {error ? <ErrorState title="Unable to load approvals" description={error} /> : null}
+            {actionError ? <ErrorState title="Approval update failed" description={actionError} /> : null}
+            {loading ? <SkeletonTable /> : approvals.length === 0 ? <EmptyState title="No pending approvals" description="There are no approval requests awaiting a decision." /> : approvals.map((row) => {
+              const busy = processingId === row.vendorProfileId;
+              return <div key={row.vendorProfileId} className="rounded-[18px] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-white">{row.name}</p>
-                    <p className="text-sm text-slate-400">{row.type} • {row.submitted}</p>
+                    <p className="font-semibold text-white">{row.businessName}</p>
+                    <p className="text-sm text-slate-400">{row.username || row.email || `User #${row.userId}`} • {row.verificationStatus}</p>
                   </div>
-                  <Badge>{row.risk}</Badge>
+                  <Badge>{row.verificationStatus}</Badge>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <PrimaryButton>Approve</PrimaryButton>
-                  <SecondaryButton>Reject</SecondaryButton>
-                  <SecondaryButton>Request changes</SecondaryButton>
+                  <PrimaryButton disabled={busy} onClick={() => handleAction(row, 'approve')}>Approve</PrimaryButton>
+                  <SecondaryButton disabled={busy} onClick={() => handleAction(row, 'reject')}>Reject</SecondaryButton>
+                  <SecondaryButton disabled={busy}>Request changes</SecondaryButton>
                 </div>
-              </div>
-            ))}
+              </div>;
+            })}
           </div>
         </Card>
         <Card className="p-6">
@@ -478,28 +514,38 @@ export function ReportsPage() {
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@bidzo.com');
-  const [password, setPassword] = useState('admin123');
+  const { login, clearSession } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    clearSession();
+  }, [clearSession]);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!email || !password) {
       setError('Enter email and password to continue.');
       return;
     }
 
-    const fakeAdminUser = {
-      id: 'admin-1',
-      name: 'Bidzo Admin',
-      email,
-      type: 'admin',
-      role: 'SUPER_ADMIN',
-      token: 'mock-admin-token',
-    };
-
-    localStorage.setItem('bidzo_user', JSON.stringify(fakeAdminUser));
-    navigate('/admin/super-dashboard', { replace: true });
+    setSubmitting(true);
+    setError('');
+    try {
+      const user = await login(email, password);
+      if (!['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user.role || '')) {
+        clearSession();
+        throw new Error('Admin access required');
+      }
+      navigate('/admin/super-dashboard', { replace: true });
+    } catch (err) {
+      clearSession();
+      setError(err instanceof Error ? err.message : 'Unable to sign in.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -525,7 +571,7 @@ export function AdminLoginPage() {
 
           {error ? <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
 
-          <PrimaryButton type="submit" fullWidth className="mt-2">Access dashboard</PrimaryButton>
+          <PrimaryButton type="submit" fullWidth className="mt-2" disabled={submitting}>{submitting ? 'Signing in…' : 'Access dashboard'}</PrimaryButton>
         </form>
       </div>
     </div>
@@ -710,29 +756,105 @@ export function DeliveryManagementAdminPage() {
 }
 
 export function WalletManagementAdminPage() {
-  const [transactions] = useState([
-    { id: 'W-101', type: 'Vendor payout', amount: '₹1,24,000', status: 'Completed', date: '12 Aug 2026' },
-    { id: 'W-102', type: 'Platform commission', amount: '₹86,500', status: 'Pending', date: '12 Aug 2026' },
-    { id: 'W-103', type: 'Customer withdrawal', amount: '₹18,500', status: 'Completed', date: '11 Aug 2026' },
-    { id: 'W-104', type: 'Refund', amount: '₹7,200', status: 'Queued', date: '11 Aug 2026' },
-  ]);
+  const [summary, setSummary] = useState<AdminWalletSummary | null>(null);
+  const [transactions, setTransactions] = useState<AdminWalletTransaction[]>([]);
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<AdminWithdrawal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingLoading, setPendingLoading] = useState(true);
+  const [pendingError, setPendingError] = useState<string | null>(null);
+  const [processingWithdrawalId, setProcessingWithdrawalId] = useState<number | string | null>(null);
+
+  const loadWallet = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [summaryResponse, transactionResponse] = await Promise.all([getAdminWalletSummary(), getAdminWalletTransactions()]);
+      setSummary(summaryResponse);
+      setTransactions(transactionResponse);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load wallet data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadWallet(); }, []);
+
+  const loadPendingWithdrawals = async () => {
+    setPendingLoading(true);
+    setPendingError(null);
+    try {
+      setPendingWithdrawals(await getPendingAdminWithdrawals());
+    } catch (err) {
+      setPendingError(err instanceof Error ? err.message : 'Unable to load pending withdrawals.');
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  useEffect(() => { loadPendingWithdrawals(); }, []);
+
+  const updatePendingWithdrawal = async (withdrawal: AdminWithdrawal, action: 'approve' | 'reject') => {
+    setProcessingWithdrawalId(withdrawal.id);
+    setPendingError(null);
+    try {
+      if (action === 'approve') {
+        await approveAdminWithdrawal(withdrawal.id);
+      } else {
+        await rejectAdminWithdrawal(withdrawal.id);
+      }
+      await Promise.all([loadPendingWithdrawals(), loadWallet()]);
+    } catch (err) {
+      setPendingError(err instanceof Error ? err.message : `Unable to ${action} withdrawal.`);
+    } finally {
+      setProcessingWithdrawalId(null);
+    }
+  };
+
+  const summaryValue = summary?.pendingAmount === undefined || summary?.pendingAmount === null
+    ? '-'
+    : String(summary.pendingAmount);
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="Wallet management" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<Wallet2 className="h-4 w-4" />}>Export ledger</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Wallet management" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<Wallet2 className="h-4 w-4" />} onClick={loadWallet}>Export ledger</PrimaryButton>}>
       <div className="grid gap-4 md:grid-cols-4">
-        {[['Gross wallet', '₹4.8Cr'], ['Platform balance', '₹1.2Cr'], ['Pending disbursal', '₹22.4L'], ['Refund queue', '₹8.9L']].map(([label, value]) => (
-          <Card key={label} className="p-5"><p className="text-sm text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{value}</p></Card>
+        {['Gross wallet', 'Platform balance', 'Pending disbursal', 'Refund queue'].map((label) => (
+          <Card key={label} className="p-5"><p className="text-sm text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{loading ? '…' : label === 'Pending disbursal' ? summaryValue : '-'}</p></Card>
         ))}
       </div>
 
       <Card className="mt-6 p-4">
-        <Table columns={[
+        {error ? <ErrorState title="Unable to load wallet" description={error} /> : loading ? <SkeletonTable /> : transactions.length === 0 ? <EmptyState title="No wallet transactions" description="Wallet transactions will appear here when available." /> : <Table columns={[
           { key: 'id', label: 'ID' },
           { key: 'type', label: 'Type' },
           { key: 'amount', label: 'Amount' },
           { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-200' : row.status === 'Pending' ? 'bg-amber-500/10 text-amber-200' : 'bg-blue-500/10 text-blue-200'}>{row.status}</Badge> },
           { key: 'date', label: 'Date' },
-        ]} data={transactions} className="p-0" />
+        ]} data={transactions.map((transaction) => ({ ...transaction, date: transaction.date || transaction.createdAt || '-' }))} className="p-0" />}
+      </Card>
+
+      <Card className="mt-6 p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Pending payouts</p>
+            <h3 className="mt-1 text-lg font-semibold text-white">Vendor withdrawal requests</h3>
+          </div>
+          <Badge className="bg-amber-500/10 text-amber-200">{pendingWithdrawals.length} pending</Badge>
+        </div>
+        {pendingError ? <ErrorState title="Unable to load pending payouts" description={pendingError} /> : pendingLoading ? <SkeletonTable /> : pendingWithdrawals.length === 0 ? <EmptyState title="No pending payouts" description="Pending vendor withdrawals will appear here." /> : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="text-slate-400"><tr><th className="px-3 py-3">Withdrawal ID</th><th className="px-3 py-3">Vendor</th><th className="px-3 py-3">Amount</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Date</th><th className="px-3 py-3">Actions</th></tr></thead>
+              <tbody className="text-slate-300">
+                {pendingWithdrawals.map((withdrawal) => {
+                  const busy = processingWithdrawalId === withdrawal.id;
+                  return <tr key={withdrawal.id} className="border-t border-white/6"><td className="px-3 py-3">{withdrawal.id}</td><td className="px-3 py-3">{withdrawal.businessName || '-'}</td><td className="px-3 py-3">₹{Number(withdrawal.amount || 0).toLocaleString('en-IN')}</td><td className="px-3 py-3"><Badge className="bg-amber-500/10 text-amber-200">{String(withdrawal.status || 'PENDING')}</Badge></td><td className="px-3 py-3">{String(withdrawal.requestedAt || withdrawal.createdAt || '-')}</td><td className="px-3 py-3"><div className="flex gap-2"><PrimaryButton className="min-h-0 px-3 py-2 text-xs" disabled={busy} onClick={() => updatePendingWithdrawal(withdrawal, 'approve')}>{busy ? 'Working…' : 'Approve'}</PrimaryButton><SecondaryButton className="min-h-0 px-3 py-2 text-xs" disabled={busy} onClick={() => updatePendingWithdrawal(withdrawal, 'reject')}>Reject</SecondaryButton></div></td></tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
@@ -1381,7 +1503,70 @@ export function DeliveryAssignmentsPage() { return <AdminShell title="Enterprise
 export function DeliveryPerformancePage() { return <AdminShell title="Enterprise admin" subtitle="Delivery performance" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery', to: '/admin/delivery' }, { label: 'Performance' }]} activePath="/admin/delivery" actions={<PrimaryButton icon={<TrendingUp className="h-4 w-4" />}>View stats</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>On-time rate: 96.2%</p><p>Avg delivery: 2.4 days</p><p>Failed deliveries: 18</p></div></Card></AdminShell>; }
 
 export function WalletTransactionsPage() { return <AdminShell title="Enterprise admin" subtitle="Wallet transactions" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet', to: '/admin/wallet' }, { label: 'Transactions' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'id', label: 'ID' }, { key: 'type', label: 'Type' }, { key: 'amount', label: 'Amount' }, { key: 'status', label: 'Status' }]} data={[{id:'W-101', type:'Vendor payout', amount:'₹1,24,000', status:'Completed'}, {id:'W-102', type:'Platform commission', amount:'₹86,500', status:'Pending'}]} className="p-0" /></Card></AdminShell>; }
-export function WalletWithdrawalsPage() { return <AdminShell title="Enterprise admin" subtitle="Withdrawals" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet', to: '/admin/wallet' }, { label: 'Withdrawals' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<Wallet2 className="h-4 w-4" />}>Review</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'id', label: 'ID' }, { key: 'amount', label: 'Amount' }, { key: 'status', label: 'Status' }]} data={[{id:'WD-201', amount:'₹18,500', status:'Pending'}, {id:'WD-202', amount:'₹24,000', status:'Completed'}]} className="p-0" /></Card></AdminShell>; }
+export function WalletWithdrawalsPage() {
+  const [withdrawals, setWithdrawals] = useState<AdminWithdrawal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<number | string | null>(null);
+
+  const loadWithdrawals = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setWithdrawals(await getPendingAdminWithdrawals());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load pending withdrawals.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWithdrawals();
+  }, []);
+
+  const updateWithdrawal = async (withdrawal: AdminWithdrawal, action: 'approve' | 'reject') => {
+    setProcessingId(withdrawal.id);
+    setError(null);
+    setMessage(null);
+    try {
+      if (action === 'approve') {
+        await approveAdminWithdrawal(withdrawal.id);
+      } else {
+        await rejectAdminWithdrawal(withdrawal.id);
+      }
+      setWithdrawals((current) => current.filter((item) => item.id !== withdrawal.id));
+      setMessage(`Withdrawal ${action}d successfully.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Unable to ${action} withdrawal.`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  return (
+    <AdminShell title="Enterprise admin" subtitle="Withdrawals" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet', to: '/admin/wallet' }, { label: 'Withdrawals' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<Wallet2 className="h-4 w-4" />} onClick={loadWithdrawals}>Refresh</PrimaryButton>}>
+      <Card className="p-4">
+        {error ? <div className="mb-4"><ErrorState title="Withdrawal error" description={error} /></div> : null}
+        {message ? <div className="mb-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}
+        {loading ? <SkeletonTable /> : withdrawals.length === 0 ? <EmptyState title="No pending withdrawals" description="New vendor withdrawal requests will appear here." /> : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[680px] text-left text-sm">
+              <thead className="text-slate-400"><tr><th className="px-3 py-3">ID</th><th className="px-3 py-3">Vendor</th><th className="px-3 py-3">Amount</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Actions</th></tr></thead>
+              <tbody className="text-slate-300">
+                {withdrawals.map((withdrawal) => {
+                  const busy = processingId === withdrawal.id;
+                  return <tr key={withdrawal.id} className="border-t border-white/6"><td className="px-3 py-3">{withdrawal.id}</td><td className="px-3 py-3">{String(withdrawal.vendorName || withdrawal.vendorEmail || 'Vendor')}</td><td className="px-3 py-3">₹{Number(withdrawal.amount || 0).toLocaleString('en-IN')}</td><td className="px-3 py-3">{String(withdrawal.status || 'PENDING')}</td><td className="px-3 py-3"><div className="flex gap-2"><PrimaryButton className="min-h-0 px-3 py-2 text-xs" disabled={busy} onClick={() => updateWithdrawal(withdrawal, 'approve')}>{busy ? 'Working…' : 'Approve'}</PrimaryButton><SecondaryButton className="min-h-0 px-3 py-2 text-xs" disabled={busy} onClick={() => updateWithdrawal(withdrawal, 'reject')}>Reject</SecondaryButton></div></td></tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </AdminShell>
+  );
+}
 export function WalletRefundsPage() { return <AdminShell title="Enterprise admin" subtitle="Refunds" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet', to: '/admin/wallet' }, { label: 'Refunds' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<CreditCard className="h-4 w-4" />}>Review</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'id', label: 'ID' }, { key: 'amount', label: 'Amount' }, { key: 'status', label: 'Status' }]} data={[{id:'RF-301', amount:'₹7,200', status:'Queued'}, {id:'RF-302', amount:'₹3,400', status:'Completed'}]} className="p-0" /></Card></AdminShell>; }
 export function WalletSettlementsPage() { return <AdminShell title="Enterprise admin" subtitle="Settlements" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet', to: '/admin/wallet' }, { label: 'Settlements' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<Wallet2 className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'id', label: 'ID' }, { key: 'amount', label: 'Amount' }, { key: 'status', label: 'Status' }]} data={[{id:'SET-401', amount:'₹1,25,000', status:'Queued'}, {id:'SET-402', amount:'₹96,000', status:'Completed'}]} className="p-0" /></Card></AdminShell>; }
 export function WalletCommissionsPage() { return <AdminShell title="Enterprise admin" subtitle="Commissions" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet', to: '/admin/wallet' }, { label: 'Commissions' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<TrendingUp className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'id', label: 'ID' }, { key: 'amount', label: 'Amount' }, { key: 'status', label: 'Status' }]} data={[{id:'COM-501', amount:'₹86,500', status:'Pending'}, {id:'COM-502', amount:'₹72,000', status:'Completed'}]} className="p-0" /></Card></AdminShell>; }

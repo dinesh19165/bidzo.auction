@@ -32,9 +32,10 @@ export async function createOrder(request: OrderRequestDto): Promise<OrderRespon
   return response.data;
 }
 
-export async function createAuctionOrder(auctionId: number): Promise<OrderResponseDto> {
+export async function createAuctionOrder(auctionId: number, addressId: number): Promise<OrderResponseDto> {
   const response = await fetchJson<ApiResponse<OrderResponseDto>>(`/api/auctions/${auctionId}/order`, {
     method: 'POST',
+    body: JSON.stringify({ addressId }),
   });
   if (!response?.data) {
     throw new Error(response?.message || 'Failed to create auction order');

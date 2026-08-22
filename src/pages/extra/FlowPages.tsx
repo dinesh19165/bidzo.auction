@@ -10,6 +10,8 @@ import AuctionForm from '../../components/AuctionForm';
 import UploadField from '../../components/forms/UploadField';
 import { useAuth } from '../../context/AuthContext';
 import { createAuctionOrder, getOrderById } from '../../api/orderApi';
+import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
+import type { AddressResponse } from '../../api/addressApi';
 import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentApi';
 import { createVendorProduct, getVendorProducts, type SellingType } from '../../api/vendorProductApi';
 import { createProductImage, createBuyNowOrder } from '../../api/productApi';
@@ -17,6 +19,7 @@ import { uploadToCloudinary } from '../../services/cloudinaryUpload';
 import { getWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
 import { createAuction, getAuctions } from '../../api/auctionApi';
 import { getVendorProfile } from '../../api/vendorApi';
+import { getVendorAuctions } from '../../api/vendorAuctionApi';
 import type { OrderResponseDto, RazorpayOrderResponse } from '../../types';
 import { addMockBid, advanceAuctionClock, beginFinalPayment, enterLiveAuctionRoom, goToMarketplace, initializeAuctionFlowState, initializeAuctionFlowStateForAuction, markInvoiceReady, markOrderConfirmed, placeBid, readAuctionFlowState, resolveAuctionOutcome, startAuctionFlow, type AuctionFlowState, writeAuctionFlowState, setSelectedAuctionId, isAuctionRegistered, markAuctionAsRegistered, getSelectedAuctionId, readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 
@@ -359,7 +362,7 @@ export function CustomerWatchAuctionPage() {
         const auctions = await getAuctions();
         if (!active) return;
 
-        const candidate = auctions.find((item: { status: string }) => item.status === 'Live') ?? auctions.find((item: { status: string }) => item.status === 'Upcoming') ?? auctions[0] ?? null;
+        const candidate = auctions.find((item: { status: string }) => item.status === 'Live') ?? auctions.find((item: { status: string }) => item.status === 'Upcoming') ?? null;
         if (!candidate) {
           setRuntimeAuction(null);
           setSelectedAuctionIdState(null);
@@ -760,7 +763,7 @@ export function CustomerAuctionLivePage() {
         const auctions = await getAuctions();
         if (!active) return;
 
-        const candidate = auctions.find((item: { status: string }) => item.status === 'Live') ?? auctions.find((item: { status: string }) => item.status === 'Upcoming') ?? auctions[0] ?? null;
+        const candidate = auctions.find((item: { status: string }) => item.status === 'Live') ?? auctions.find((item: { status: string }) => item.status === 'Upcoming') ?? null;
         if (!candidate) {
           setRuntimeAuction(null);
           return;
@@ -1327,6 +1330,11 @@ export function CustomerCheckoutPage() {
 
 export function CustomerAddressPage() {
   const [flowState] = useState<AuctionFlowState>(() => readAuctionFlowState());
+  const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(() => {
+    const saved = readAuctionFlowState();
+    return saved.addressId ? ({ id: saved.addressId } as AddressResponse) : null;
+  });
+  const navigate = useNavigate();
 
   useAuctionFlowBackGuard(true);
 
@@ -1345,12 +1353,9 @@ export function CustomerAddressPage() {
   return (
     <SectionShell title="Address" subtitle="Choose where your order should be delivered">
       <FlowBreadcrumbs steps={[{ label: 'Checkout', to: '/customer/checkout' }, { label: 'Address', to: '/customer/address' }, { label: 'Shipping', to: '/customer/shipping' }]} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        {['Home • 12, 4th Cross, Bengaluru', 'Office • 54, Marine Drive, Mumbai'].map((address) => (
-          <div key={address} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">{address}</div>
-        ))}
-      </div>
-      <Link to="/customer/shipping" className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to shipping <ArrowRight className="h-4 w-4" /></Link>
+      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={setSelectedAddress} /></div>
+      {!selectedAddress ? <p className="mt-4 text-sm text-amber-300">Please select a delivery address before continuing to payment.</p> : null}
+      <button type="button" disabled={!selectedAddress} onClick={() => { const next = writeAuctionFlowState({ ...readAuctionFlowState(), addressId: selectedAddress!.id }); navigate('/customer/shipping'); }} className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">Continue to shipping <ArrowRight className="h-4 w-4" /></button>
     </SectionShell>
   );
 }
@@ -1452,7 +1457,8 @@ export function CustomerPaymentPage() {
 
         if (!currentOrder) {
           try {
-            currentOrder = await createAuctionOrder(flowState.auctionId);
+            if (!flowState.addressId) throw new Error('Please select a delivery address before continuing to payment.');
+            currentOrder = await createAuctionOrder(flowState.auctionId, flowState.addressId);
             saveStoredAuctionOrderId(flowState.auctionId, currentOrder.id);
           } catch (createError: any) {
             const message = String(createError?.message || 'Unable to create auction order');
@@ -1603,6 +1609,7 @@ export function CustomerPaymentPage() {
             <p className="text-sm text-slate-400">Order</p>
             <p className="mt-1 text-lg font-semibold text-white">{order?.orderNumber || `#${order?.id}`}</p>
             <p className="mt-1 text-sm text-slate-400">Status: {order?.orderStatus || 'Pending'}</p>
+            <p className="mt-1 text-sm text-slate-400">Delivery: {typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : order?.deliveryAddress ? JSON.stringify(order.deliveryAddress) : 'Selected delivery address'}</p>
           </div>
           <div className="text-right">
             <p className="text-sm text-slate-400">Total amount</p>
@@ -1815,6 +1822,7 @@ export function CustomerReviewPage() {
 }
 
 export function VendorCreateProductWizardPage() {
+  const navigate = useNavigate();
   const categoryFields: Record<string, string[]> = {
     Electronics: ['Brand', 'Model', 'RAM', 'Storage', 'Warranty'],
     Vehicles: ['Brand', 'Fuel', 'Mileage', 'Transmission', 'RC'],
@@ -1856,6 +1864,12 @@ export function VendorCreateProductWizardPage() {
     const normalizedQuantity = Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? Math.trunc(parsedQuantity) : 0;
     const normalizedSellingType = String(draft.sellingType || 'DIRECT_BUY').trim().toUpperCase();
     const sku = String(draft.sku || '').trim() || `${safeName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '').toUpperCase() || 'PRODUCT'}-${Date.now()}`;
+    const rawFields = draft.fields && typeof draft.fields === 'object' ? draft.fields : {};
+    const normalizedFields: Record<string, string> = Object.fromEntries(
+      Object.entries(rawFields)
+        .filter(([key, value]) => typeof key === 'string' && key.trim() !== '' && typeof value === 'string' && value.trim() !== '')
+        .map(([key, value]) => [key.trim(), String(value).trim()])
+    );
 
     return {
       name: safeName,
@@ -1866,6 +1880,7 @@ export function VendorCreateProductWizardPage() {
       status: String(draft.status || 'PUBLISHED').toUpperCase(),
       categoryId: Number(draft.categoryId ?? 2),
       sellingType: (normalizedSellingType === 'AUCTION' || normalizedSellingType === 'DIRECT_BUY' ? normalizedSellingType : 'DIRECT_BUY') as SellingType,
+      fields: normalizedFields,
     };
   };
 
@@ -1893,7 +1908,10 @@ export function VendorCreateProductWizardPage() {
           return;
         }
 
-        const createdProduct = await createVendorProduct(buildProductPayload(formData));
+        const productPayload = buildProductPayload(formData);
+        console.log('PRODUCT PAYLOAD BEFORE API:', productPayload);
+        console.log('PRODUCT FIELDS BEFORE API:', productPayload.fields);
+        const createdProduct = await createVendorProduct(productPayload);
         const productId = Number(createdProduct?.id ?? 0);
 
         if (!productId) {
@@ -1904,6 +1922,11 @@ export function VendorCreateProductWizardPage() {
           url: resolvedPublicImageUrl,
           altText: `${String(formData.title || 'Product').trim() || 'Product'} Main Image`,
         });
+
+        if (productPayload.sellingType === 'AUCTION') {
+          navigate(`/vendor/create-auction-wizard?productId=${productId}`);
+          return;
+        }
 
         setStep(9);
       } catch (error) {
@@ -1960,7 +1983,7 @@ export function VendorCreateProductWizardPage() {
               <p className="text-sm text-slate-400">Choose the category for the product.</p>
               <div className="grid gap-3 md:grid-cols-2">
                 {Object.keys(categoryFields).map((c) => (
-                  <button key={c} onClick={() => setFormData({ ...formData, category: c })} className={`rounded-2xl border px-4 py-3 text-left text-sm ${formData.category === c ? 'border-blue-500/40 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}>{c}</button>
+                  <button key={c} onClick={() => setFormData((prev: any) => ({ ...prev, category: c }))} className={`rounded-2xl border px-4 py-3 text-left text-sm ${formData.category === c ? 'border-blue-500/40 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}>{c}</button>
                 ))}
               </div>
             </div>
@@ -1968,14 +1991,14 @@ export function VendorCreateProductWizardPage() {
 
           {step === 2 && (
             <div className="space-y-4">
-              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="Listing title" />
-              <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Short description" />
+              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.title} onChange={(e) => setFormData((prev: any) => ({ ...prev, title: e.target.value }))} placeholder="Listing title" />
+              <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.description} onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))} placeholder="Short description" />
             </div>
           )}
 
           {step === 3 && (
             <div>
-              <ProductForm initial={formData} categoryFields={categoryFields} requiredFields={requiredFields} onValidate={(v) => setProductFormValid(v)} onChange={(data) => setFormData({ ...formData, ...data })} />
+              <ProductForm initial={formData} categoryFields={categoryFields} requiredFields={requiredFields} onValidate={(v) => setProductFormValid(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />
             </div>
           )}
 
@@ -1983,7 +2006,7 @@ export function VendorCreateProductWizardPage() {
             <div>
               <p className="text-sm text-slate-400">Select an image and upload it to the configured Cloudinary unsigned preset. The backend image API requires a permanent public URL, not a browser blob URL.</p>
               <div className="mt-3">
-                <UploadField onChange={(files) => { setUploadedImages(files); setFormData({ ...formData, images: files }); }} />
+                <UploadField onChange={(files) => { setUploadedImages(files); setFormData((prev: any) => ({ ...prev, images: files })); }} />
               </div>
               <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
                 <label className="mb-2 block text-sm font-medium text-slate-200">Cloudinary public URL</label>
@@ -2003,9 +2026,9 @@ export function VendorCreateProductWizardPage() {
           {step === 5 && (
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-[1.3fr_1fr_0.8fr]">
-                <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} placeholder="Price" />
-                <input type="number" min="0" step="1" className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.quantity ?? ''} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} placeholder="Quantity" />
-                <select className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.sellingType || 'DIRECT_BUY'} onChange={(e) => setFormData({ ...formData, sellingType: e.target.value })}>
+                <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.price} onChange={(e) => setFormData((prev: any) => ({ ...prev, price: e.target.value }))} placeholder="Price" />
+                <input type="number" min="0" step="1" className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.quantity ?? ''} onChange={(e) => setFormData((prev: any) => ({ ...prev, quantity: e.target.value }))} placeholder="Quantity" />
+                <select className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.sellingType || 'DIRECT_BUY'} onChange={(e) => setFormData((prev: any) => ({ ...prev, sellingType: e.target.value }))}>
                   <option value="DIRECT_BUY">Direct Buy</option>
                   <option value="AUCTION">Auction</option>
                 </select>
@@ -2016,7 +2039,7 @@ export function VendorCreateProductWizardPage() {
 
           {step === 6 && (
             <div className="space-y-4">
-              <select className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.shipping || 'Express'} onChange={(e) => setFormData({ ...formData, shipping: e.target.value })}>
+              <select className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.shipping || 'Express'} onChange={(e) => setFormData((prev: any) => ({ ...prev, shipping: e.target.value }))}>
                 <option>Express</option>
                 <option>Standard</option>
                 <option>Pickup</option>
@@ -2125,27 +2148,27 @@ export function VendorEditProductWizardPage() {
         >
           {step === 1 && (
             <div className="space-y-4">
-              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} />
-              <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.title} onChange={(e) => setFormData((prev: any) => ({ ...prev, title: e.target.value }))} />
+              <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.description} onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))} />
             </div>
           )}
 
           {step === 2 && (
-            <ProductForm initial={formData} categoryFields={categoryFields} requiredFields={requiredFieldsEdit} onValidate={(v) => setProductFormValidEdit(v)} onChange={(data) => setFormData({ ...formData, ...data })} />
+            <ProductForm initial={formData} categoryFields={categoryFields} requiredFields={requiredFieldsEdit} onValidate={(v) => setProductFormValidEdit(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />
           )}
 
           {step === 3 && (
             <div>
               <p className="text-sm text-slate-400">Manage product images and media.</p>
               <div className="mt-3">
-                <UploadField onChange={(files) => setFormData({ ...formData, images: files })} />
+                <UploadField onChange={(files) => setFormData((prev: any) => ({ ...prev, images: files }))} />
               </div>
             </div>
           )}
 
           {step === 4 && (
             <div className="space-y-4">
-              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} />
+              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.price} onChange={(e) => setFormData((prev: any) => ({ ...prev, price: e.target.value }))} />
             </div>
           )}
 
@@ -2179,6 +2202,7 @@ export function VendorCreateAuctionWizardPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const typeParam = searchParams.get('type');
+  const requestedProductId = Number(searchParams.get('productId') || 0);
   const isBikeAuction = typeParam === 'bike';
 
   const steps = ['Settings', 'Details', 'Preview', 'Publish'];
@@ -2219,7 +2243,8 @@ export function VendorCreateAuctionWizardPage() {
 
         setProducts(availableProducts);
 
-        const firstProductId = availableProducts[0]?.id ?? null;
+        const requestedProduct = availableProducts.find((product) => product.id === requestedProductId);
+        const firstProductId = requestedProduct?.id ?? availableProducts[0]?.id ?? null;
         setSelectedProductId(firstProductId);
         setData((prev: any) => ({
           ...prev,
@@ -2276,6 +2301,11 @@ export function VendorCreateAuctionWizardPage() {
         throw new Error('Both start and end times are required.');
       }
 
+      const existingAuctions = await getVendorAuctions();
+      if (existingAuctions.some((auction) => Number(auction.productId) === productId)) {
+        throw new Error('This product already has an auction.');
+      }
+
       const payload = {
         title: String(data.title || '').trim(),
         description: String(data.description || '').trim(),
@@ -2288,7 +2318,7 @@ export function VendorCreateAuctionWizardPage() {
 
       const createdAuction = await createAuction(payload);
       setSubmitSuccess(`Auction created successfully: ${createdAuction.title} (${createdAuction.status || 'LIVE'})`);
-      navigate('/vendor/auction-analytics', { replace: true });
+      navigate(`/auctions/${createdAuction.id}`, { replace: true });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Unable to create auction');
     } finally {

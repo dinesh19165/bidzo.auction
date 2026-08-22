@@ -6,6 +6,7 @@ import { ProductCard } from '../components/cards/MarketplaceCards';
 import { getProductById, getProducts, type ProductListItem } from '../api/productApi';
 import { reviews as mockReviews } from '../data/mockData';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
+import { ProductSpecification } from '../components/marketplace/MarketplaceComponents';
 import { initializeBuyNowFlow } from '../utils/auctionFlowState';
 
 export function ProductDetailPage() {
@@ -152,14 +153,7 @@ export function ProductDetailPage() {
       </div>
 
       <div className="mt-8 grid gap-6 grid-cols-1 lg:grid-cols-3">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-          <h4 className="text-lg font-semibold text-white">Specifications</h4>
-          <div className="mt-4 space-y-2 text-sm text-slate-300">
-            {(product.specifications || []).map((s) => (
-              <div key={s.label} className="flex justify-between"><span className="text-slate-400">{s.label}</span><span className="font-medium text-white">{s.value}</span></div>
-            ))}
-          </div>
-        </div>
+        <ProductSpecification specs={product.specifications || []} />
 
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <h4 className="text-lg font-semibold text-white">Questions & Answers</h4>
