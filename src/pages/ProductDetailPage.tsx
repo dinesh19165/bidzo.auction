@@ -48,7 +48,7 @@ export function ProductDetailPage() {
 
   const handleBuyNow = () => {
     if (!product) return;
-    const priceNum = typeof product.price === 'string' ? parseFloat(product.price) : product.price;
+    const priceNum = Number(product.price.replace(/[^0-9.-]/g, '')) || 0;
     initializeBuyNowFlow(product.id, product.title, priceNum);
     navigate('/customer/buynow-confirm');
   };

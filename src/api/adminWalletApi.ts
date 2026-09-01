@@ -14,6 +14,7 @@ export interface AdminWalletSummary {
 export interface AdminWalletTransaction {
   id?: number | string;
   type?: string;
+  vendorName?: string | null;
   amount?: number | string;
   status?: string;
   date?: string;
@@ -23,11 +24,23 @@ export interface AdminWalletTransaction {
 
 export interface AdminWithdrawal {
   id: number | string;
+  vendorId?: number | string;
+  vendorName?: string;
+  vendorEmail?: string;
   businessName?: string;
   amount?: number | string;
   status?: string;
   createdAt?: string;
   requestedAt?: string;
+  accountHolderName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  bankAccountNumber?: string;
+  ifsc?: string;
+  ifscCode?: string;
+  branch?: string;
+  branchName?: string;
+  bankBranch?: string;
   [key: string]: unknown;
 }
 

@@ -22,6 +22,7 @@ import { getVendorOrders, type VendorOrderApiResponse } from '../../api/vendorOr
 import DeliveryAddressViewer from '../../components/orders/DeliveryAddressViewer';
 import { getVendorRevenue } from '../../api/vendorRevenueApi';
 import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
+import { updateVendorProfile, getVendorProfile, getVendorBankRecord, saveVendorBankRecord, type VendorProfileResponse, type VendorBankRecord } from '../../api/vendorApi';
 import { createVendorWithdrawal, getVendorWithdrawalBalance, getVendorWithdrawals, type WithdrawalBalance, type WithdrawalRecord } from '../../api/withdrawalApi';
 import { addresses, customerBids, invoices, notifications, popularSearches, recentlyViewed, reviews, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorProducts, vendorAuctions, vendorReports, vendorShippingRules, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
 
@@ -1932,6 +1933,8 @@ export function CustomerOrderDetailPage() {
 
   const address = order.deliveryAddress;
   const addressValue = (keys: string[]) => typeof address === 'object' && address ? String(keys.map((key) => address[key]).find((value) => value !== undefined && value !== null && value !== '') ?? '-') : '-';
+  const productDisplay = order.items?.map((item) => item.productName || item.name || (item.productId ? `Product #${item.productId}` : 'Product details unavailable')).filter(Boolean).join(', ') || 'Product unavailable';
+  const sellerDisplay = order.items?.map((item) => item.vendorName || item.sellerName).filter(Boolean).join(', ') || 'Not provided';
 
   return (
     <SectionShell title={`Order ${order.orderNumber || `#${order.id}`}`} subtitle="Order details and tracking information">
@@ -1948,13 +1951,13 @@ export function CustomerOrderDetailPage() {
             <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Order Summary</h3>
               <div className="space-y-3 text-sm text-slate-300">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-4">
                   <span>Product</span>
-                  <span className="text-white font-medium">{order.items?.map((item) => item.productName || item.name || `Product #${item.productId}`).join(', ') || 'No items'}</span>
+                  <span className="text-right text-white font-medium">{productDisplay}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-4">
                   <span>Seller</span>
-                  <span className="text-white font-medium">{order.items?.map((item) => item.vendorName || item.sellerName).filter(Boolean).join(', ') || 'Not provided'}</span>
+                  <span className="text-right text-white font-medium">{sellerDisplay}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Price</span>
@@ -2465,35 +2468,46 @@ export function VendorBusinessInfoPage() {
 
 export function VendorGstPage() {
   const [verification, setVerification] = useState<{ gstAndBank?: { status?: string; lastUpdated?: string; remarks?: string | null } } | null>(null);
+  const [profile, setProfile] = useState<VendorProfileResponse | null>(null);
+  const [gstNumber, setGstNumber] = useState('');
+  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [vendorProfile, status] = await Promise.all([getVendorProfile(), getVendorVerificationStatus()]);
+      setProfile(vendorProfile);
+      setGstNumber(vendorProfile.gstNumber ?? vendorProfile.gst ?? '');
+      setVerification(status);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load GST and bank status.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await getVendorVerificationStatus();
-        if (active) {
-          setVerification(response);
-        }
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : 'Unable to load GST and bank status.');
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
-
-    load();
-    return () => {
-      active = false;
-    };
+    void load();
   }, []);
+
+  const saveGst = async () => {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const nextProfile = await updateVendorProfile({ gstNumber: gstNumber.trim(), gst: gstNumber.trim() });
+      setProfile((current) => ({ ...(current ?? { id: 0 }), ...nextProfile, gstNumber: nextProfile.gstNumber ?? nextProfile.gst ?? gstNumber.trim(), gst: nextProfile.gst ?? nextProfile.gstNumber ?? gstNumber.trim() }));
+      setMessage('GST details saved successfully.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save GST details.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SectionShell title="GST details" subtitle="Tax compliance information for your seller account">
@@ -2505,6 +2519,26 @@ export function VendorGstPage() {
             `Remarks: ${verification?.gstAndBank?.remarks ?? 'No remarks'}`,
           ].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4">{item}</div>)}
         </div>
+
+        <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/50 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-white">GST number</h3>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-slate-300">{profile?.gstNumber || profile?.gst ? 'Saved' : 'Optional'}</span>
+          </div>
+
+          <label className="mt-4 block">
+            <span className="mb-2 block text-sm font-medium text-slate-300">GST / tax ID</span>
+            <input type="text" value={gstNumber} onChange={(event) => setGstNumber(event.target.value)} placeholder="Enter GST number or leave blank" className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40" />
+          </label>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <PrimaryButton disabled={saving || loading} onClick={saveGst}>{saving ? 'Saving…' : 'Save GST details'}</PrimaryButton>
+          </div>
+
+          <p className="mt-3 text-xs text-slate-400">GST is optional for onboarding, but it helps with compliance and tax reporting.</p>
+        </div>
+
+        {message ? <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}
         {error && <div className="mt-4"><ErrorState title="Verification error" description={error} /></div>}
         {loading && <div className="mt-4"><SkeletonCard /></div>}
       </div>
@@ -2513,34 +2547,175 @@ export function VendorGstPage() {
 }
 
 export function VendorBankPage() {
-  const [verification, setVerification] = useState<{ gstAndBank?: { status?: string; lastUpdated?: string; remarks?: string | null } } | null>(null);
+  const [profile, setProfile] = useState<VendorProfileResponse | null>(null);
+  const [bankRecord, setBankRecord] = useState<VendorBankRecord | null>(null);
+  const [bankProofFile, setBankProofFile] = useState<File | null>(null);
+  const [form, setForm] = useState({ accountHolderName: '', bankName: '', accountNumber: '', ifscCode: '', branchName: '' });
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     const load = async () => {
       try {
-        const response = await getVendorVerificationStatus();
+        const [vendorProfile, vendorBank] = await Promise.all([
+          getVendorProfile(),
+          getVendorBankRecord(),
+        ]);
+        if (!active) return;
+        setProfile(vendorProfile);
+        setBankRecord(vendorBank);
+
+        setForm({
+          accountHolderName: vendorBank?.accountHolderName ?? vendorBank?.account_holder_name ?? vendorProfile.accountHolderName ?? vendorProfile.account_holder_name ?? '',
+          bankName: vendorBank?.bankName ?? vendorBank?.bank_name ?? vendorProfile.bankName ?? vendorProfile.bank_name ?? '',
+          accountNumber: vendorBank?.accountNumber ?? vendorBank?.bankAccountNumber ?? vendorBank?.bank_account_number ?? vendorProfile.accountNumber ?? vendorProfile.bankAccountNumber ?? vendorProfile.bank_account_number ?? '',
+          ifscCode: vendorBank?.ifsc ?? vendorBank?.ifsc_code ?? vendorBank?.ifscCode ?? vendorProfile.ifsc ?? vendorProfile.ifsc_code ?? vendorProfile.ifscCode ?? '',
+          branchName: vendorBank?.branch ?? vendorBank?.branch_name ?? vendorBank?.branchName ?? vendorProfile.branchName ?? vendorProfile.branch_name ?? vendorProfile.bankBranch ?? vendorProfile.bank_branch ?? '',
+        });
+      } catch (err) {
         if (active) {
-          setVerification(response);
+          setError(err instanceof Error ? err.message : 'Unable to load bank details.');
         }
-      } catch {
-        // backend verification failure is surfaced by the status badge below
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
-    load();
+    void load();
     return () => {
       active = false;
     };
   }, []);
 
+  const saveBankDetails = async () => {
+    const cleaned = {
+      accountHolderName: form.accountHolderName.trim(),
+      accountNumber: form.accountNumber.trim(),
+      bankName: form.bankName.trim(),
+      ifsc: form.ifscCode.trim(),
+      branch: form.branchName.trim(),
+    };
+
+    if (!cleaned.bankName || !cleaned.accountNumber || !cleaned.ifsc || !cleaned.branch) {
+      setError('Bank name, account number, IFSC and branch are required for payouts.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const payload = {
+        accountHolderName: cleaned.accountHolderName,
+        bankName: cleaned.bankName,
+        accountNumber: cleaned.accountNumber,
+        ifsc: cleaned.ifsc,
+        branch: cleaned.branch,
+      };
+
+      await saveVendorBankRecord(payload);
+
+      const refreshed = await getVendorBankRecord();
+      setBankRecord(refreshed);
+      setProfile((current) => ({
+        ...(current ?? { id: 0 }),
+        accountHolderName: refreshed?.accountHolderName ?? refreshed?.account_holder_name ?? cleaned.accountHolderName,
+        bankName: refreshed?.bankName ?? refreshed?.bank_name ?? cleaned.bankName,
+        accountNumber: refreshed?.accountNumber ?? refreshed?.bankAccountNumber ?? cleaned.accountNumber,
+        ifsc: refreshed?.ifsc ?? refreshed?.ifscCode ?? cleaned.ifsc,
+        branch: refreshed?.branch ?? refreshed?.branchName ?? cleaned.branch,
+        account_holder_name: refreshed?.accountHolderName ?? refreshed?.account_holder_name ?? cleaned.accountHolderName,
+        bank_name: refreshed?.bankName ?? refreshed?.bank_name ?? cleaned.bankName,
+        bank_account_number: refreshed?.accountNumber ?? refreshed?.bankAccountNumber ?? cleaned.accountNumber,
+        ifsc_code: refreshed?.ifsc ?? refreshed?.ifscCode ?? cleaned.ifsc,
+        branch_name: refreshed?.branch ?? refreshed?.branchName ?? cleaned.branch,
+      }));
+      setForm({
+        accountHolderName: refreshed?.accountHolderName ?? refreshed?.account_holder_name ?? cleaned.accountHolderName,
+        bankName: refreshed?.bankName ?? refreshed?.bank_name ?? cleaned.bankName,
+        accountNumber: refreshed?.accountNumber ?? refreshed?.bankAccountNumber ?? cleaned.accountNumber,
+        ifscCode: refreshed?.ifsc ?? refreshed?.ifscCode ?? cleaned.ifsc,
+        branchName: refreshed?.branch ?? refreshed?.branchName ?? cleaned.branch,
+      });
+      setMessage('Bank details saved successfully.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save bank details.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasBankDetails = Boolean(profile?.bankAccountNumber || profile?.accountNumber || bankRecord?.accountNumber || form.accountNumber.trim());
+  const hasRequiredBankFields = Boolean(form.bankName.trim() && form.accountNumber.trim() && form.ifscCode.trim() && form.branchName.trim());
+
   return (
     <SectionShell title="Bank details" subtitle="Secure payout and settlement setup">
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          Bank verification: <span className={statusTone(verification?.gstAndBank?.status)}>{verification?.gstAndBank?.status ?? 'PENDING'}</span>
+        <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/50 p-5">
+          <h3 className="text-lg font-semibold text-white">Saved bank account</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Account holder: {bankRecord?.accountHolderName ?? bankRecord?.account_holder_name ?? 'Not provided yet'}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Bank name: {bankRecord?.bankName || profile?.bankName || 'Not provided yet'}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Account number: {bankRecord?.accountNumber || bankRecord?.bankAccountNumber || profile?.accountNumber || profile?.bankAccountNumber || 'Not provided yet'}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">IFSC: {bankRecord?.ifsc || bankRecord?.ifscCode || profile?.ifsc || profile?.ifscCode || 'Not provided yet'}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 md:col-span-2">Branch: {bankRecord?.branch || bankRecord?.branchName || bankRecord?.bankBranch || profile?.branchName || profile?.bankBranch || 'Not provided yet'}</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 md:col-span-2">Bank proof: {bankRecord?.bankProofName || bankRecord?.bankDocumentName || profile?.bankProofName || profile?.bankDocumentName || 'Not provided yet'}{(bankRecord?.bankProofUrl || bankRecord?.bankDocumentUrl || profile?.bankProofUrl || profile?.bankDocumentUrl) ? <a href={bankRecord?.bankProofUrl || bankRecord?.bankDocumentUrl || profile?.bankProofUrl || profile?.bankDocumentUrl} target="_blank" rel="noreferrer" className="ml-2 text-emerald-300 underline">View</a> : null}</div>
+          </div>
         </div>
-        <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">Last updated: {verification?.gstAndBank?.lastUpdated ?? 'Not available'}</div>
+
+        <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/50 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-white">Update bank details</h3>
+            {!hasBankDetails && <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-amber-200">Required for payouts</span>}
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Account holder name</span>
+              <input value={form.accountHolderName} onChange={(event) => setForm((current) => ({ ...current, accountHolderName: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40" placeholder="Name as per bank account" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Bank name</span>
+              <input value={form.bankName} onChange={(event) => setForm((current) => ({ ...current, bankName: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40" placeholder="e.g. SBI" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Account number</span>
+              <input value={form.accountNumber} onChange={(event) => setForm((current) => ({ ...current, accountNumber: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40" placeholder="Enter account number" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">IFSC code</span>
+              <input value={form.ifscCode} onChange={(event) => setForm((current) => ({ ...current, ifscCode: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40" placeholder="e.g. SBIN0001234" />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Branch name</span>
+              <input value={form.branchName} onChange={(event) => setForm((current) => ({ ...current, branchName: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/40" placeholder="Branch / location" />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Bank proof</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,pdf"
+                onChange={(event) => setBankProofFile(event.target.files?.[0] ?? null)}
+                className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none file:mr-3 file:rounded-full file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
+              />
+              <span className="mt-2 block text-xs text-slate-400">Bank proof upload is currently separate from /api/vendors/me/bank and is not sent in the bank save payload until backend support is added.</span>
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <PrimaryButton disabled={saving || loading || !hasRequiredBankFields} onClick={saveBankDetails}>{saving ? 'Saving…' : 'Save bank details'}</PrimaryButton>
+            {!hasRequiredBankFields && <span className="self-center text-xs text-amber-200">Complete the required bank fields before payout is enabled.</span>}
+          </div>
+        </div>
+
+        {message ? <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}
+        {error && <div className="mt-4"><ErrorState title="Bank update error" description={error} /></div>}
+        {loading && <div className="mt-4"><SkeletonCard /></div>}
       </div>
     </SectionShell>
   );
@@ -2763,6 +2938,7 @@ export function VendorWalletPage() {
 
 export function VendorWithdrawPage() {
   const [balance, setBalance] = useState<WithdrawalBalance | null>(null);
+  const [bankRecord, setBankRecord] = useState<VendorBankRecord | null>(null);
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -2771,26 +2947,56 @@ export function VendorWithdrawPage() {
 
   useEffect(() => {
     let active = true;
-    getVendorWithdrawalBalance()
-      .then((response) => {
-        if (active) setBalance(response);
-      })
-      .catch((err) => {
-        if (active) setError(err instanceof Error ? err.message : 'Unable to load your balance.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    const load = async () => {
+      try {
+        const [withdrawalBalanceResult, vendorBankResult] = await Promise.allSettled([
+          getVendorWithdrawalBalance(),
+          getVendorBankRecord(),
+        ]);
 
+        if (!active) return;
+
+        if (withdrawalBalanceResult.status === 'fulfilled') {
+          setBalance(withdrawalBalanceResult.value);
+        } else if (withdrawalBalanceResult.reason instanceof Error) {
+          setBalance({ availableBalance: 0, balance: 0 });
+        }
+
+        if (vendorBankResult.status === 'fulfilled') {
+          setBankRecord(vendorBankResult.value);
+        } else {
+          setBankRecord(null);
+        }
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Unable to load your balance and bank details.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void load();
     return () => {
       active = false;
     };
   }, []);
 
+  const accountHolderName = String(bankRecord?.accountHolderName ?? bankRecord?.account_holder_name ?? '').trim();
+  const bankName = String(bankRecord?.bankName ?? bankRecord?.bank_name ?? '').trim();
+  const accountNumber = String(bankRecord?.accountNumber ?? bankRecord?.bankAccountNumber ?? bankRecord?.bank_account_number ?? '').trim();
+  const ifsc = String(bankRecord?.ifsc ?? bankRecord?.ifscCode ?? bankRecord?.ifsc_code ?? '').trim();
+  const branch = String(bankRecord?.branch ?? bankRecord?.branchName ?? bankRecord?.branch_name ?? bankRecord?.bankBranch ?? bankRecord?.bank_branch ?? '').trim();
+  const hasCompleteBankDetails = Boolean(accountHolderName && bankName && accountNumber && ifsc && branch);
+  const maskedAccountNumber = accountNumber ? `******${accountNumber.slice(-4)}` : 'Not provided yet';
+
   const submitWithdrawal = async () => {
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setError('Enter a valid withdrawal amount.');
+      return;
+    }
+
+    if (!hasCompleteBankDetails) {
+      setError('Add your bank details before requesting a payout.');
       return;
     }
 
@@ -2820,8 +3026,25 @@ export function VendorWithdrawPage() {
               <>
                 <p className="text-lg font-semibold text-white">Available balance: {toMoney(availableBalance)}</p>
                 <p className="mt-2 text-sm text-slate-300">Pending: {toMoney(balance?.pendingBalance)} • Settled: {toMoney(balance?.settledBalance)}</p>
+                {bankRecord ? (
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">Saved bank account</h3>
+                    <div className="mt-3 space-y-2 text-sm text-slate-200">
+                      <p><span className="text-slate-400">Account holder:</span> {accountHolderName || 'Not provided yet'}</p>
+                      <p><span className="text-slate-400">Bank name:</span> {bankName || 'Not provided yet'}</p>
+                      <p><span className="text-slate-400">Account number:</span> {maskedAccountNumber}</p>
+                      <p><span className="text-slate-400">IFSC:</span> {ifsc || 'Not provided yet'}</p>
+                      <p><span className="text-slate-400">Branch:</span> {branch || 'Not provided yet'}</p>
+                    </div>
+                  </div>
+                ) : null}
               </>
             )}
+            {!bankRecord && !loading ? (
+              <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                Add your bank account details in the bank settings page before requesting a payout.
+              </div>
+            ) : null}
             {error ? <div className="mt-4"><ErrorState title="Withdrawal error" description={error} /></div> : null}
             {message ? <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}
             <label className="mt-4 block max-w-md">
@@ -2829,7 +3052,7 @@ export function VendorWithdrawPage() {
               <input type="number" min="1" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-blue-400/40" placeholder="Enter amount" />
             </label>
             <div className="mt-4 flex flex-wrap gap-3">
-              <button type="button" onClick={submitWithdrawal} disabled={submitting || loading} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Submitting…' : 'Request payout'}</button>
+              <button type="button" onClick={submitWithdrawal} disabled={submitting || loading || !hasCompleteBankDetails} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Submitting…' : 'Request payout'}</button>
             </div>
           </Card>
 

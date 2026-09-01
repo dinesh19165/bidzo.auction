@@ -28,6 +28,18 @@ import { SectionShell } from '../components/SectionShell';
 import { markAuctionAsRegistered, markRegistrationPaid, readAuctionFlowState, writeAuctionFlowState } from '../utils/auctionFlowState';
 import { useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
+import { getOtpDeliveryPreference, normalizeOtpDeliveryChannel, type OtpDeliveryChannel } from '../api/adminSettingsApi';
+import {
+  forgotPassword,
+  getStoredVendorProfileId,
+  resendRegistrationOtp,
+  resetPassword,
+  resolveVendorProfileId,
+  setStoredVendorProfileId,
+  verifyRegistrationOtp,
+  verifyResetOtp,
+} from '../api/authApi';
+import { getVendorDocuments, uploadVendorDocument } from '../api/vendorApi';
 import { useEffect, useState, type ChangeEvent, type DragEvent } from 'react';
 
 const verificationSteps = [
@@ -135,6 +147,7 @@ export function LoginPage() {
   const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
   const [touched, setTouched] = useState({ identifier: false, password: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notice, setNotice] = useState((location.state as { message?: string } | null)?.message ?? '');
   const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor'>((location.state as { role?: 'customer' | 'vendor' } | null)?.role ?? 'customer');
 
   const roleOptions: Array<{ value: 'customer' | 'vendor'; label: string; description: string; features: string[] }> = [
@@ -224,6 +237,7 @@ export function LoginPage() {
 
   const handleIdentifierChange = (value: string) => {
     setIdentifier(value);
+    setNotice('');
     if (errors.identifier) {
       setErrors((prev) => ({ ...prev, identifier: undefined }));
     }
@@ -231,6 +245,7 @@ export function LoginPage() {
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
+    setNotice('');
     if (errors.password) {
       setErrors((prev) => ({ ...prev, password: undefined }));
     }
@@ -302,6 +317,7 @@ export function LoginPage() {
             </div>
 
             <div className="mt-6 space-y-4">
+              {notice ? <p className="text-sm text-emerald-300">{notice}</p> : null}
               <label className="block">
                 <span className={`mb-2 flex items-center gap-2 text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-900'}`}>
                   <Mail className={`h-4 w-4 ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-700'}`} />
@@ -373,27 +389,17 @@ export function LoginPage() {
               </div>
 
               <div className={`mt-4 rounded-[28px] p-4 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-950/70 shadow-[0_20px_45px_rgba(2,6,23,0.35)]' : 'border border-slate-200 bg-slate-50 shadow-sm'}`}>
-                <div className={`flex items-center justify-between rounded-full border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] transition duration-300 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10 text-cyan-200' : 'border-cyan-200 bg-cyan-100 text-cyan-900'}`}>
-                  <span>🔥 LIVE AUCTION</span>
-                  <span className={`rounded-full px-2 py-1 transition duration-300 ${theme === 'dark' ? 'bg-cyan-500/20 text-cyan-200' : 'bg-cyan-100 text-cyan-900'}`}>02:14:05</span>
-                </div>
-                <div className={`mt-4 rounded-[24px] border p-4 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.35),_transparent_45%),linear-gradient(135deg,_rgba(8,15,35,0.96),_rgba(15,23,42,1))]' : 'border-slate-200 bg-white shadow-sm'}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className={`text-[11px] uppercase tracking-[0.24em] transition duration-300 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Product preview</p>
-                      <p className={`mt-2 text-lg font-semibold transition duration-300 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Vintage Watch</p>
-                    </div>
-                    <div className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] transition duration-300 ${theme === 'dark' ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border-emerald-200 bg-emerald-100 text-emerald-900'}`}>Live</div>
+                <div className={`rounded-[24px] border p-5 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.35),_transparent_45%),linear-gradient(135deg,_rgba(8,15,35,0.96),_rgba(15,23,42,1))]' : 'border-slate-200 bg-white shadow-sm'}`}>
+                  <div className="flex items-center justify-center gap-3 py-5">
+                    {[ShieldCheck, Sparkles, CheckCircle2].map((Icon, index) => (
+                      <div key={index} className={`flex h-14 w-14 items-center justify-center rounded-2xl border transition duration-300 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
+                        <Icon className={`h-6 w-6 ${theme === 'dark' ? 'text-cyan-200' : 'text-cyan-700'}`} />
+                      </div>
+                    ))}
                   </div>
-                  <div className="mt-5 flex items-end justify-between">
-                    <div>
-                      <p className={`text-[11px] uppercase tracking-[0.24em] transition duration-300 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Current bid</p>
-                      <p className={`mt-1 text-3xl font-semibold transition duration-300 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>₹12,500</p>
-                    </div>
-                    <div className={`rounded-2xl border px-3 py-2 text-right text-sm transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300' : 'border-slate-200 bg-slate-100 text-slate-900'}`}>
-                      <p className={`text-[11px] uppercase tracking-[0.24em] transition duration-300 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Bids</p>
-                      <p className={`mt-1 font-semibold transition duration-300 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>128</p>
-                    </div>
+                  <div className="text-center">
+                    <p className={`text-lg font-semibold transition duration-300 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Explore with confidence</p>
+                    <p className={`mt-2 text-sm transition duration-300 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Discover products, connect with sellers, and make informed decisions.</p>
                   </div>
                 </div>
 
@@ -449,6 +455,7 @@ export function CustomerRegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validate = () => {
     const nextErrors: { name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string } = {};
@@ -465,21 +472,32 @@ export function CustomerRegisterPage() {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const submit = async () => {
+  const submit = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (isSubmitting) return;
+
     setSubmitError(null);
-    if (!validate()) return;
+    setIsSubmitting(true);
+
+    if (!validate()) {
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       await registerCustomer(form, 'customer');
-      navigate('/otp', { replace: true, state: { role: 'customer' } });
+      navigate('/otp', { replace: true, state: { role: 'customer', email: form.email, registrationData: form } });
     } catch (error: any) {
       setSubmitError(error?.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <SectionShell title="Customer registration" subtitle="Create your buyer profile">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+        <form onSubmit={submit} noValidate className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
             <Sparkles className="h-4 w-4" /> Step 1 of 4
           </div>
@@ -501,10 +519,10 @@ export function CustomerRegisterPage() {
             <CircleAlert className="mt-0.5 h-4 w-4 text-amber-300" />
             We’ll verify your email and phone before activation so your account is ready for secure bidding.
           </div>
-          <button onClick={submit} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
-            Continue to OTP <ArrowRight className="h-4 w-4" />
+          <button type="submit" disabled={isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+            {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : <><span>Continue to OTP</span><ArrowRight className="h-4 w-4" /></>}
           </button>
-        </div>
+        </form>
         <div className="relative overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/80 to-cyan-500/20 p-4 sm:p-8">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.2),_transparent_40%)]" />
           <div className="absolute right-3 top-3 text-[110px] font-black leading-none text-white/10 sm:text-[160px]">BIDZO</div>
@@ -564,6 +582,7 @@ export function VendorRegisterPage() {
   const [form, setForm] = useState({ businessName: '', ownerName: '', email: '', phone: '', gst: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = useState<{ businessName?: string; ownerName?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validate = () => {
     const nextErrors: { businessName?: string; ownerName?: string; email?: string; phone?: string; password?: string; confirmPassword?: string } = {};
@@ -581,21 +600,52 @@ export function VendorRegisterPage() {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const submit = async () => {
+  const submit = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (isSubmitting) return;
+
     setSubmitError(null);
-    if (!validate()) return;
+    setIsSubmitting(true);
+
+    if (!validate()) {
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      await registerVendor(form, 'vendor');
-      navigate('/otp', { replace: true, state: { role: 'vendor' } });
+      const registrationResult = await registerVendor(form, 'vendor');
+      const vendorId = resolveVendorProfileId(registrationResult);
+      console.debug('[Bidzo registration] register response', {
+        id: registrationResult?.id,
+        userId: registrationResult?.userId,
+        vendorId: registrationResult?.vendorId,
+        vendorProfileId: registrationResult?.vendorProfileId,
+        vendor_profile_id: (registrationResult as { vendor_profile_id?: string | number } | undefined)?.vendor_profile_id,
+      });
+      console.debug('[Bidzo registration] resolved vendor profile id', {
+        vendorId,
+        userId: registrationResult?.userId,
+        vendorIdFromBackend: registrationResult?.vendorId,
+        vendorProfileIdFromBackend: registrationResult?.vendorProfileId,
+      });
+
+      if (vendorId === undefined) {
+        throw new Error('Vendor profile ID was not returned by the registration API. Please try again.');
+      }
+
+      setStoredVendorProfileId(vendorId);
+      navigate('/otp', { replace: true, state: { role: 'vendor', email: form.email, registrationData: form, vendorId } });
     } catch (error: any) {
       setSubmitError(error?.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <SectionShell title="Vendor registration" subtitle="Create your seller storefront">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+        <form onSubmit={submit} noValidate className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-emerald-300">
             <Briefcase className="h-4 w-4" /> Step 1 of 4
           </div>
@@ -620,10 +670,10 @@ export function VendorRegisterPage() {
             <CircleAlert className="mt-0.5 h-4 w-4 text-amber-300" />
             Verified seller accounts unlock inventory, auction tools, and premium analytics.
           </div>
-          <button onClick={submit} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500 sm:w-auto">
-            Continue to verification <ArrowRight className="h-4 w-4" />
+          <button type="submit" disabled={isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+            {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : <><span>Continue to verification</span><ArrowRight className="h-4 w-4" /></>}
           </button>
-        </div>
+        </form>
         <div className="relative overflow-hidden rounded-[28px] border border-emerald-400/20 bg-gradient-to-br from-emerald-600/20 via-slate-900/80 to-cyan-500/20 p-4 sm:p-8">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.2),_transparent_40%)]" />
           <div className="absolute right-3 top-3 text-[110px] font-black leading-none text-white/10 sm:text-[160px]">B</div>
@@ -680,45 +730,190 @@ export function VendorRegisterPage() {
 
 export function OTPPage() {
   const navigate = useNavigate();
-  const { pendingRole, clearPendingRole } = useAuth();
+  const location = useLocation();
+  const { pendingRole, clearPendingRole, login } = useAuth();
+  const state = (location.state || {}) as { role?: 'customer' | 'vendor'; email?: string; phone?: string; flow?: 'registration' | 'reset'; registrationData?: Record<string, string>; vendorId?: string | number; vendorProfileId?: string | number };
+  const email = state.email || '';
+  const phone = state.phone || state.registrationData?.phone || '';
+  const flow = state.flow || 'registration';
+  const [otp, setOtp] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(600);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [error, setError] = useState('');
+  const [otpChannel, setOtpChannel] = useState<OtpDeliveryChannel>('EMAIL');
+  const [channelLoaded, setChannelLoaded] = useState(false);
+  const [resendNotice, setResendNotice] = useState('');
 
-  const verify = () => {
-    if (pendingRole === 'vendor') {
-      clearPendingRole();
-      navigate('/kyc', { replace: true, state: { role: 'vendor' } });
-    } else {
-      clearPendingRole();
-      navigate('/login', { replace: true, state: { role: 'customer' } });
+  useEffect(() => {
+    if (flow !== 'registration') {
+      setOtpChannel('EMAIL');
+      setChannelLoaded(true);
+      return;
+    }
+
+    let isCancelled = false;
+    getOtpDeliveryPreference()
+      .then((channel) => {
+        if (!isCancelled) {
+          setOtpChannel(normalizeOtpDeliveryChannel(channel));
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setOtpChannel('EMAIL');
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setChannelLoaded(true);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [flow]);
+
+  const deliveryLabel = otpChannel === 'SMS' ? 'phone number' : 'email';
+  const deliveryValue = otpChannel === 'SMS' ? (phone || 'your registered phone number') : (email || 'your registered email');
+
+  useEffect(() => {
+    if (flow === 'reset') {
+      setMessage(`A password reset OTP has been sent to ${email || 'your registered email'}.`);
+      return;
+    }
+
+    setMessage(`A verification OTP has been sent to ${deliveryValue}.`);
+  }, [flow, email, otpChannel, phone]);
+
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return undefined;
+    const timer = window.setInterval(() => setSecondsLeft((current) => Math.max(0, current - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [secondsLeft]);
+
+  const submit = async () => {
+    if (flow !== 'reset' && otpChannel === 'SMS' && !phone) { setError('Your phone number is missing. Please start again.'); return; }
+    if (flow !== 'reset' && !email && otpChannel === 'EMAIL') { setError('Your email is missing. Please start again.'); return; }
+    if (flow === 'reset' && !email) { setError('Your email is missing. Please start again.'); return; }
+    if (!/^\d{6}$/.test(otp)) { setError(`Enter the 6-digit OTP sent to your ${deliveryLabel}.`); return; }
+    setIsSubmitting(true);
+    setError('');
+    setResendNotice('');
+    try {
+      if (flow === 'reset') {
+        await verifyResetOtp({ email, otp });
+        navigate('/reset-password', { replace: true, state: { email, otp } });
+      } else {
+        await verifyRegistrationOtp({
+          email: otpChannel === 'EMAIL' ? email : undefined,
+          phoneNumber: otpChannel === 'SMS' ? phone : undefined,
+          otp,
+          channel: otpChannel,
+        });
+        clearPendingRole();
+        setMessage(`${otpChannel === 'SMS' ? 'Phone' : 'Email'} verified successfully. You can now continue.`);
+        if ((state.role || pendingRole) === 'vendor') {
+          const vendorId = state.vendorId ?? state.vendorProfileId ?? getStoredVendorProfileId();
+          if (vendorId !== undefined && vendorId !== null && vendorId !== '') {
+            setStoredVendorProfileId(vendorId);
+          }
+
+          const registrationPassword = state.registrationData?.password;
+          if (registrationPassword) {
+            await login(email, registrationPassword, 'vendor');
+          }
+
+          console.debug('[Bidzo OTP] vendor authenticated and redirected to dashboard', { vendorId, email });
+          navigate('/dashboards/vendor', { replace: true, state: { role: 'vendor', message: 'Vendor account verified successfully.' } });
+        } else {
+          navigate('/login', { replace: true, state: { role: 'customer', message: `${otpChannel === 'SMS' ? 'Phone' : 'Email'} verified successfully. You can now sign in.` } });
+        }
+      }
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Unable to verify the OTP. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  const resend = async () => {
+    if (flow !== 'reset' && otpChannel === 'SMS' && !phone) { setError('Your phone number is missing. Please start again.'); return; }
+    if (flow === 'reset' && !email) { setError('Your email is missing. Please start again.'); return; }
+    if (flow !== 'reset' && otpChannel === 'EMAIL' && !email) { setError('Your email is missing. Please start again.'); return; }
+    setIsResending(true);
+    setError('');
+    setResendNotice('');
+    try {
+      if (flow === 'reset') {
+        await forgotPassword(email);
+        setMessage(`A new password reset OTP has been sent to ${email}.`);
+      } else {
+        const payload = {
+          email: otpChannel === 'EMAIL' ? email : undefined,
+          phoneNumber: otpChannel === 'SMS' ? phone : undefined,
+          channel: otpChannel,
+        };
+        await resendRegistrationOtp(payload);
+        const contact = otpChannel === 'SMS' ? phone : email;
+        const successMessage = `✓ New OTP sent successfully to ${contact}`;
+        setResendNotice(successMessage);
+        setMessage(`A verification OTP has been sent to ${deliveryValue}.`);
+      }
+      setOtp(''); setSecondsLeft(600);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Unable to resend the OTP. Please try again.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const minutes = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
+  const seconds = (secondsLeft % 60).toString().padStart(2, '0');
+
   return (
-    <SectionShell title="OTP verification" subtitle="Enter the code sent to your phone">
+    <SectionShell title="OTP verification" subtitle={channelLoaded ? `Enter the code sent to your ${deliveryLabel}` : 'Enter the code sent to your email'}>
       <div className="mx-auto w-full max-w-2xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 text-center sm:p-8">
         <div className="flex items-center justify-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
           <ShieldCheck className="h-4 w-4" /> Secure confirmation
         </div>
         <ProgressIndicator activeStep={1} />
-        <p className="mt-2 text-slate-300">Use 123456 for the static UI experience.</p>
-        <div className="mt-5 flex flex-wrap justify-center gap-3">
-          {['1', '2', '3', '4', '5', '6'].map((digit) => (
-            <div key={digit} className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-400/20 bg-slate-950/60 text-lg font-semibold text-white shadow-[0_0_0_1px_rgba(59,130,246,0.18)]">
-              {digit}
-            </div>
-          ))}
-        </div>
+        <p className="mt-2 text-slate-300">{message || `A verification OTP has been sent to ${deliveryValue}.`}</p>
+        {resendNotice ? <p className="mt-2 text-sm font-medium text-emerald-300">{resendNotice}</p> : null}
+        {error ? <p className="mt-3 text-sm text-amber-300">{error}</p> : null}
+        <input aria-label="6-digit OTP" inputMode="numeric" maxLength={6} autoComplete="one-time-code" value={otp} onChange={(event) => { setOtp(event.target.value.replace(/\D/g, '').slice(0, 6)); setError(''); }} onPaste={(event) => { event.preventDefault(); setOtp(event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)); }} className="mx-auto mt-5 block w-full max-w-xs rounded-2xl border border-blue-400/20 bg-slate-950/60 px-4 py-3 text-center text-2xl tracking-[0.5em] text-white outline-none" placeholder="000000" />
+        <p className={`mt-3 text-sm ${secondsLeft ? 'text-slate-400' : 'text-amber-300'}`}>{secondsLeft ? `OTP expires in ${minutes}:${seconds}` : 'This OTP has expired.'}</p>
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
           A one-time code keeps your account protected while we verify your identity.
         </div>
-        <button onClick={verify} className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
-          Verify account
-        </button>
+        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+          <button onClick={submit} disabled={isSubmitting || isResending || secondsLeft === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+            {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Verifying…</> : flow === 'reset' ? 'Verify OTP' : 'Verify account'}
+          </button>
+          <button onClick={resend} disabled={isSubmitting || isResending} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+            {isResending ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : 'Resend OTP'}
+          </button>
+        </div>
       </div>
     </SectionShell>
   );
 }
 
 export function ForgotPasswordPage() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submit = async () => {
+    if (!email.trim()) { setError('Enter your registered email.'); return; }
+    setIsSubmitting(true); setError('');
+    try { await forgotPassword(email.trim()); navigate('/otp', { replace: true, state: { email: email.trim(), flow: 'reset' } }); }
+    catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Unable to send the password reset OTP.'); }
+    finally { setIsSubmitting(false); }
+  };
   return (
     <SectionShell title="Forgot password" subtitle="Reset access securely">
       <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
@@ -727,20 +922,35 @@ export function ForgotPasswordPage() {
         </div>
         <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
           <Mail className="h-4 w-4 text-blue-300" />
-          <input className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="Registered email" />
+          <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="Registered email" />
         </div>
+        {error ? <p className="mt-3 text-sm text-amber-300">{error}</p> : null}
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
           We’ll email you a secure link to restore access to your Bidzo account.
         </div>
-        <Link to="/reset-password" className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
-          Send reset link
-        </Link>
+        <button onClick={submit} disabled={isSubmitting} className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60 sm:w-auto">{isSubmitting ? 'Sending…' : 'Send reset OTP'}</button>
       </div>
     </SectionShell>
   );
 }
 
 export function ResetPasswordPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const state = (location.state || {}) as { email?: string; otp?: string };
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submit = async () => {
+    if (!state.email || !state.otp) { setError('Verify your password reset OTP first.'); return; }
+    if (!password) { setError('Enter a new password.'); return; }
+    if (password !== confirmPassword) { setError('Passwords do not match.'); return; }
+    setIsSubmitting(true); setError('');
+    try { await resetPassword({ email: state.email, otp: state.otp, newPassword: password }); navigate('/login', { replace: true, state: { message: 'Password reset successfully. Please sign in.' } }); }
+    catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Unable to reset your password.'); }
+    finally { setIsSubmitting(false); }
+  };
   return (
     <SectionShell title="Reset password" subtitle="Create a new password">
       <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
@@ -750,19 +960,18 @@ export function ResetPasswordPage() {
         <div className="mt-4 space-y-4">
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
             <Lock className="h-4 w-4 text-slate-400" />
-            <input className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="New password" />
+            <input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="New password" />
           </div>
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
             <Lock className="h-4 w-4 text-slate-400" />
-            <input className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="Confirm password" />
+            <input type="password" value={confirmPassword} onChange={(event) => { setConfirmPassword(event.target.value); setError(''); }} className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="Confirm password" />
           </div>
         </div>
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
           Use a strong password with letters, numbers, and special characters for better protection.
         </div>
-        <Link to="/login" className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
-          Update password
-        </Link>
+        {error ? <p className="mt-3 text-sm text-amber-300">{error}</p> : null}
+        <button onClick={submit} disabled={isSubmitting} className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60 sm:w-auto">{isSubmitting ? 'Updating…' : 'Update password'}</button>
       </div>
     </SectionShell>
   );
@@ -770,32 +979,145 @@ export function ResetPasswordPage() {
 
 export function KYCPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
   const [draggingField, setDraggingField] = useState<'aadhaar' | 'pan' | null>(null);
+  const [uploadingField, setUploadingField] = useState<'aadhaar' | 'pan' | null>(null);
+  const [documentErrors, setDocumentErrors] = useState<Record<'aadhaar' | 'pan', string | null>>({ aadhaar: null, pan: null });
 
-  const submitKyc = () => {
+  const kycStorageKey = 'bidzo_vendor_kyc_documents';
+
+  const formatFileSize = (bytes: number) => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const value = bytes / (1024 ** index);
+    return `${value < 10 && index > 0 ? value.toFixed(1) : value.toFixed(0)} ${units[index]}`;
+  };
+
+  const createStoredFile = (name: string, size: number, type: string) => {
+    const file = new File([''], name, { type });
+    Object.defineProperty(file, 'size', { value: size, configurable: true });
+    return file;
+  };
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(kycStorageKey);
+      if (!raw) return;
+      const stored = JSON.parse(raw) as Partial<Record<'aadhaar' | 'pan', { name: string; size: number; type: string }>>;
+      if (stored.aadhaar) setAadhaarFile(createStoredFile(stored.aadhaar.name, stored.aadhaar.size, stored.aadhaar.type));
+      if (stored.pan) setPanFile(createStoredFile(stored.pan.name, stored.pan.size, stored.pan.type));
+    } catch {
+      // Ignore corrupted local state and keep blank uploads.
+    }
+  }, []);
+
+  useEffect(() => {
+    const payload = {
+      aadhaar: aadhaarFile ? { name: aadhaarFile.name, size: aadhaarFile.size, type: aadhaarFile.type } : null,
+      pan: panFile ? { name: panFile.name, size: panFile.size, type: panFile.type } : null,
+    };
+    window.localStorage.setItem(kycStorageKey, JSON.stringify(payload));
+  }, [aadhaarFile, panFile]);
+
+  const submitKyc = async () => {
     if (!aadhaarFile || !panFile) {
       return;
     }
 
     setIsSubmitting(true);
-    window.setTimeout(() => {
-      setIsSubmitting(false);
+    setDocumentErrors({ aadhaar: null, pan: null });
+
+    try {
+      const routeState = location.state as { vendorId?: string | number; vendorProfileId?: string | number } | null;
+      const authenticatedVendorId = user?.vendorProfileId ?? user?.vendorId;
+      const stateVendorId = routeState?.vendorId ?? routeState?.vendorProfileId ?? authenticatedVendorId;
+      const vendorProfileId = stateVendorId !== undefined && stateVendorId !== null && stateVendorId !== ''
+        ? Number(stateVendorId) || String(stateVendorId)
+        : undefined;
+
+      if (vendorProfileId === undefined) {
+        throw new Error('Vendor profile ID is missing. Please authenticate and reopen the KYC flow from the vendor dashboard.');
+      }
+
+      console.debug('[Bidzo vendor KYC] vendor profile id resolved', {
+        vendorProfileId,
+        routeStateVendorId: routeState?.vendorId,
+        routeStateVendorProfileId: routeState?.vendorProfileId,
+        authenticatedVendorId,
+        fromRouteState: routeState?.vendorId !== undefined || routeState?.vendorProfileId !== undefined,
+      });
+
+      const uploadAadhaar = async () => {
+        setUploadingField('aadhaar');
+        console.debug('[Bidzo vendor KYC] uploading ID_PROOF before vendor document call', {
+          vendorId: vendorProfileId,
+          fileName: aadhaarFile.name,
+          fileSize: aadhaarFile.size,
+        });
+        await uploadVendorDocument(vendorProfileId, 'ID_PROOF', aadhaarFile);
+      };
+
+      const uploadPan = async () => {
+        setUploadingField('pan');
+        console.debug('[Bidzo vendor KYC] uploading PAN before vendor document call', {
+          vendorId: vendorProfileId,
+          fileName: panFile.name,
+          fileSize: panFile.size,
+        });
+        await uploadVendorDocument(vendorProfileId, 'PAN', panFile);
+      };
+
+      await uploadAadhaar();
+      await uploadPan();
+
+      const uploadedDocs = await getVendorDocuments(vendorProfileId);
+      const normalizedTypes = uploadedDocs.map((doc) => String(doc.documentType ?? doc.type ?? '').toUpperCase());
+      const hasIdProof = normalizedTypes.includes('ID_PROOF');
+      const hasPan = normalizedTypes.includes('PAN');
+      console.debug('[Bidzo vendor KYC] persisted documents', { vendorProfileId, normalizedTypes });
+
+      if (!hasIdProof || !hasPan) {
+        throw new Error('The backend did not confirm both Aadhaar and PAN document rows were created.');
+      }
+
       navigate('/login', { replace: true, state: { role: 'vendor' } });
-    }, 1100);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to complete KYC upload.';
+      setDocumentErrors({
+        aadhaar: message,
+        pan: message,
+      });
+    } finally {
+      setUploadingField(null);
+      setIsSubmitting(false);
+    }
   };
 
-  const handleFileSelection = (file: File | null, field: 'aadhaar' | 'pan') => {
+  const validateDocument = (file: File | null, field: 'aadhaar' | 'pan') => {
+    if (!file) return null;
+    setDocumentErrors((current) => ({ ...current, [field]: null }));
+    return file;
+  };
+
+  const handleFileSelection = async (file: File | null, field: 'aadhaar' | 'pan') => {
     if (!file) return;
-    if (field === 'aadhaar') setAadhaarFile(file);
-    else setPanFile(file);
+
+    const validFile = validateDocument(file, field);
+    if (!validFile) return;
+
+    if (field === 'aadhaar') setAadhaarFile(validFile);
+    else setPanFile(validFile);
   };
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>, field: 'aadhaar' | 'pan') => {
     const file = event.target.files?.[0] ?? null;
     handleFileSelection(file, field);
+    event.target.value = '';
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>, field: 'aadhaar' | 'pan') => {
@@ -811,17 +1133,22 @@ export function KYCPage() {
     field,
     file,
     accent,
+    accept,
+    note,
   }: {
     title: string;
     description: string;
     field: 'aadhaar' | 'pan';
     file: File | null;
     accent: 'blue' | 'emerald';
+    accept: string;
+    note: string;
   }) => {
     const isActive = draggingField === field;
     const accentClass = accent === 'emerald'
       ? 'border-emerald-400/20 bg-emerald-500/10'
       : 'border-blue-400/20 bg-blue-500/10';
+    const isUploading = uploadingField === field;
 
     return (
       <div
@@ -843,16 +1170,19 @@ export function KYCPage() {
           {file ? <CheckCircle2 className="h-5 w-5 text-emerald-300" /> : <Upload className="h-5 w-5 text-slate-300" />}
         </div>
         <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-400">
-          {file ? <span className="text-emerald-200">Uploaded: {file.name}</span> : 'Drag and drop or browse to upload'}
+          {file ? <span className="text-emerald-200">Uploaded: {file.name} • {formatFileSize(file.size)}</span> : note}
         </div>
-        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-slate-950/50 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:text-white">
-          <Upload className="h-3.5 w-3.5" />
-          Choose file
-          <input type="file" accept="image/*,.pdf" className="sr-only" onChange={(event) => handleInputChange(event, field)} />
+        {documentErrors[field] ? <p className="mt-2 text-xs text-amber-300">{documentErrors[field]}</p> : null}
+        <label className={`mt-3 inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-slate-950/50 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:text-white ${isUploading ? 'cursor-not-allowed opacity-60' : ''}`}>
+          {isUploading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          {isUploading ? 'Uploading…' : 'Choose file'}
+          <input type="file" accept={accept} className="sr-only" disabled={isUploading} onChange={(event) => handleInputChange(event, field)} />
         </label>
       </div>
     );
   };
+
+  const hasAllRequiredDocuments = Boolean(aadhaarFile && panFile);
 
   return (
     <SectionShell title="Vendor verification" subtitle="Complete identity verification">
@@ -862,37 +1192,35 @@ export function KYCPage() {
             <FileCheck2 className="h-4 w-4" /> Verified identity
           </div>
           <ProgressIndicator activeStep={2} />
-          <p className="text-sm text-slate-300">Upload your Aadhaar and PAN documents to complete seller verification.</p>
+          <p className="text-sm text-slate-300">Upload Aadhaar and PAN documents to complete seller verification.</p>
           <div className="mt-4 rounded-[24px] border border-dashed border-blue-400/20 bg-blue-500/10 p-6 text-center text-sm text-slate-300 sm:p-8">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-950/50">
               <Upload className="h-5 w-5 text-blue-200" />
             </div>
             <p className="mt-3 font-semibold text-white">Upload Aadhaar and PAN for secure vendor verification</p>
-            <p className="mt-1 text-slate-300">PNG, JPG, PDF up to 10MB</p>
+            <p className="mt-1 text-slate-300">JPG, JPEG, PNG up to 10MB</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-slate-400">
               <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1">Aadhaar</span>
               <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1">PAN</span>
-              <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1">Selfie</span>
             </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {renderUploadCard({ title: 'Aadhaar card', description: 'Required for identity verification', field: 'aadhaar', file: aadhaarFile, accent: 'blue' })}
-            {renderUploadCard({ title: 'PAN card', description: 'Required for tax and compliance review', field: 'pan', file: panFile, accent: 'emerald' })}
+            {renderUploadCard({ title: 'Aadhaar card', description: 'Required for identity verification', field: 'aadhaar', file: aadhaarFile, accent: 'blue', accept: 'image/*,.pdf', note: 'Drag and drop or browse to upload' })}
+            {renderUploadCard({ title: 'PAN card', description: 'Required for tax and compliance review', field: 'pan', file: panFile, accent: 'emerald', accept: 'image/*,.pdf', note: 'Drag and drop or browse to upload' })}
           </div>
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
-            <div className="flex items-center gap-2 text-white"><CircleAlert className="h-4 w-4 text-amber-300" /> Aadhaar and PAN are mandatory for vendor approval. Upload both to continue.</div>
+            <div className="flex items-center gap-2 text-white"><CircleAlert className="h-4 w-4 text-amber-300" /> Aadhaar and PAN are required for vendor approval. Upload both to continue.</div>
           </div>
-          <button onClick={submitKyc} disabled={!aadhaarFile || !panFile || isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+          <button onClick={submitKyc} disabled={!hasAllRequiredDocuments || isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
             {isSubmitting ? 'Submitting verification…' : 'Submit KYC'} <ArrowRight className="h-4 w-4" />
           </button>
-          {!aadhaarFile || !panFile ? <p className="mt-3 text-sm text-amber-300">Please upload both Aadhaar and PAN to continue.</p> : null}
+          {!hasAllRequiredDocuments ? <p className="mt-3 text-sm text-amber-300">Aadhaar and PAN are required for vendor approval. Upload both to continue.</p> : null}
         </div>
         <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
           <h3 className="text-xl font-semibold text-white">Verification checklist</h3>
           <ul className="mt-4 space-y-3 text-sm text-slate-300">
             <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Aadhaar card upload</li>
             <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />PAN card upload</li>
-            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Business address proof</li>
           </ul>
           <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
             <div className="flex items-center gap-2 text-white"><LoaderCircle className="h-4 w-4 text-blue-300" /> Reviews are usually completed within the same business day.</div>

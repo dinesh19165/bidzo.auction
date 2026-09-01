@@ -95,6 +95,9 @@ export interface AuctionListItem {
   watchers: number;
   participants: number;
   condition: string;
+  startAt?: string;
+  endAt?: string;
+  startingPrice?: string | number;
 }
 
 export function getEffectiveAuctionStatus(
@@ -280,6 +283,12 @@ function mapAuction(
     id: auction.id,
 
     productId: auction.productId,
+
+    startAt: auction.startAt,
+
+    endAt: auction.endAt,
+
+    startingPrice: auction.startingPrice,
 
     title: auction.title,
 

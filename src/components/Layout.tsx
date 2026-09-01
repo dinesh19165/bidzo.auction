@@ -1,21 +1,23 @@
 import { Link } from 'react-router-dom';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
+import { Footer } from './Footer';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileProfileOpen, setMobileProfileOpen] = useState(false);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const { theme, toggleTheme } = useThemeContext();
   const { language, currency, languageLabel, currencyLabel, setLanguage, setCurrency, translate, formatCurrency } = useLocaleContext();
-
+  const { user, logout } = useAuth();
   const languageOptions = [
     { key: 'en', label: 'English' },
     { key: 'hi', label: 'Hindi' },
@@ -35,6 +37,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { key: 'AED', label: 'AED د.إ' },
   ] as const;
 
+  // Mobile-only links: keep only essential customer-facing items and hide vendor/admin links on mobile
   const mobileLinks = [
     { to: '/', label: 'Home' },
     { to: '/marketplace', label: 'Marketplace' },
@@ -43,12 +46,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { to: '/login', label: 'Login' },
     { to: '/register', label: 'Register' },
     { to: '/register/vendor', label: 'Become Seller' },
-    { to: '/dashboards/customer', label: 'Customer Dashboard' },
-    { to: '/dashboards/vendor', label: 'Vendor Dashboard' },
-    { to: '/help', label: 'Help' },
-    { to: '/contact', label: 'Contact' },
-    { to: '/about', label: 'About' },
-    { to: '/customer/settings', label: 'Settings' },
+    // vendor/admin and other non-essential links intentionally omitted for mobile
   ];
 
   return (
@@ -148,7 +146,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div>
             {/* Shared header: logo always shown and links to home */}
             <Link to="/" className="inline-flex items-center flex-shrink-0">
-              <Logo className="w-[150px] h-auto object-contain" />
+              {/* Slightly smaller logo on mobile to avoid horizontal overflow */}
+              <Logo className="w-[110px] sm:w-[150px] h-auto object-contain" />
            </Link>
           </div>
 
@@ -178,10 +177,31 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <button type="button" onClick={() => setMobileSearchOpen((value) => !value)} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
               <Search className="h-4 w-4" />
             </button>
-            <Link to="/login" className={`inline-flex min-h-[38px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-medium transition ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-              Login
-            </Link>
-            <Link to="/register" className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">Register</Link>
+            {/* Mobile auth: if not logged in show Login/Register, else show compact profile trigger with dropdown */}
+            {!user ? (
+              <>
+                <Link to="/login" className={`inline-flex min-h-[38px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-medium transition ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+                  Login
+                </Link>
+                <Link to="/register" className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">Register</Link>
+              </>
+            ) : (
+              <div className="relative">
+                <button type="button" onClick={() => setMobileProfileOpen((v) => !v)} className="inline-flex items-center justify-center rounded-full border p-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">{user.name ? user.name.split(' ').map((s) => s[0]).slice(0,2).join('') : 'U'}</div>
+                </button>
+                {mobileProfileOpen ? (
+                  <div className="fixed left-4 right-4 top-16 z-50 max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-slate-900/95 p-3 shadow-lg">
+                    <Link to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Dashboard</Link>
+                    {user.type === 'customer' ? <Link to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link> : <Link to="/vendor/orders" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>}
+                    <Link to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wishlist</Link>
+                    <Link to="/wallet" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
+                    <button onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-2 w-full rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             <button type="button" onClick={() => setMobileMenuOpen(true)} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
               <Menu className="h-4 w-4" />
             </button>
@@ -253,53 +273,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <main className="overflow-x-hidden">{children}</main>
 
-      <footer className="border-t border-white/10 bg-slate-950/90">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-2 lg:grid-cols-5 lg:px-8">
-          <div>
-            <p className="text-lg font-semibold">Bidzo</p>
-            <p className="mt-3 text-sm text-slate-400">A premium marketplace for real products, live auctions, verified sellers, and fast delivery across India.</p>
-            <div className="mt-6 flex flex-wrap items-center gap-3 text-slate-400">
-              <span>© 2026 Bidzo</span>
-              <span>All rights reserved</span>
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Marketplace</p>
-            <ul className="mt-3 space-y-2 text-sm text-slate-400">
-              <li><Link to="/marketplace" className="hover:text-white">Marketplace</Link></li>
-              <li><Link to="/auctions" className="hover:text-white">Auctions</Link></li>
-              <li><Link to="/wishlist" className="hover:text-white">Wishlist</Link></li>
-              <li><Link to="/blog" className="hover:text-white">Blog</Link></li>
-            </ul>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Support</p>
-            <ul className="mt-3 space-y-2 text-sm text-slate-400">
-              <li><Link to="/help" className="hover:text-white">Help Center</Link></li>
-              <li><Link to="/faq" className="hover:text-white">FAQ</Link></li>
-              <li><Link to="/contact" className="hover:text-white">Contact us</Link></li>
-              <li><Link to="/refund" className="hover:text-white">Refund policy</Link></li>
-            </ul>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Company</p>
-            <ul className="mt-3 space-y-2 text-sm text-slate-400">
-              <li><Link to="/about" className="hover:text-white">About us</Link></li>
-              <li><Link to="/careers" className="hover:text-white">Careers</Link></li>
-              <li><Link to="/privacy" className="hover:text-white">Privacy</Link></li>
-              <li><Link to="/terms" className="hover:text-white">Terms</Link></li>
-            </ul>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Stay connected</p>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Twitter</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">LinkedIn</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Instagram</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
@@ -324,7 +298,9 @@ function AuthActions() {
             <ChevronDown className="h-4 w-4" />
           </button>
           {open ? (
-            <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-white/10 bg-slate-900/80 p-3 shadow-lg">
+            // On small screens make the dropdown fixed and scrollable so it never gets clipped.
+            // On sm+ screens keep the original absolute placement and sizing.
+            <div className="fixed left-4 right-4 top-16 z-50 max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-slate-900/95 p-3 shadow-lg sm:static sm:left-auto sm:right-0 sm:top-auto sm:max-h-auto sm:overflow-visible sm:mt-2 sm:w-56">
               <Link to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Dashboard</Link>
               {user.type === 'customer' ? <Link to="/customer/orders" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link> : <Link to="/vendor/orders" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>}
               <Link to="/customer/wishlist" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wishlist</Link>

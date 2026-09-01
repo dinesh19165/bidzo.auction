@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { createAuctionOrder, getOrderById } from '../../api/orderApi';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
 import type { AddressResponse } from '../../api/addressApi';
-import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentApi';
+import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } from '../../api/paymentApi';
 import { createVendorProduct, getVendorProducts, type SellingType } from '../../api/vendorProductApi';
 import { createProductImage, createBuyNowOrder } from '../../api/productApi';
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
@@ -20,7 +20,7 @@ import { getWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
 import { createAuction, getAuctions } from '../../api/auctionApi';
 import { getVendorProfile } from '../../api/vendorApi';
 import { getVendorAuctions } from '../../api/vendorAuctionApi';
-import type { OrderResponseDto, RazorpayOrderResponse } from '../../types';
+import type { OrderResponseDto, PaymentResponseDto, RazorpayOrderResponse } from '../../types';
 import { addMockBid, advanceAuctionClock, beginFinalPayment, enterLiveAuctionRoom, goToMarketplace, initializeAuctionFlowState, initializeAuctionFlowStateForAuction, markInvoiceReady, markOrderConfirmed, placeBid, readAuctionFlowState, resolveAuctionOutcome, startAuctionFlow, type AuctionFlowState, writeAuctionFlowState, setSelectedAuctionId, isAuctionRegistered, markAuctionAsRegistered, getSelectedAuctionId, readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 
 function FlowBreadcrumbs({ steps }: { steps: Array<{ label: string; to?: string }> }) {
@@ -1426,16 +1426,6 @@ export function CustomerPaymentPage() {
   useAuctionFlowBackGuard(true);
 
   useEffect(() => {
-    if (!isPaymentSuccessful) return undefined;
-    const timer = window.setTimeout(() => {
-      const nextState = markOrderConfirmed();
-      setFlowState(nextState);
-      navigate('/customer/order-success', { replace: true });
-    }, 2400);
-    return () => window.clearTimeout(timer);
-  }, [isPaymentSuccessful, navigate]);
-
-  useEffect(() => {
     if (flowState.auctionStage !== 'FINAL_PAYMENT') return undefined;
 
     let cancelled = false;
@@ -1510,12 +1500,29 @@ export function CustomerPaymentPage() {
     setError(null);
 
     try {
-      await verifyRazorpayPayment(order.id, {
+      const verifiedPayment = await verifyRazorpayPayment(order.id, {
         razorpayPaymentId: response.razorpay_payment_id,
         razorpayOrderId: response.razorpay_order_id,
         razorpaySignature: response.razorpay_signature,
       });
-      setIsPaymentSuccessful(true);
+
+      const [confirmedOrder, payments] = await Promise.all([
+        getOrderById(order.id),
+        getPaymentsForOrder(order.id),
+      ]);
+
+      if (verifiedPayment?.status === 'SUCCESS' || payments.some((payment) => String(payment.status).toUpperCase() === 'SUCCESS')) {
+        const nextState = markOrderConfirmed();
+        setFlowState(nextState);
+        setIsPaymentSuccessful(true);
+        navigate('/customer/order-success', { replace: true });
+        return;
+      }
+
+      const nextState = markOrderConfirmed();
+      setFlowState(nextState);
+      setOrder(confirmedOrder);
+      navigate('/customer/order-success', { replace: true });
     } catch (err: any) {
       setError(err?.message || 'Unable to verify payment.');
     } finally {
@@ -1658,35 +1665,49 @@ export function CustomerPaymentPage() {
 export function CustomerOrderSuccessPage() {
   const navigate = useNavigate();
   const [flowState, setFlowState] = useState<AuctionFlowState>(() => readAuctionFlowState());
-  const [isPreparingInvoice, setIsPreparingInvoice] = useState(false);
+  const [order, setOrder] = useState<OrderResponseDto | null>(null);
+  const [payment, setPayment] = useState<PaymentResponseDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useAuctionFlowBackGuard(true);
 
   useEffect(() => {
-    if (flowState.auctionStage === 'ORDER_SUCCESS') {
-      setIsPreparingInvoice(true);
-      const timer = window.setTimeout(() => {
-        const nextState = markInvoiceReady();
-        setFlowState(nextState);
-        navigate('/customer/invoice', { replace: true });
-      }, 2400);
-      return () => {
-        window.clearTimeout(timer);
-        setIsPreparingInvoice(false);
-      };
+    if (flowState.auctionStage !== 'ORDER_SUCCESS') {
+      setLoading(false);
+      return undefined;
     }
-    return undefined;
-  }, [flowState.auctionStage, navigate, setFlowState]);
 
-  if (flowState.auctionStage === 'ORDER_SUCCESS' && isPreparingInvoice) {
-    return (
-      <FlowTransitionScreen
-        heading="Preparing Invoice..."
-        message="Finalizing your order receipt"
-        detail="Redirecting to invoice shortly."
-      />
-    );
-  }
+    let active = true;
+    const restore = async () => {
+      try {
+        const storedOrderId = readStoredAuctionOrderId(flowState.auctionId);
+        if (!storedOrderId) {
+          if (active) setError('Order not found.');
+          return;
+        }
+
+        const [orderData, payments] = await Promise.all([
+          getOrderById(storedOrderId),
+          getPaymentsForOrder(storedOrderId),
+        ]);
+
+        const successfulPayment = payments.find((item: PaymentResponseDto) => String(item.status).toUpperCase() === 'SUCCESS') ?? null;
+        if (!active) return;
+        setOrder(orderData);
+        setPayment(successfulPayment);
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Unable to load order details.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void restore();
+    return () => {
+      active = false;
+    };
+  }, [flowState.auctionId, flowState.auctionStage]);
 
   if (flowState.auctionStage === 'WINNER' || flowState.auctionStage === 'FINAL_PAYMENT') {
     return <Navigate to="/customer/payment" replace />;
@@ -1706,27 +1727,43 @@ export function CustomerOrderSuccessPage() {
     navigate('/customer/invoice', { replace: true });
   };
 
+  const orderNumber = order?.orderNumber || (order ? `#${order.id}` : '—');
+  const itemName = order?.items?.[0]?.productName || order?.items?.[0]?.name || flowState.auctionTitle || 'Auction item';
+  const amountPaid = payment?.amount ?? order?.totalAmount ?? flowState.winningAmount ?? 0;
+
   return (
     <SectionShell title="Order success" subtitle="Your order is confirmed and ready for the next milestone">
       <FlowBreadcrumbs steps={[{ label: 'Payment', to: '/customer/payment' }, { label: 'Success', to: '/customer/order-success' }, { label: 'Invoice', to: '/customer/invoice' }]} />
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
-            <CheckCircle2 className="h-8 w-8" />
+        {loading ? (
+          <FlowTransitionScreen heading="Loading order" message="Confirming your payment and order details" detail="Please wait a moment." />
+        ) : error ? (
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-200">
+            <p className="font-semibold">Order not available</p>
+            <p className="mt-1">{error}</p>
           </div>
-          <div>
-            <p className="text-lg font-semibold text-white">Order #31284 confirmed</p>
-            <p className="mt-1">You’ll receive updates once the seller dispatches the item.</p>
-          </div>
-        </div>
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          <p className="font-semibold text-white">Order summary</p>
-          <p className="mt-2">{flowState.auctionTitle} • ₹{flowState.winningAmount.toLocaleString()} • Registration fee included</p>
-          <p className="mt-2">Expected seller response: within 2 hours</p>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <button type="button" onClick={handleViewInvoice} className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500">View invoice</button>
-        </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-white">{orderNumber} confirmed</p>
+                <p className="mt-1">Payment successful. You can review the invoice or track the order.</p>
+              </div>
+            </div>
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+              <p className="font-semibold text-white">Order summary</p>
+              <p className="mt-2">{itemName} • ₹{Number(amountPaid).toLocaleString()} • Payment status: {String(payment?.status ?? 'SUCCESS').toUpperCase() === 'SUCCESS' ? 'Paid' : payment?.status || 'Paid'}</p>
+              {payment?.paymentRef ? <p className="mt-2">Payment reference: {payment.paymentRef}</p> : null}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button type="button" onClick={handleViewInvoice} className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500">View invoice</button>
+              {order ? <Link to="/customer/track-order" className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200">Track Order</Link> : null}
+            </div>
+          </>
+        )}
       </motion.div>
     </SectionShell>
   );
@@ -1734,11 +1771,81 @@ export function CustomerOrderSuccessPage() {
 
 export function CustomerInvoicePage() {
   const [flowState] = useState<AuctionFlowState>(() => readAuctionFlowState());
+  const [order, setOrder] = useState<OrderResponseDto | null>(null);
+  const [payment, setPayment] = useState<PaymentResponseDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useAuctionFlowBackGuard(true);
 
-  if (flowState.auctionStage !== 'INVOICE') {
-    return <Navigate to="/customer/watch-auction" replace />;
+  useEffect(() => {
+    let active = true;
+    const loadInvoice = async () => {
+      try {
+        const auctionId = getSelectedAuctionId() ?? flowState.auctionId;
+        const storedOrderId = readStoredAuctionOrderId(auctionId);
+        if (!storedOrderId) {
+          if (active) setError('Order not found.');
+          return;
+        }
+
+        const [orderData, payments] = await Promise.all([
+          getOrderById(storedOrderId),
+          getPaymentsForOrder(storedOrderId),
+        ]);
+
+        const successfulPayment = payments.find((item: PaymentResponseDto) => String(item.status).toUpperCase() === 'SUCCESS') ?? null;
+        if (!active) return;
+        setOrder(orderData);
+        setPayment(successfulPayment);
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Unable to load invoice data.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void loadInvoice();
+    return () => {
+      active = false;
+    };
+  }, [flowState.auctionId]);
+
+  const orderNumber = order?.orderNumber || (order ? `#${order.id}` : '—');
+  const itemName = order?.items?.[0]?.productName || order?.items?.[0]?.name || flowState.auctionTitle || 'Auction item';
+  const paymentId = payment?.paymentRef || payment?.paymentId || payment?.razorpayPaymentId || payment?.id || '—';
+  const paymentStatus = String(payment?.status ?? 'PENDING').toUpperCase() === 'SUCCESS' ? 'Paid' : String(payment?.status ?? 'Pending');
+  const amountPaid = Number(payment?.amount ?? order?.totalAmount ?? flowState.winningAmount ?? 0);
+  const paymentMethod = payment?.paymentMethod || payment?.paymentMethodName || payment?.method || 'Razorpay';
+  const paymentDate = payment?.paidAt || payment?.createdAt || order?.createdAt || new Date().toISOString();
+  const formattedDate = paymentDate ? new Date(paymentDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  const receiptUrl = payment?.receiptUrl || payment?.qrCodeUrl || '';
+  const qrUrl = receiptUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(receiptUrl)}` : '';
+
+  const handlePrintSavePdf = () => {
+    window.print();
+  };
+
+  if (loading) {
+    return (
+      <FlowTransitionScreen
+        heading="Loading invoice"
+        message="Preparing your payment receipt"
+        detail="Fetching your real order and payment history."
+      />
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <SectionShell title="Invoice" subtitle="Official payment and order receipt">
+        <div className="rounded-[24px] border border-red-500/20 bg-red-500/10 p-6 text-sm text-red-200">
+          <p className="font-semibold">Invoice unavailable</p>
+          <p className="mt-1">{error || 'The order could not be found.'}</p>
+          <Link to="/customer/order-success" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Back to order</Link>
+        </div>
+      </SectionShell>
+    );
   }
 
   return (
@@ -1747,26 +1854,40 @@ export function CustomerInvoicePage() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-semibold text-white">Invoice INV-31284</p>
-            <p className="mt-2">Item: {flowState.auctionTitle}</p>
-            <p className="mt-2">Amount paid: ₹{(flowState.winningAmount + 20).toLocaleString()}</p>
+            <p className="font-semibold text-white">Invoice {orderNumber}</p>
+            <p className="mt-2">Item: {itemName}</p>
+            <p className="mt-2">Amount paid: ₹{amountPaid.toLocaleString()}</p>
           </div>
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-emerald-200">Payment status: Paid</div>
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-emerald-200">Payment status: {paymentStatus}</div>
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-slate-400">Transaction ID</p>
-            <p className="mt-1 font-semibold text-white">TXN-874512</p>
+            <p className="text-slate-400">Payment ID</p>
+            <p className="mt-1 font-semibold text-white">{paymentId}</p>
+            <p className="mt-3 text-slate-400">Razorpay Order ID</p>
+            <p className="mt-1 font-semibold text-white">{payment?.razorpayOrderId || 'Not available'}</p>
             <p className="mt-3 text-slate-400">Payment method</p>
-            <p className="mt-1 font-semibold text-white">UPI • Razorpay</p>
+            <p className="mt-1 font-semibold text-white">{paymentMethod}</p>
+            <p className="mt-3 text-slate-400">Paid on</p>
+            <p className="mt-1 font-semibold text-white">{formattedDate}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-white"><QrCode className="h-4 w-4 text-blue-300" /> QR receipt</div>
-            <div className="mt-3 flex h-24 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-slate-950/40 text-slate-400">Scan to verify</div>
+            <div className="flex items-center gap-2 text-white"><QrCode className="h-4 w-4 text-blue-300" /> Payment reference</div>
+            {qrUrl ? (
+              <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-slate-950/40 p-3">
+                <img src={qrUrl} alt="Payment receipt QR code" className="mx-auto h-32 w-32 rounded-xl bg-white p-2" />
+              </div>
+            ) : (
+              <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-slate-950/40 p-4 text-slate-300">
+                <p className="font-medium text-white">Payment reference</p>
+                <p className="mt-2 break-all">{paymentId}</p>
+              </div>
+            )}
           </div>
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
-          <button type="button" className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"><Download className="h-4 w-4" /> Download PDF</button>
+          <button type="button" onClick={handlePrintSavePdf} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"><Download className="h-4 w-4" /> Print / Save as PDF</button>
+          <Link to="/customer/track-order" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200">Track order</Link>
         </div>
       </motion.div>
     </SectionShell>

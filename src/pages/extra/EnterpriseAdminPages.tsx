@@ -10,9 +10,47 @@ import { adminStats, chartSeries, franchiseDashboardKpis, rolePermissions } from
 import { Link } from 'react-router-dom';
 import Logo from '../../components/Logo';
 import { useAuth } from '../../context/AuthContext';
-import { approveVendor, getPendingVendorApprovals, rejectVendor, type ApprovalRequest } from '../../api/approvalApi';
+import { approveVendor, getPendingVendorApprovals, rejectVendor, requestVendorChanges, type ApprovalRequest } from '../../api/approvalApi';
+import { approveVendorDocument } from '../../api/vendorApi';
 import { approveAdminWithdrawal, getAdminWalletSummary, getAdminWalletTransactions, getPendingAdminWithdrawals, rejectAdminWithdrawal, type AdminWalletSummary, type AdminWalletTransaction, type AdminWithdrawal } from '../../api/adminWalletApi';
+import { createAdminNotificationTemplate, deleteAdminNotificationTemplate, getAdminAuctionRules, getAdminCommissionRules, getAdminEmailSettings, getAdminGeneralSettings, getAdminLocalizationSettings, getAdminNotificationTemplates, getAdminPlatformCharges, getAdminRegistrationFeeSettings, getAdminSecuritySettings, getAdminShippingRules, getAdminSmsSettings, getAdminTaxSettings, updateAdminAuctionRules, updateAdminCommissionRules, updateAdminEmailSettings, updateAdminGeneralSettings, updateAdminLocalizationSettings, updateAdminPlatformCharges, updateAdminRegistrationFeeSettings, updateAdminSecuritySettings, updateAdminShippingRules, updateAdminSmsSettings, updateAdminTaxSettings, type NotificationTemplate } from '../../api/adminSettingsApi';
+import { createBanner, createBlog, createCategory, createFaq, createPage, createTestimonial, deleteBanner, deleteBlog, deleteCategory, deleteFaq, deletePage, deleteTestimonial, getBanners, getBlogs, getCategories, getFaq, getPages, getTestimonials, updateBanner, updateBannerStatus, updateBlog, updateBlogStatus, updateCategory, updateCategoryFeatured, updateCategoryStatus, updateFaq, updateFaqStatus, updatePage, updatePageStatus, updateTestimonial, updateTestimonialStatus } from '../../api/cmsApi';
 import { EmptyState, ErrorState, SkeletonTable } from '../../components/loading/LoadingComponents';
+import { showToast } from '../../components/ui/toast';
+
+const maskAccountNumber = (value?: string | number | null) => {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '-' || raw === 'null' || raw === 'undefined') {
+    return 'Bank details not provided';
+  }
+
+  const alreadyMasked = raw.startsWith('******') || raw.includes('*');
+  if (alreadyMasked) {
+    return raw;
+  }
+
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) {
+    return raw;
+  }
+
+  if (digits.length <= 4) {
+    return `******${digits}`;
+  }
+
+  return `******${digits.slice(-4)}`;
+};
+
+const getSafeValue = (record: Record<string, unknown> | null | undefined, keys: string[]) => {
+  if (!record) return '';
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value);
+    }
+  }
+  return '';
+};
 
 const dashboardKpis = [
   { label: 'Total Customers', value: '18.2k', trend: '+12%' },
@@ -343,6 +381,14 @@ export function ApprovalCenterPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<number | string | null>(null);
+  const [approvingDocumentId, setApprovingDocumentId] = useState<number | string | null>(null);
+  const [requestChangesVendorId, setRequestChangesVendorId] = useState<number | string | null>(null);
+  const [requestReason, setRequestReason] = useState('');
+  const [selectedDocuments, setSelectedDocuments] = useState<Record<string, boolean>>({
+    AADHAAR: true,
+    PAN: true,
+    SELFIE: true,
+  });
 
   const loadApprovals = async () => {
     setLoading(true);
@@ -354,6 +400,19 @@ export function ApprovalCenterPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const bankVerificationRows = approvals.filter((row) =>
+    Boolean(
+      row.accountHolderName || row.bankName || row.accountNumber || row.ifsc || row.branch || row.gstNumber
+    )
+  );
+
+  const maskAccountNumber = (value?: string) => {
+    if (!value) return 'Not provided';
+    const digits = value.replace(/\D/g, '');
+    if (!digits) return 'Not provided';
+    return digits.length <= 4 ? `******${digits}` : `******${digits.slice(-4)}`;
   };
 
   useEffect(() => {
@@ -369,6 +428,44 @@ export function ApprovalCenterPage() {
       await loadApprovals();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Unable to update approval.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleApproveDocument = async (vendorProfileId: number | string, documentId: number | string) => {
+    setApprovingDocumentId(documentId);
+    setActionError(null);
+    try {
+      await approveVendorDocument(vendorProfileId, documentId);
+      await loadApprovals();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Unable to approve document.');
+    } finally {
+      setApprovingDocumentId(null);
+    }
+  };
+
+  const handleRequestChanges = async (vendorProfileId: number | string) => {
+    const selected = Object.entries(selectedDocuments)
+      .filter(([, enabled]) => enabled)
+      .map(([key]) => key === 'AADHAAR' ? 'ID_PROOF' : key as 'PAN' | 'SELFIE');
+
+    if (selected.length === 0 || !requestReason.trim()) {
+      setActionError('Select at least one document and provide a reason to request changes.');
+      return;
+    }
+
+    setProcessingId(vendorProfileId);
+    setActionError(null);
+    try {
+      await requestVendorChanges(vendorProfileId, selected, requestReason.trim());
+      setRequestChangesVendorId(null);
+      setRequestReason('');
+      setSelectedDocuments({ AADHAAR: true, PAN: true, SELFIE: true });
+      await loadApprovals();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Unable to request changes.');
     } finally {
       setProcessingId(null);
     }
@@ -398,11 +495,74 @@ export function ApprovalCenterPage() {
                   </div>
                   <Badge>{row.verificationStatus}</Badge>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <PrimaryButton disabled={busy} onClick={() => handleAction(row, 'approve')}>Approve</PrimaryButton>
-                  <SecondaryButton disabled={busy} onClick={() => handleAction(row, 'reject')}>Reject</SecondaryButton>
-                  <SecondaryButton disabled={busy}>Request changes</SecondaryButton>
+                <div className="mt-3 space-y-2">
+                  {(row.documents ?? []).map((doc) => {
+                    const normalizedType = String(doc.type ?? '').toUpperCase();
+                    const isSelfieDocument = normalizedType.includes('SELFIE') || String(doc.type ?? '').toUpperCase() === 'SELFIE';
+                    const displayLabel = normalizedType.includes('ID_PROOF') || normalizedType.includes('AADHAAR') || normalizedType.includes('IDENTITY') ? 'Aadhaar' : normalizedType.includes('PAN') ? 'PAN' : isSelfieDocument ? 'SELFIE' : 'Document';
+                    const isApproved = normalizedType && String(doc.status ?? '').toUpperCase() === 'APPROVED';
+                    const isApprovingThisDocument = approvingDocumentId === doc.id;
+
+                    return (
+                      <div key={`${row.vendorProfileId}-${doc.id ?? doc.type}`} className="rounded-2xl border border-white/10 bg-slate-950/40 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-white">{displayLabel}</span>
+                          <Badge>{String(doc.status ?? 'PENDING').toUpperCase() === 'APPROVED' ? 'APPROVED' : String(doc.status ?? 'PENDING').toUpperCase() === 'CHANGES_REQUESTED' ? 'CHANGES REQUESTED' : 'PENDING REVIEW'}</Badge>
+                        </div>
+                        {doc.fileName ? <p className="mt-2 text-xs text-slate-400">Uploaded file: {doc.fileName}</p> : null}
+                        {doc.documentNumber ? <p className="mt-2 text-xs text-slate-400">Document number: {doc.documentNumber}</p> : null}
+                        {doc.documentUrl ? <a href={doc.documentUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-blue-300 underline">View document</a> : null}
+                        {doc.reason ? <p className="mt-2 text-xs text-amber-200">Reason: {doc.reason}</p> : null}
+                        {!isApproved && doc.id !== undefined && doc.id !== null ? (
+                          <SecondaryButton
+                            disabled={isApprovingThisDocument}
+                            onClick={() => handleApproveDocument(row.vendorProfileId, doc.id!)}
+                            className="mt-3 w-full"
+                          >
+                            {isApprovingThisDocument ? `Approving ${displayLabel}...` : isSelfieDocument ? 'Approve SELFIE' : `Approve ${displayLabel}`}
+                          </SecondaryButton>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <PrimaryButton disabled={busy} onClick={() => handleAction(row, 'approve')}>Approve Vendor</PrimaryButton>
+                  <SecondaryButton disabled={busy} onClick={() => handleAction(row, 'reject')}>Reject</SecondaryButton>
+                  <SecondaryButton disabled={busy} onClick={() => {
+                    setRequestChangesVendorId(row.vendorProfileId);
+                    setRequestReason('');
+                    setSelectedDocuments({ AADHAAR: true, PAN: true, SELFIE: true });
+                  }}>Request changes</SecondaryButton>
+                </div>
+                {requestChangesVendorId === row.vendorProfileId ? (
+                  <div className="mt-3 rounded-2xl border border-amber-500/30 bg-slate-950/60 p-3">
+                    <div className="mb-2 text-sm font-semibold text-white">Request changes for this vendor</div>
+                    <div className="space-y-2 text-sm text-slate-200">
+                      {['AADHAAR', 'PAN', 'SELFIE'].map((document) => (
+                        <label key={document} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(selectedDocuments[document])}
+                            onChange={() => setSelectedDocuments((current) => ({ ...current, [document]: !current[document] }))}
+                          />
+                          {document}
+                        </label>
+                      ))}
+                    </div>
+                    <textarea
+                      value={requestReason}
+                      onChange={(event) => setRequestReason(event.target.value)}
+                      placeholder="Describe the issue..."
+                      className="mt-3 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500"
+                      rows={3}
+                    />
+                    <div className="mt-3 flex gap-2">
+                      <PrimaryButton disabled={busy || !requestReason.trim()} onClick={() => handleRequestChanges(row.vendorProfileId)}>Send request</PrimaryButton>
+                      <SecondaryButton onClick={() => setRequestChangesVendorId(null)}>Cancel</SecondaryButton>
+                    </div>
+                  </div>
+                ) : null}
               </div>;
             })}
           </div>
@@ -411,7 +571,7 @@ export function ApprovalCenterPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300">Verification queue</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">KYC and GST checks</h3>
+              <h3 className="mt-1 text-lg font-semibold text-white">KYC, GST and bank checks</h3>
             </div>
             <SecondaryButton icon={<FileText className="h-4 w-4" />}>Export queue</SecondaryButton>
           </div>
@@ -785,7 +945,41 @@ export function WalletManagementAdminPage() {
     setPendingLoading(true);
     setPendingError(null);
     try {
-      setPendingWithdrawals(await getPendingAdminWithdrawals());
+      const withdrawals = await getPendingAdminWithdrawals();
+
+      const enrichedWithdrawals = await Promise.all(withdrawals.map(async (withdrawal) => {
+        const withdrawalRecord = withdrawal as Record<string, unknown>;
+        const vendorObj = withdrawalRecord.vendor as Record<string, unknown> | undefined;
+        const vendorId = withdrawalRecord.vendorId ?? withdrawalRecord.vendor_id ?? vendorObj?.id;
+        if (!vendorId) {
+          return withdrawal;
+        }
+
+        try {
+          const vendor = await import('../../api/adminApi').then(({ getAdminVendor }) => getAdminVendor(String(vendorId)));
+          const vendorRecord = vendor as Record<string, unknown> | null;
+          const bankAccountNumber = getSafeValue(vendorRecord, ['bankAccountNumber', 'bank_account_number', 'accountNumber', 'account_number']);
+          const bankName = getSafeValue(vendorRecord, ['bankName', 'bank_name', 'bank']);
+          const ifsc = getSafeValue(vendorRecord, ['ifsc', 'ifscCode', 'ifsc_code', 'ifscCode']);
+          const branch = getSafeValue(vendorRecord, ['branch', 'branchName', 'branch_name', 'branchName']);
+          const accountHolderName = getSafeValue(vendorRecord, ['accountHolderName', 'account_holder_name', 'bankAccountHolderName']);
+
+          return {
+            ...withdrawal,
+            vendorName: getSafeValue(vendorRecord, ['username', 'name', 'businessName', 'companyName']) || withdrawal.vendorName || withdrawal.businessName || 'Vendor',
+            vendorEmail: getSafeValue(vendorRecord, ['email', 'vendorEmail']) || withdrawal.vendorEmail || '',
+            bankName: bankName || withdrawal.bankName || '',
+            accountNumber: bankAccountNumber || withdrawal.accountNumber || withdrawal.bankAccountNumber || '',
+            ifsc: ifsc || withdrawal.ifsc || withdrawal.ifscCode || '',
+            branch: branch || withdrawal.branch || withdrawal.branchName || withdrawal.bankBranch || '',
+            accountHolderName: accountHolderName || withdrawal.accountHolderName || '',
+          };
+        } catch {
+          return withdrawal;
+        }
+      }));
+
+      setPendingWithdrawals(enrichedWithdrawals);
     } catch (err) {
       setPendingError(err instanceof Error ? err.message : 'Unable to load pending withdrawals.');
     } finally {
@@ -828,10 +1022,15 @@ export function WalletManagementAdminPage() {
         {error ? <ErrorState title="Unable to load wallet" description={error} /> : loading ? <SkeletonTable /> : transactions.length === 0 ? <EmptyState title="No wallet transactions" description="Wallet transactions will appear here when available." /> : <Table columns={[
           { key: 'id', label: 'ID' },
           { key: 'type', label: 'Type' },
+          { key: 'vendorName', label: 'Vendor', render: (row: any) => <span>{row.vendorName || '—'}</span> },
           { key: 'amount', label: 'Amount' },
           { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-200' : row.status === 'Pending' ? 'bg-amber-500/10 text-amber-200' : 'bg-blue-500/10 text-blue-200'}>{row.status}</Badge> },
           { key: 'date', label: 'Date' },
-        ]} data={transactions.map((transaction) => ({ ...transaction, date: transaction.date || transaction.createdAt || '-' }))} className="p-0" />}
+        ]} data={transactions.map((transaction) => ({
+          ...transaction,
+          vendorName: transaction.vendorName || '—',
+          date: transaction.date || transaction.createdAt || '-',
+        }))} className="p-0" />}
       </Card>
 
       <Card className="mt-6 p-4">
@@ -849,7 +1048,49 @@ export function WalletManagementAdminPage() {
               <tbody className="text-slate-300">
                 {pendingWithdrawals.map((withdrawal) => {
                   const busy = processingWithdrawalId === withdrawal.id;
-                  return <tr key={withdrawal.id} className="border-t border-white/6"><td className="px-3 py-3">{withdrawal.id}</td><td className="px-3 py-3">{withdrawal.businessName || '-'}</td><td className="px-3 py-3">₹{Number(withdrawal.amount || 0).toLocaleString('en-IN')}</td><td className="px-3 py-3"><Badge className="bg-amber-500/10 text-amber-200">{String(withdrawal.status || 'PENDING')}</Badge></td><td className="px-3 py-3">{String(withdrawal.requestedAt || withdrawal.createdAt || '-')}</td><td className="px-3 py-3"><div className="flex gap-2"><PrimaryButton className="min-h-0 px-3 py-2 text-xs" disabled={busy} onClick={() => updatePendingWithdrawal(withdrawal, 'approve')}>{busy ? 'Working…' : 'Approve'}</PrimaryButton><SecondaryButton className="min-h-0 px-3 py-2 text-xs" disabled={busy} onClick={() => updatePendingWithdrawal(withdrawal, 'reject')}>Reject</SecondaryButton></div></td></tr>;
+                  const vendorName = withdrawal.vendorName || withdrawal.businessName || 'Vendor';
+                  const vendorEmail = withdrawal.vendorEmail || '';
+                  const bankName = withdrawal.bankName || withdrawal.accountHolderName || withdrawal.ifsc || withdrawal.branch || withdrawal.accountNumber ? (withdrawal.bankName || 'Bank details available') : '';
+                  const accountNumber = withdrawal.accountNumber || withdrawal.bankAccountNumber || '';
+                  const ifsc = withdrawal.ifsc || withdrawal.ifscCode || '';
+                  const branch = withdrawal.branch || withdrawal.branchName || withdrawal.bankBranch || '';
+                  const hasBankDetails = Boolean(bankName || accountNumber || ifsc || branch || withdrawal.accountHolderName);
+
+                  return (
+                    <>
+                      <tr key={withdrawal.id} className="border-t border-white/6">
+                        <td className="px-3 py-3">{withdrawal.id}</td>
+                        <td className="px-3 py-3">
+                          <div className="space-y-1">
+                            <div>{vendorName}</div>
+                            {vendorEmail ? <div className="text-xs text-slate-400">{vendorEmail}</div> : null}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">₹{Number(withdrawal.amount || 0).toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-3"><Badge className="bg-amber-500/10 text-amber-200">{String(withdrawal.status || 'PENDING')}</Badge></td>
+                        <td className="px-3 py-3">{String(withdrawal.requestedAt || withdrawal.createdAt || '-')}</td>
+                        <td className="px-3 py-3"><div className="flex gap-2"><PrimaryButton className="min-h-0 px-3 py-2 text-xs" disabled={busy} onClick={() => updatePendingWithdrawal(withdrawal, 'approve')}>{busy ? 'Working…' : 'Approve'}</PrimaryButton><SecondaryButton className="min-h-0 px-3 py-2 text-xs" disabled={busy} onClick={() => updatePendingWithdrawal(withdrawal, 'reject')}>Reject</SecondaryButton></div></td>
+                      </tr>
+                      <tr key={`${withdrawal.id}-bank`} className="border-b border-white/6 bg-slate-950/30">
+                        <td colSpan={6} className="px-3 py-3">
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Bank details</div>
+                            {hasBankDetails ? (
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div><span className="text-slate-400">Account holder:</span> <span className="text-white">{withdrawal.accountHolderName || 'Not provided'}</span></div>
+                                <div><span className="text-slate-400">Bank:</span> <span className="text-white">{withdrawal.bankName || 'Not provided'}</span></div>
+                                <div><span className="text-slate-400">Account number:</span> <span className="text-white">{accountNumber ? maskAccountNumber(accountNumber) : 'Not provided'}</span></div>
+                                <div><span className="text-slate-400">IFSC:</span> <span className="text-white">{ifsc || 'Not provided'}</span></div>
+                                <div className="md:col-span-2"><span className="text-slate-400">Branch:</span> <span className="text-white">{branch || 'Not provided'}</span></div>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-slate-300">Bank details not provided</p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    </>
+                  );
                 })}
               </tbody>
             </table>
@@ -964,6 +1205,28 @@ function LabeledTextarea({ label, value, onChange, placeholder = '' }: { label: 
   );
 }
 
+function ToggleSwitch({ label, enabled, onChange }: { label: string; enabled: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <div className="md:col-span-2">
+      <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-3">
+        <span className="text-sm font-medium text-slate-300">{label}</span>
+        <div className="flex items-center gap-3">
+          <span className={`text-xs font-semibold uppercase tracking-[0.2em] ${enabled ? 'text-emerald-300' : 'text-slate-400'}`}>{enabled ? 'Enabled' : 'Disabled'}</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            onClick={() => onChange(!enabled)}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${enabled ? 'bg-emerald-500/80' : 'bg-slate-700'}`}
+          >
+            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FakeTable({ title, items }: { title: string; items: { label: string; value: string; tone?: 'emerald' | 'amber' | 'blue' | 'rose' | 'slate' }[] }) {
   return (
     <Card className="p-4">
@@ -980,114 +1243,462 @@ function FakeTable({ title, items }: { title: string; items: { label: string; va
   );
 }
 
-export function CMSBannersPage() {
-  const [items, setItems] = useState([
-    { id: 1, title: 'Spring Deal', status: 'Active', order: 1, cta: 'Shop now', date: '01 Aug 2026' },
-    { id: 2, title: 'Luxury Auction Week', status: 'Draft', order: 2, cta: 'Explore', date: '15 Aug 2026' },
-  ]);
+const normalizeCmsStatus = (value: unknown) => String(value ?? 'DRAFT').trim().toUpperCase();
 
-  const toggle = (id: number) => setItems((prev) => prev.map((item) => item.id === id ? { ...item, status: item.status === 'Active' ? 'Inactive' : 'Active' } : item));
+const toCmsString = (value: unknown, fallback = '') => {
+  if (value === null || value === undefined || value === '') return fallback;
+  return String(value);
+};
+
+export function CMSBannersPage() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [draft, setDraft] = useState({ title: '', status: 'DRAFT' });
+
+  const loadItems = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getBanners();
+      setItems(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load banners');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadItems(); }, []);
+
+  const handleCreate = async () => {
+    try {
+      const payload = { title: draft.title || 'New banner', status: normalizeCmsStatus(draft.status), imageUrl: '', ctaLabel: 'Shop now', ctaUrl: '#', isPublished: normalizeCmsStatus(draft.status) === 'PUBLISHED' };
+      const created = await createBanner(payload);
+      setItems((prev) => [created, ...prev]);
+      setDraft({ title: '', status: 'DRAFT' });
+      setIsCreating(false);
+      showToast('Banner created', 'The CMS banner was saved successfully.', 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to create banner';
+      setError(message);
+      showToast('Banner save failed', message, 'warning');
+    }
+  };
+
+  const handleToggleStatus = async (row: any) => {
+    try {
+      const nextStatus = normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED';
+      const updated = await updateBannerStatus(row.id, nextStatus);
+      setItems((prev) => prev.map((item) => item.id === row.id ? { ...item, ...updated } : item));
+      showToast('Banner status updated', `Status changed to ${nextStatus}.`, 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to update banner status';
+      showToast('Status update failed', message, 'warning');
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="CMS banners" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Banners' }]} activePath="/admin/cms" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add banner</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="CMS banners" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Banners' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => setIsCreating((prev) => !prev)} icon={<Plus className="h-4 w-4" />}>Add banner</PrimaryButton>}>
       <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
         <Card className="p-4">
-          <Table columns={[
-            { key: 'title', label: 'Title' },
-            { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Active' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.status}</Badge> },
-            { key: 'cta', label: 'CTA' },
-            { key: 'date', label: 'Date' },
-            { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={() => toggle(row.id)} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">{row.status === 'Active' ? 'Deactivate' : 'Activate'}</button> },
-          ]} data={items} className="p-0" />
+          {isCreating && (
+            <div className="mb-4 rounded-[18px] border border-white/10 bg-slate-900/80 p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <LabeledInput label="Title" value={draft.title} onChange={(value) => setDraft((prev) => ({ ...prev, title: value }))} />
+                <div className="space-y-2">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</span>
+                  <select value={draft.status} onChange={(event) => setDraft((prev) => ({ ...prev, status: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="PUBLISHED">PUBLISHED</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end gap-3">
+                <SecondaryButton onClick={() => setIsCreating(false)}>Cancel</SecondaryButton>
+                <PrimaryButton onClick={handleCreate}>Save</PrimaryButton>
+              </div>
+            </div>
+          )}
+          {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+          {loading ? <div className="text-sm text-slate-400">Loading banners...</div> : (
+            <Table columns={[
+              { key: 'title', label: 'Title' },
+              { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
+              { key: 'ctaLabel', label: 'CTA', render: (row: any) => <span>{toCmsString(row.ctaLabel || row.cta, '—')}</span> },
+              { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={() => handleToggleStatus(row)} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">{normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'Unpublish' : 'Publish'}</button> },
+            ]} data={items} className="p-0" />
+          )}
         </Card>
-        <FakeTable title="Banner overview" items={[{ label: 'Live banners', value: '6', tone: 'emerald' }, { label: 'Draft banners', value: '3', tone: 'amber' }, { label: 'Scheduled', value: '2', tone: 'blue' }]} />
+        <FakeTable title="Banner overview" items={[{ label: 'Live banners', value: String(items.filter((item) => normalizeCmsStatus(item.status) === 'PUBLISHED').length), tone: 'emerald' }, { label: 'Draft banners', value: String(items.filter((item) => normalizeCmsStatus(item.status) === 'DRAFT').length), tone: 'amber' }]} />
       </div>
     </AdminShell>
   );
 }
 
 export function CMSCategoriesPage() {
-  const [items, setItems] = useState([
-    { id: 1, name: 'Electronics', parent: 'Marketplace', order: 1, status: 'Active' },
-    { id: 2, name: 'Luxury Watches', parent: 'Electronics', order: 2, status: 'Draft' },
-  ]);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [draft, setDraft] = useState({ name: '', status: 'DRAFT', featured: false });
 
-  const remove = (id: number) => setItems((prev) => prev.filter((item) => item.id !== id));
+  const loadItems = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getCategories();
+      setItems(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load categories');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadItems(); }, []);
+
+  const handleCreate = async () => {
+    try {
+      const created = await createCategory({ name: draft.name || 'New category', status: normalizeCmsStatus(draft.status), featured: draft.featured });
+      setItems((prev) => [created, ...prev]);
+      setDraft({ name: '', status: 'DRAFT', featured: false });
+      setIsCreating(false);
+      showToast('Category created', 'The CMS category was saved successfully.', 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to create category';
+      setError(message);
+      showToast('Category save failed', message, 'warning');
+    }
+  };
+
+  const handleDelete = async (id: number | string) => {
+    try {
+      await deleteCategory(id);
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      showToast('Category deleted', 'The item was removed from the CMS list.', 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to delete category';
+      showToast('Delete failed', message, 'warning');
+    }
+  };
+
+  const handleFeaturedToggle = async (row: any) => {
+    try {
+      const next = !Boolean(row.featured);
+      await updateCategoryFeatured(row.id, next);
+      setItems((prev) => prev.map((item) => item.id === row.id ? { ...item, featured: next } : item));
+      showToast('Featured status updated', `Category is now ${next ? 'featured' : 'not featured'}.`, 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to update featured status';
+      showToast('Featured update failed', message, 'warning');
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="CMS categories" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Categories' }]} activePath="/admin/cms" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add category</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="CMS categories" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Categories' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => setIsCreating((prev) => !prev)} icon={<Plus className="h-4 w-4" />}>Add category</PrimaryButton>}>
       <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
         <Card className="p-4">
-          <Table columns={[
-            { key: 'name', label: 'Name' },
-            { key: 'parent', label: 'Parent' },
-            { key: 'order', label: 'Order' },
-            { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Active' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.status}</Badge> },
-            { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={() => remove(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button> },
-          ]} data={items} className="p-0" />
+          {isCreating && (
+            <div className="mb-4 rounded-[18px] border border-white/10 bg-slate-900/80 p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <LabeledInput label="Name" value={draft.name} onChange={(value) => setDraft((prev) => ({ ...prev, name: value }))} />
+                <div className="space-y-2">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</span>
+                  <select value={draft.status} onChange={(event) => setDraft((prev) => ({ ...prev, status: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="PUBLISHED">PUBLISHED</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-3 text-sm text-slate-300">
+                <input type="checkbox" checked={draft.featured} onChange={(event) => setDraft((prev) => ({ ...prev, featured: event.target.checked }))} className="h-4 w-4 rounded border-white/20 bg-slate-900" />
+                Featured
+              </div>
+              <div className="mt-4 flex justify-end gap-3">
+                <SecondaryButton onClick={() => setIsCreating(false)}>Cancel</SecondaryButton>
+                <PrimaryButton onClick={handleCreate}>Save</PrimaryButton>
+              </div>
+            </div>
+          )}
+          {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+          {loading ? <div className="text-sm text-slate-400">Loading categories...</div> : (
+            <Table columns={[
+              { key: 'name', label: 'Name' },
+              { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
+              { key: 'featured', label: 'Featured', render: (row: any) => <button onClick={() => handleFeaturedToggle(row)} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">{row.featured ? 'Featured' : 'Not featured'}</button> },
+              { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={() => handleDelete(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button> },
+            ]} data={items} className="p-0" />
+          )}
         </Card>
-        <FakeTable title="Taxonomy" items={[{ label: 'Top categories', value: '21', tone: 'blue' }, { label: 'Drafts', value: '4', tone: 'amber' }, { label: 'Featured', value: '8', tone: 'emerald' }]} />
+        <FakeTable title="Taxonomy" items={[{ label: 'Top categories', value: String(items.length), tone: 'blue' }, { label: 'Featured', value: String(items.filter((item) => Boolean(item.featured)).length), tone: 'emerald' }]} />
       </div>
     </AdminShell>
   );
 }
 
 export function CMSFaqPage() {
-  const [items, setItems] = useState([
-    { id: 1, question: 'How do I bid?', answer: 'Register successfully and place bids above the current value.', status: 'Published', order: 1 },
-    { id: 2, question: 'Can I cancel a bid?', answer: 'Bids may be withdrawn before the auction closes based on the policy.', status: 'Draft', order: 2 },
-  ]);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [draft, setDraft] = useState({ question: '', answer: '', status: 'DRAFT' });
 
-  const remove = (id: number) => setItems((prev) => prev.filter((item) => item.id !== id));
+  const loadItems = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getFaq();
+      setItems(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load FAQ');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadItems(); }, []);
+
+  const handleCreate = async () => {
+    try {
+      const created = await createFaq({ question: draft.question || 'New question', answer: draft.answer || 'Answer pending', status: normalizeCmsStatus(draft.status), featured: false });
+      setItems((prev) => [created, ...prev]);
+      setDraft({ question: '', answer: '', status: 'DRAFT' });
+      setIsCreating(false);
+      showToast('FAQ created', 'The FAQ item was saved successfully.', 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to create FAQ';
+      setError(message);
+      showToast('FAQ save failed', message, 'warning');
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="CMS FAQ" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'FAQ' }]} activePath="/admin/cms" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add FAQ</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="CMS FAQ" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'FAQ' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => setIsCreating((prev) => !prev)} icon={<Plus className="h-4 w-4" />}>Add FAQ</PrimaryButton>}>
       <Card className="p-4">
-        <Table columns={[
-          { key: 'question', label: 'Question' },
-          { key: 'answer', label: 'Answer' },
-          { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Published' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.status}</Badge> },
-          { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={() => remove(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button> },
-        ]} data={items} className="p-0" />
+        {isCreating && (
+          <div className="mb-4 rounded-[18px] border border-white/10 bg-slate-900/80 p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <LabeledInput label="Question" value={draft.question} onChange={(value) => setDraft((prev) => ({ ...prev, question: value }))} />
+              <div className="space-y-2">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</span>
+                <select value={draft.status} onChange={(event) => setDraft((prev) => ({ ...prev, status: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="PUBLISHED">PUBLISHED</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-3">
+              <LabeledTextarea label="Answer" value={draft.answer} onChange={(value) => setDraft((prev) => ({ ...prev, answer: value }))} />
+            </div>
+            <div className="mt-4 flex justify-end gap-3">
+              <SecondaryButton onClick={() => setIsCreating(false)}>Cancel</SecondaryButton>
+              <PrimaryButton onClick={handleCreate}>Save</PrimaryButton>
+            </div>
+          </div>
+        )}
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading FAQ...</div> : (
+          <Table columns={[
+            { key: 'question', label: 'Question' },
+            { key: 'answer', label: 'Answer' },
+            { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
+            { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={async () => { try { await deleteFaq(row.id); setItems((prev) => prev.filter((item) => item.id !== row.id)); showToast('FAQ deleted', 'The item was removed successfully.', 'success'); } catch (saveError) { showToast('Delete failed', saveError instanceof Error ? saveError.message : 'Failed to delete FAQ', 'warning'); } }} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button> },
+          ]} data={items} className="p-0" />
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function CMSBlogPage() {
-  const [items] = useState([
-    { id: 1, title: 'How events drive conversion', author: 'Nikita', status: 'Published', category: 'Marketing' },
-    { id: 2, title: 'Seller trust checklist', author: 'Rahul', status: 'Draft', category: 'Seller Growth' },
-  ]);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [draft, setDraft] = useState({ title: '', author: '', category: '', status: 'DRAFT' });
+
+  const loadItems = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getBlogs();
+      setItems(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load blog posts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadItems(); }, []);
+
+  const handleCreate = async () => {
+    try {
+      const created = await createBlog({ title: draft.title || 'New blog post', author: draft.author || 'Admin', category: draft.category || 'General', status: normalizeCmsStatus(draft.status) });
+      setItems((prev) => [created, ...prev]);
+      setDraft({ title: '', author: '', category: '', status: 'DRAFT' });
+      setIsCreating(false);
+      showToast('Blog post created', 'The CMS blog post was saved successfully.', 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to create blog post';
+      setError(message);
+      showToast('Blog save failed', message, 'warning');
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="CMS blog" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Blog' }]} activePath="/admin/cms" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Create blog</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="CMS blog" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Blog' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => setIsCreating((prev) => !prev)} icon={<Plus className="h-4 w-4" />}>Create blog</PrimaryButton>}>
       <Card className="p-4">
-        <Table columns={[
-          { key: 'title', label: 'Title' },
-          { key: 'author', label: 'Author' },
-          { key: 'category', label: 'Category' },
-          { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Published' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.status}</Badge> },
-        ]} data={items} className="p-0" />
+        {isCreating && (
+          <div className="mb-4 rounded-[18px] border border-white/10 bg-slate-900/80 p-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <LabeledInput label="Title" value={draft.title} onChange={(value) => setDraft((prev) => ({ ...prev, title: value }))} />
+              <LabeledInput label="Author" value={draft.author} onChange={(value) => setDraft((prev) => ({ ...prev, author: value }))} />
+              <LabeledInput label="Category" value={draft.category} onChange={(value) => setDraft((prev) => ({ ...prev, category: value }))} />
+            </div>
+            <div className="mt-3 flex justify-end gap-3">
+              <SecondaryButton onClick={() => setIsCreating(false)}>Cancel</SecondaryButton>
+              <PrimaryButton onClick={handleCreate}>Save</PrimaryButton>
+            </div>
+          </div>
+        )}
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading blog posts...</div> : (
+          <Table columns={[
+            { key: 'title', label: 'Title' },
+            { key: 'author', label: 'Author' },
+            { key: 'category', label: 'Category' },
+            { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
+            { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={async () => { try { await deleteBlog(row.id); setItems((prev) => prev.filter((item) => item.id !== row.id)); showToast('Blog deleted', 'The post was removed successfully.', 'success'); } catch (saveError) { showToast('Delete failed', saveError instanceof Error ? saveError.message : 'Failed to delete blog post', 'warning'); } }} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button> },
+          ]} data={items} className="p-0" />
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function CMSTestimonialsPage() {
-  const [items] = useState([
-    { id: 1, customer: 'Aarav Nair', rating: '5/5', status: 'Published' },
-    { id: 2, customer: 'Bhuvana S.', rating: '4/5', status: 'Draft' },
-  ]);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingId, setEditingId] = useState<number | string | null>(null);
+  const [draft, setDraft] = useState({ customerName: '', rating: '5', content: '', status: 'DRAFT', imageUrl: '' });
+
+  const loadItems = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getTestimonials();
+      setItems(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load testimonials');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadItems(); }, []);
+
+  const resetDraft = () => {
+    setDraft({ customerName: '', rating: '5', content: '', status: 'DRAFT', imageUrl: '' });
+    setEditingId(null);
+    setIsCreating(false);
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const payload = {
+        customerName: draft.customerName || 'Customer',
+        rating: Number(draft.rating || 5),
+        content: draft.content || '',
+        imageUrl: draft.imageUrl || '',
+        status: normalizeCmsStatus(draft.status),
+      };
+
+      if (editingId !== null) {
+        const updated = await updateTestimonial(editingId, payload);
+        setItems((prev) => prev.map((item) => item.id === editingId ? { ...item, ...updated } : item));
+        showToast('Testimonial updated', 'The testimonial was saved successfully.', 'success');
+      } else {
+        const created = await createTestimonial(payload);
+        setItems((prev) => [created, ...prev]);
+        showToast('Testimonial created', 'The testimonial was added successfully.', 'success');
+      }
+      resetDraft();
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to save testimonial';
+      setError(message);
+      showToast('Testimonial save failed', message, 'warning');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number | string) => {
+    try {
+      await deleteTestimonial(id);
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      showToast('Testimonial deleted', 'The testimonial was removed successfully.', 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to delete testimonial';
+      showToast('Delete failed', message, 'warning');
+    }
+  };
+
+  const handleStatusToggle = async (row: any) => {
+    try {
+      const nextStatus = normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED';
+      const updated = await updateTestimonialStatus(row.id, nextStatus);
+      setItems((prev) => prev.map((item) => item.id === row.id ? { ...item, ...updated } : item));
+      showToast('Testimonial status updated', `The testimonial is now ${nextStatus}.`, 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to update testimonial status';
+      showToast('Status update failed', message, 'warning');
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="CMS testimonials" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Testimonials' }]} activePath="/admin/cms" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add testimonial</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="CMS testimonials" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Testimonials' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => { setEditingId(null); setDraft({ customerName: '', rating: '5', content: '', status: 'DRAFT', imageUrl: '' }); setIsCreating((prev) => !prev); }} icon={<Plus className="h-4 w-4" />}>Add testimonial</PrimaryButton>}>
       <Card className="p-4">
-        <Table columns={[
-          { key: 'customer', label: 'Customer' },
-          { key: 'rating', label: 'Rating' },
-          { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Published' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.status}</Badge> },
-        ]} data={items} className="p-0" />
+        {isCreating && (
+          <div className="mb-4 rounded-[18px] border border-white/10 bg-slate-900/80 p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <LabeledInput label="Customer name" value={draft.customerName} onChange={(value) => setDraft((prev) => ({ ...prev, customerName: value }))} />
+              <LabeledInput label="Rating" value={draft.rating} onChange={(value) => setDraft((prev) => ({ ...prev, rating: value }))} />
+            </div>
+            <div className="mt-3">
+              <LabeledTextarea label="Message" value={draft.content} onChange={(value) => setDraft((prev) => ({ ...prev, content: value }))} />
+            </div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <LabeledInput label="Image URL" value={draft.imageUrl} onChange={(value) => setDraft((prev) => ({ ...prev, imageUrl: value }))} />
+              <div className="space-y-2">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</span>
+                <select value={draft.status} onChange={(event) => setDraft((prev) => ({ ...prev, status: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="PUBLISHED">PUBLISHED</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-3">
+              <SecondaryButton onClick={resetDraft}>Cancel</SecondaryButton>
+              <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : editingId !== null ? 'Update' : 'Create'}</PrimaryButton>
+            </div>
+          </div>
+        )}
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading testimonials...</div> : (
+          <Table columns={[
+            { key: 'customerName', label: 'Customer' },
+            { key: 'rating', label: 'Rating' },
+            { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
+            { key: 'actions', label: 'Actions', render: (row: any) => <div className="flex gap-2"><button onClick={() => { setEditingId(row.id); setDraft({ customerName: toCmsString(row.customerName || row.name, ''), rating: String(row.rating ?? 5), content: toCmsString(row.content || row.message, ''), status: normalizeCmsStatus(row.status), imageUrl: toCmsString(row.imageUrl, '') }); setIsCreating(true); }} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">Edit</button><button onClick={() => handleStatusToggle(row)} className="rounded-full bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-200">{normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'Draft' : 'Publish'}</button><button onClick={() => handleDelete(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button></div> },
+          ]} data={items} className="p-0" />
+        )}
       </Card>
     </AdminShell>
   );
@@ -1114,218 +1725,1130 @@ export function CMSNewsletterPage() {
 }
 
 export function CMSPagesPage() {
-  const [items] = useState([
-    { id: 1, title: 'About Us', status: 'Published' },
-    { id: 2, title: 'Privacy Policy', status: 'Published' },
-    { id: 3, title: 'Help', status: 'Draft' },
-  ]);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [draft, setDraft] = useState({ title: '', status: 'DRAFT' });
+
+  const loadItems = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getPages();
+      setItems(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load pages');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadItems(); }, []);
+
+  const handleCreate = async () => {
+    try {
+      const created = await createPage({ title: draft.title || 'New page', status: normalizeCmsStatus(draft.status) });
+      setItems((prev) => [created, ...prev]);
+      setDraft({ title: '', status: 'DRAFT' });
+      setIsCreating(false);
+      showToast('Page created', 'The CMS page was saved successfully.', 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to create page';
+      setError(message);
+      showToast('Page save failed', message, 'warning');
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="Static pages" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Pages' }]} activePath="/admin/cms" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add page</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Static pages" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Pages' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => setIsCreating((prev) => !prev)} icon={<Plus className="h-4 w-4" />}>Add page</PrimaryButton>}>
       <Card className="p-4">
-        <Table columns={[
-          { key: 'title', label: 'Page' },
-          { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Published' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.status}</Badge> },
-        ]} data={items} className="p-0" />
+        {isCreating && (
+          <div className="mb-4 rounded-[18px] border border-white/10 bg-slate-900/80 p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <LabeledInput label="Page title" value={draft.title} onChange={(value) => setDraft((prev) => ({ ...prev, title: value }))} />
+              <div className="space-y-2">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</span>
+                <select value={draft.status} onChange={(event) => setDraft((prev) => ({ ...prev, status: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="PUBLISHED">PUBLISHED</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-3">
+              <SecondaryButton onClick={() => setIsCreating(false)}>Cancel</SecondaryButton>
+              <PrimaryButton onClick={handleCreate}>Save</PrimaryButton>
+            </div>
+          </div>
+        )}
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading pages...</div> : (
+          <Table columns={[
+            { key: 'title', label: 'Page' },
+            { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
+            { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={async () => { try { await deletePage(row.id); setItems((prev) => prev.filter((item) => item.id !== row.id)); showToast('Page deleted', 'The page was removed successfully.', 'success'); } catch (saveError) { showToast('Delete failed', saveError instanceof Error ? saveError.message : 'Failed to delete page', 'warning'); } }} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button> },
+          ]} data={items} className="p-0" />
+        )}
       </Card>
     </AdminShell>
   );
 }
 
+const toSettingValue = (record: Record<string, unknown> | null | undefined, keys: string[]) => {
+  if (!record) return '';
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value);
+    }
+  }
+  return '';
+};
+
+const toCommissionValue = (value: unknown) => (value === null || value === undefined ? '' : String(value));
+
 export function SettingsGeneralPage() {
-  const [platformName, setPlatformName] = useState('Bidzo');
-  const [supportEmail, setSupportEmail] = useState('support@bidzo.com');
-  const [currency, setCurrency] = useState('INR');
+  const [form, setForm] = useState({
+    platformName: '',
+    supportEmail: '',
+    timezone: 'Asia/Kolkata',
+    currency: 'INR',
+    address: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminGeneralSettings();
+        if (!active) return;
+        setForm({
+          platformName: toSettingValue(data, ['platformName', 'platform_name', 'name']),
+          supportEmail: toSettingValue(data, ['supportEmail', 'support_email', 'email']),
+          timezone: toSettingValue(data, ['timezone', 'timeZone']),
+          currency: toSettingValue(data, ['currency', 'defaultCurrency']),
+          address: toSettingValue(data, ['address', 'officeAddress', 'location']),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load general settings');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminGeneralSettings();
+      const saved = await updateAdminGeneralSettings({
+        ...(current || {}),
+        platformName: form.platformName,
+        platform_name: form.platformName,
+        supportEmail: form.supportEmail,
+        support_email: form.supportEmail,
+        timezone: form.timezone,
+        currency: form.currency,
+        address: form.address,
+      });
+      setForm({
+        platformName: toSettingValue(saved, ['platformName', 'platform_name', 'name']),
+        supportEmail: toSettingValue(saved, ['supportEmail', 'support_email', 'email']),
+        timezone: toSettingValue(saved, ['timezone', 'timeZone']) || 'Asia/Kolkata',
+        currency: toSettingValue(saved, ['currency', 'defaultCurrency']) || 'INR',
+        address: toSettingValue(saved, ['address', 'officeAddress', 'location']),
+      });
+      setSuccess('General settings saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save general settings');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="General settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'General' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<Settings2 className="h-4 w-4" />}>Save</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="General settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'General' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<Settings2 className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="Platform name" value={platformName} onChange={setPlatformName} />
-          <LabeledInput label="Support email" value={supportEmail} onChange={setSupportEmail} type="email" />
-          <LabeledInput label="Timezone" value="Asia/Kolkata" onChange={() => undefined} />
-          <LabeledInput label="Currency" value={currency} onChange={setCurrency} />
-          <LabeledInput label="Address" value="Bengaluru, Karnataka" onChange={() => undefined} className="md:col-span-2" />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading general settings...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="Platform name" value={form.platformName} onChange={(value) => setForm((prev) => ({ ...prev, platformName: value }))} />
+            <LabeledInput label="Support email" value={form.supportEmail} onChange={(value) => setForm((prev) => ({ ...prev, supportEmail: value }))} type="email" />
+            <LabeledInput label="Timezone" value={form.timezone || 'Asia/Kolkata'} onChange={(value) => setForm((prev) => ({ ...prev, timezone: value }))} />
+            <LabeledInput label="Currency" value={form.currency || 'INR'} onChange={(value) => setForm((prev) => ({ ...prev, currency: value }))} />
+            <LabeledInput label="Address" value={form.address} onChange={(value) => setForm((prev) => ({ ...prev, address: value }))} className="md:col-span-2" />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsAuctionRulesPage() {
-  const [rules] = useState([
-    { label: 'Minimum bid increment', value: '₹500' },
-    { label: 'Auction duration', value: '4 hours' },
-    { label: 'Auto close', value: 'Enabled' },
-    { label: 'Bid cancellation', value: 'Allowed before close' },
-  ]);
+  const [rules, setRules] = useState<Record<string, string>>({
+    bidIncrement: '',
+    auctionDuration: '',
+    autoClose: '',
+    bidCancellation: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminAuctionRules();
+        if (!active) return;
+        setRules({
+          bidIncrement: toSettingValue(data, ['minimumBidIncrement', 'minimum_bid_increment', 'bidIncrement', 'bid_increment']),
+          auctionDuration: toSettingValue(data, ['auctionDuration', 'auction_duration', 'duration']),
+          autoClose: toSettingValue(data, ['autoClose', 'auto_close', 'autoCloseEnabled']),
+          bidCancellation: toSettingValue(data, ['bidCancellation', 'bid_cancellation', 'cancellationPolicy']),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load auction rules');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminAuctionRules();
+      const saved = await updateAdminAuctionRules({
+        ...(current || {}),
+        minimumBidIncrement: rules.bidIncrement,
+        minimum_bid_increment: rules.bidIncrement,
+        auctionDuration: rules.auctionDuration,
+        auction_duration: rules.auctionDuration,
+        autoClose: rules.autoClose,
+        auto_close: rules.autoClose,
+        bidCancellation: rules.bidCancellation,
+        bid_cancellation: rules.bidCancellation,
+      });
+      setRules({
+        bidIncrement: toSettingValue(saved, ['minimumBidIncrement', 'minimum_bid_increment', 'bidIncrement', 'bid_increment']),
+        auctionDuration: toSettingValue(saved, ['auctionDuration', 'auction_duration', 'duration']),
+        autoClose: toSettingValue(saved, ['autoClose', 'auto_close', 'autoCloseEnabled']),
+        bidCancellation: toSettingValue(saved, ['bidCancellation', 'bid_cancellation', 'cancellationPolicy']),
+      });
+      setSuccess('Auction rules saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save auction rules');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="Auction rules" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Auction rules' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<Gavel className="h-4 w-4" />}>Save rules</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Auction rules" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Auction rules' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<Gavel className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save rules'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-4 md:grid-cols-2">
-          {rules.map((rule) => (
-            <div key={rule.label} className="rounded-[18px] border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-slate-400">{rule.label}</p>
-              <p className="mt-2 text-lg font-semibold text-white">{rule.value}</p>
-            </div>
-          ))}
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading auction rules...</div> : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <LabeledInput label="Minimum bid increment" value={rules.bidIncrement} onChange={(value) => setRules((prev) => ({ ...prev, bidIncrement: value }))} />
+            <LabeledInput label="Auction duration" value={rules.auctionDuration} onChange={(value) => setRules((prev) => ({ ...prev, auctionDuration: value }))} />
+            <LabeledInput label="Auto close" value={rules.autoClose} onChange={(value) => setRules((prev) => ({ ...prev, autoClose: value }))} />
+            <LabeledInput label="Bid cancellation" value={rules.bidCancellation} onChange={(value) => setRules((prev) => ({ ...prev, bidCancellation: value }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsRegistrationFeePage() {
+  const [form, setForm] = useState({
+    vendor: '',
+    franchise: '',
+    customer: '',
+    gst: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminRegistrationFeeSettings();
+        if (!active) return;
+        setForm({
+          vendor: toSettingValue(data, ['vendorRegistrationFee', 'vendor_registration_fee', 'registrationFee', 'vendorFee']),
+          franchise: toSettingValue(data, ['franchiseRegistrationFee', 'franchise_registration_fee', 'franchiseFee']),
+          customer: toSettingValue(data, ['customerRegistrationFee', 'customer_registration_fee', 'customerFee']),
+          gst: toSettingValue(data, ['gst', 'gstRate', 'taxRate']),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load registration fee settings');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminRegistrationFeeSettings();
+      const saved = await updateAdminRegistrationFeeSettings({
+        ...(current || {}),
+        vendorRegistrationFee: form.vendor,
+        vendor_registration_fee: form.vendor,
+        franchiseRegistrationFee: form.franchise,
+        franchise_registration_fee: form.franchise,
+        customerRegistrationFee: form.customer,
+        customer_registration_fee: form.customer,
+        gst: form.gst,
+        gstRate: form.gst,
+      });
+      setForm({
+        vendor: toSettingValue(saved, ['vendorRegistrationFee', 'vendor_registration_fee', 'registrationFee', 'vendorFee']),
+        franchise: toSettingValue(saved, ['franchiseRegistrationFee', 'franchise_registration_fee', 'franchiseFee']),
+        customer: toSettingValue(saved, ['customerRegistrationFee', 'customer_registration_fee', 'customerFee']),
+        gst: toSettingValue(saved, ['gst', 'gstRate', 'taxRate']),
+      });
+      setSuccess('Registration fee settings saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save registration fee settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Registration fee" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Registration fee' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />}>Save fee</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Registration fee" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Registration fee' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<ShieldCheck className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save fee'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="Vendor registration fee" value="₹5000" onChange={() => undefined} />
-          <LabeledInput label="Franchise registration fee" value="₹25000" onChange={() => undefined} />
-          <LabeledInput label="Customer registration fee" value="₹20" onChange={() => undefined} />
-          <LabeledInput label="GST" value="18%" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading registration fee settings...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="Vendor registration fee" value={form.vendor} onChange={(value) => setForm((prev) => ({ ...prev, vendor: value }))} />
+            <LabeledInput label="Franchise registration fee" value={form.franchise} onChange={(value) => setForm((prev) => ({ ...prev, franchise: value }))} />
+            <LabeledInput label="Customer registration fee" value={form.customer} onChange={(value) => setForm((prev) => ({ ...prev, customer: value }))} />
+            <LabeledInput label="GST" value={form.gst} onChange={(value) => setForm((prev) => ({ ...prev, gst: value }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsCommissionRulesPage() {
+  const [form, setForm] = useState({
+    vendorCommission: '',
+    auctionCommission: '',
+    minimumCommission: '',
+    maximumCommission: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminCommissionRules();
+        if (!active) return;
+        setForm({
+          vendorCommission: toCommissionValue(
+            data.vendorCommissionPercent
+              ?? data.vendor_commission_percent
+              ?? data.vendorCommissionRate
+              ?? data.vendor_commission_rate
+              ?? data.vendorCommission
+              ?? data.vendor_commission
+          ),
+          auctionCommission: toCommissionValue(
+            data.auctionCommissionPercent
+              ?? data.auction_commission_percent
+              ?? data.auctionCommissionRate
+              ?? data.auction_commission_rate
+              ?? data.auctionCommission
+              ?? data.auction_commission
+          ),
+          minimumCommission: toCommissionValue(
+            data.minimumCommission
+              ?? data.minimum_commission
+              ?? data.minCommission
+              ?? data.min_commission
+          ),
+          maximumCommission: toCommissionValue(
+            data.maximumCommission
+              ?? data.maximum_commission
+              ?? data.maxCommission
+              ?? data.max_commission
+          ),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load commission rules');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminCommissionRules();
+      const payload = {
+        ...(current || {}),
+        vendorCommissionPercent: form.vendorCommission,
+        vendor_commission_percent: form.vendorCommission,
+        auctionCommissionPercent: form.auctionCommission,
+        auction_commission_percent: form.auctionCommission,
+        minimumCommission: form.minimumCommission,
+        minimum_commission: form.minimumCommission,
+        maximumCommission: form.maximumCommission,
+        maximum_commission: form.maximumCommission,
+      };
+      const saved = await updateAdminCommissionRules(payload);
+      setForm({
+        vendorCommission: toCommissionValue(
+          saved.vendorCommissionPercent
+            ?? saved.vendor_commission_percent
+            ?? saved.vendorCommissionRate
+            ?? saved.vendor_commission_rate
+            ?? saved.vendorCommission
+            ?? saved.vendor_commission
+        ),
+        auctionCommission: toCommissionValue(
+          saved.auctionCommissionPercent
+            ?? saved.auction_commission_percent
+            ?? saved.auctionCommissionRate
+            ?? saved.auction_commission_rate
+            ?? saved.auctionCommission
+            ?? saved.auction_commission
+        ),
+        minimumCommission: toCommissionValue(
+          saved.minimumCommission
+            ?? saved.minimum_commission
+            ?? saved.minCommission
+            ?? saved.min_commission
+        ),
+        maximumCommission: toCommissionValue(
+          saved.maximumCommission
+            ?? saved.maximum_commission
+            ?? saved.maxCommission
+            ?? saved.max_commission
+        ),
+      });
+      setSuccess('Commission rules saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save commission rules');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Commission rules" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Commission rules' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<TrendingUp className="h-4 w-4" />}>Apply</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Commission rules" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Commission rules' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<TrendingUp className="h-4 w-4" />}>{saving ? 'Saving...' : 'Apply'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="Vendor commission" value="8%" onChange={() => undefined} />
-          <LabeledInput label="Auction commission" value="5%" onChange={() => undefined} />
-          <LabeledInput label="Minimum commission" value="₹250" onChange={() => undefined} />
-          <LabeledInput label="Maximum commission" value="₹15,000" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading commission rules...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="Vendor commission" value={form.vendorCommission} onChange={(value) => setForm((prev) => ({ ...prev, vendorCommission: value }))} />
+            <LabeledInput label="Auction commission" value={form.auctionCommission} onChange={(value) => setForm((prev) => ({ ...prev, auctionCommission: value }))} />
+            <LabeledInput label="Minimum commission" value={form.minimumCommission} onChange={(value) => setForm((prev) => ({ ...prev, minimumCommission: value }))} />
+            <LabeledInput label="Maximum commission" value={form.maximumCommission} onChange={(value) => setForm((prev) => ({ ...prev, maximumCommission: value }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsPlatformChargesPage() {
+  const [form, setForm] = useState({
+    serviceFee: '',
+    paymentProcessingFee: '',
+    convenienceFee: '',
+    tax: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminPlatformCharges();
+        if (!active) return;
+        setForm({
+          serviceFee: toSettingValue(data, ['serviceFee', 'service_fee', 'serviceCharge']),
+          paymentProcessingFee: toSettingValue(data, ['paymentProcessingFee', 'payment_processing_fee', 'paymentFee']),
+          convenienceFee: toSettingValue(data, ['convenienceFee', 'convenience_fee']),
+          tax: toSettingValue(data, ['tax', 'taxRate', 'taxPercentage']),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load platform charges');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminPlatformCharges();
+      const saved = await updateAdminPlatformCharges({
+        ...(current || {}),
+        serviceFee: form.serviceFee,
+        service_fee: form.serviceFee,
+        paymentProcessingFee: form.paymentProcessingFee,
+        payment_processing_fee: form.paymentProcessingFee,
+        convenienceFee: form.convenienceFee,
+        convenience_fee: form.convenienceFee,
+        tax: form.tax,
+        taxRate: form.tax,
+      });
+      setForm({
+        serviceFee: toSettingValue(saved, ['serviceFee', 'service_fee', 'serviceCharge']),
+        paymentProcessingFee: toSettingValue(saved, ['paymentProcessingFee', 'payment_processing_fee', 'paymentFee']),
+        convenienceFee: toSettingValue(saved, ['convenienceFee', 'convenience_fee']),
+        tax: toSettingValue(saved, ['tax', 'taxRate', 'taxPercentage']),
+      });
+      setSuccess('Platform charges saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save platform charges');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Platform charges" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Platform charges' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<CreditCard className="h-4 w-4" />}>Save</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Platform charges" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Platform charges' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<CreditCard className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="Service fee" value="1.8%" onChange={() => undefined} />
-          <LabeledInput label="Payment processing fee" value="2.2%" onChange={() => undefined} />
-          <LabeledInput label="Convenience fee" value="₹30" onChange={() => undefined} />
-          <LabeledInput label="Tax" value="18%" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading platform charges...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="Service fee" value={form.serviceFee} onChange={(value) => setForm((prev) => ({ ...prev, serviceFee: value }))} />
+            <LabeledInput label="Payment processing fee" value={form.paymentProcessingFee} onChange={(value) => setForm((prev) => ({ ...prev, paymentProcessingFee: value }))} />
+            <LabeledInput label="Convenience fee" value={form.convenienceFee} onChange={(value) => setForm((prev) => ({ ...prev, convenienceFee: value }))} />
+            <LabeledInput label="Tax" value={form.tax} onChange={(value) => setForm((prev) => ({ ...prev, tax: value }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsShippingRulesPage() {
+  const [form, setForm] = useState({
+    threshold: '',
+    sla: '',
+    cod: '',
+    couriers: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminShippingRules();
+        if (!active) return;
+        setForm({
+          threshold: toSettingValue(data, ['freeShippingThreshold', 'free_shipping_threshold', 'shippingThreshold']),
+          sla: toSettingValue(data, ['deliverySla', 'delivery_sla', 'sla']),
+          cod: toSettingValue(data, ['codAvailability', 'cod_availability', 'cod']),
+          couriers: toSettingValue(data, ['courierOptions', 'courier_options', 'couriers']),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load shipping rules');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminShippingRules();
+      const saved = await updateAdminShippingRules({
+        ...(current || {}),
+        freeShippingThreshold: form.threshold,
+        free_shipping_threshold: form.threshold,
+        deliverySla: form.sla,
+        delivery_sla: form.sla,
+        codAvailability: form.cod,
+        cod_availability: form.cod,
+        courierOptions: form.couriers,
+        courier_options: form.couriers,
+      });
+      setForm({
+        threshold: toSettingValue(saved, ['freeShippingThreshold', 'free_shipping_threshold', 'shippingThreshold']),
+        sla: toSettingValue(saved, ['deliverySla', 'delivery_sla', 'sla']),
+        cod: toSettingValue(saved, ['codAvailability', 'cod_availability', 'cod']),
+        couriers: toSettingValue(saved, ['courierOptions', 'courier_options', 'couriers']),
+      });
+      setSuccess('Shipping rules saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save shipping rules');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Shipping rules" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Shipping rules' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<Truck className="h-4 w-4" />}>Save</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Shipping rules" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Shipping rules' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<Truck className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="Free shipping threshold" value="₹5000" onChange={() => undefined} />
-          <LabeledInput label="Delivery SLA" value="48 hours" onChange={() => undefined} />
-          <LabeledInput label="COD availability" value="Enabled" onChange={() => undefined} />
-          <LabeledInput label="Courier options" value="Blue Dart, Delhivery" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading shipping rules...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="Free shipping threshold" value={form.threshold} onChange={(value) => setForm((prev) => ({ ...prev, threshold: value }))} />
+            <LabeledInput label="Delivery SLA" value={form.sla} onChange={(value) => setForm((prev) => ({ ...prev, sla: value }))} />
+            <LabeledInput label="COD availability" value={form.cod} onChange={(value) => setForm((prev) => ({ ...prev, cod: value }))} />
+            <LabeledInput label="Courier options" value={form.couriers} onChange={(value) => setForm((prev) => ({ ...prev, couriers: value }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsTaxPage() {
+  const [form, setForm] = useState({
+    gst: '',
+    cgst: '',
+    sgst: '',
+    igst: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminTaxSettings();
+        if (!active) return;
+        setForm({
+          gst: toSettingValue(data, ['gst', 'gstRate']),
+          cgst: toSettingValue(data, ['cgst', 'cgstRate']),
+          sgst: toSettingValue(data, ['sgst', 'sgstRate']),
+          igst: toSettingValue(data, ['igst', 'igstRate']),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load tax settings');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminTaxSettings();
+      const saved = await updateAdminTaxSettings({
+        ...(current || {}),
+        gst: form.gst,
+        gstRate: form.gst,
+        cgst: form.cgst,
+        cgstRate: form.cgst,
+        sgst: form.sgst,
+        sgstRate: form.sgst,
+        igst: form.igst,
+        igstRate: form.igst,
+      });
+      setForm({
+        gst: toSettingValue(saved, ['gst', 'gstRate']),
+        cgst: toSettingValue(saved, ['cgst', 'cgstRate']),
+        sgst: toSettingValue(saved, ['sgst', 'sgstRate']),
+        igst: toSettingValue(saved, ['igst', 'igstRate']),
+      });
+      setSuccess('Tax settings saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save tax settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Tax settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Tax' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<FileText className="h-4 w-4" />}>Save</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Tax settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Tax' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<FileText className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="GST" value="18%" onChange={() => undefined} />
-          <LabeledInput label="CGST" value="9%" onChange={() => undefined} />
-          <LabeledInput label="SGST" value="9%" onChange={() => undefined} />
-          <LabeledInput label="IGST" value="18%" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading tax settings...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="GST" value={form.gst} onChange={(value) => setForm((prev) => ({ ...prev, gst: value }))} />
+            <LabeledInput label="CGST" value={form.cgst} onChange={(value) => setForm((prev) => ({ ...prev, cgst: value }))} />
+            <LabeledInput label="SGST" value={form.sgst} onChange={(value) => setForm((prev) => ({ ...prev, sgst: value }))} />
+            <LabeledInput label="IGST" value={form.igst} onChange={(value) => setForm((prev) => ({ ...prev, igst: value }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsEmailPage() {
+  const [form, setForm] = useState({
+    smtpHost: '',
+    smtpPort: '',
+    senderName: '',
+    senderEmail: '',
+    enabled: 'true',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminEmailSettings();
+        if (!active) return;
+        setForm({
+          smtpHost: data.smtpHost || '',
+          smtpPort: String(data.smtpPort ?? ''),
+          senderName: data.senderName || '',
+          senderEmail: data.senderEmail || '',
+          enabled: data.enabled ? 'true' : 'false',
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load email settings');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const payload = {
+        smtpHost: form.smtpHost,
+        smtpPort: Number(form.smtpPort) || 0,
+        senderName: form.senderName,
+        senderEmail: form.senderEmail,
+        enabled: form.enabled === 'true',
+      };
+      const saved = await updateAdminEmailSettings(payload);
+      setForm({
+        smtpHost: saved.smtpHost || '',
+        smtpPort: String(saved.smtpPort ?? ''),
+        senderName: saved.senderName || '',
+        senderEmail: saved.senderEmail || '',
+        enabled: saved.enabled ? 'true' : 'false',
+      });
+      setSuccess('Email settings saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save email settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Email settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Email' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<MessageSquare className="h-4 w-4" />}>Save</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Email settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Email' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<MessageSquare className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="SMTP host" value="smtp.bidzo.com" onChange={() => undefined} />
-          <LabeledInput label="Port" value="587" onChange={() => undefined} />
-          <LabeledInput label="Sender name" value="Bidzo" onChange={() => undefined} />
-          <LabeledInput label="Sender email" value="noreply@bidzo.com" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading email settings...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="SMTP host" value={form.smtpHost} onChange={(value) => setForm((prev) => ({ ...prev, smtpHost: value }))} />
+            <LabeledInput label="Port" value={form.smtpPort} onChange={(value) => setForm((prev) => ({ ...prev, smtpPort: value }))} />
+            <LabeledInput label="Sender name" value={form.senderName} onChange={(value) => setForm((prev) => ({ ...prev, senderName: value }))} />
+            <LabeledInput label="Sender email" value={form.senderEmail} onChange={(value) => setForm((prev) => ({ ...prev, senderEmail: value }))} type="email" />
+            <ToggleSwitch label="Email status" enabled={form.enabled === 'true'} onChange={(value) => setForm((prev) => ({ ...prev, enabled: value ? 'true' : 'false' }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsSmsPage() {
+  const [form, setForm] = useState({
+    provider: '',
+    senderId: '',
+    otpLength: '',
+    enabled: 'true',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminSmsSettings();
+        if (!active) return;
+        setForm({
+          provider: data.provider || '',
+          senderId: data.senderId || '',
+          otpLength: String(data.otpLength ?? ''),
+          enabled: data.enabled ? 'true' : 'false',
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load SMS settings');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const payload = {
+        provider: form.provider,
+        senderId: form.senderId,
+        otpLength: Number(form.otpLength) || 0,
+        enabled: form.enabled === 'true',
+      };
+      const saved = await updateAdminSmsSettings(payload);
+      setForm({
+        provider: saved.provider || '',
+        senderId: saved.senderId || '',
+        otpLength: String(saved.otpLength ?? ''),
+        enabled: saved.enabled ? 'true' : 'false',
+      });
+      setSuccess('SMS settings saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save SMS settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="SMS settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'SMS' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<MessageSquare className="h-4 w-4" />}>Save</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="SMS settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'SMS' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<MessageSquare className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="Provider" value="Twilio" onChange={() => undefined} />
-          <LabeledInput label="Sender ID" value="BIDZO" onChange={() => undefined} />
-          <LabeledInput label="OTP length" value="6 digits" onChange={() => undefined} />
-          <LabeledInput label="Notification preferences" value="Enabled" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading SMS settings...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="Provider" value={form.provider} onChange={(value) => setForm((prev) => ({ ...prev, provider: value }))} />
+            <LabeledInput label="Sender ID" value={form.senderId} onChange={(value) => setForm((prev) => ({ ...prev, senderId: value }))} />
+            <LabeledInput label="OTP length" value={form.otpLength} onChange={(value) => setForm((prev) => ({ ...prev, otpLength: value }))} />
+            <ToggleSwitch label="SMS status" enabled={form.enabled === 'true'} onChange={(value) => setForm((prev) => ({ ...prev, enabled: value ? 'true' : 'false' }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsNotificationTemplatesPage() {
-  const [templates] = useState([
-    { name: 'Welcome email', type: 'Email', status: 'Active' },
-    { name: 'Bid confirmed', type: 'SMS', status: 'Active' },
-    { name: 'Payment reminder', type: 'Push', status: 'Draft' },
-  ]);
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const loadTemplates = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getAdminNotificationTemplates();
+      setTemplates(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load notification templates');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadTemplates();
+  }, []);
+
+  const handleCreateTemplate = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const next = await createAdminNotificationTemplate({
+        name: 'New Template',
+        type: 'Email',
+        status: 'Draft',
+      });
+      setTemplates((prev) => [next, ...prev]);
+      setSuccess('Template created successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to create template');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: number | string) => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      await deleteAdminNotificationTemplate(id);
+      setTemplates((prev) => prev.filter((template) => template.id !== id));
+      setSuccess('Template deleted successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to delete template');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="Notification templates" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Notification templates' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<Megaphone className="h-4 w-4" />}>Add template</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Notification templates" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Notification templates' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleCreateTemplate} disabled={saving || loading} icon={<Megaphone className="h-4 w-4" />}>{saving ? 'Saving...' : 'Add template'}</PrimaryButton>}>
       <Card className="p-4">
-        <Table columns={[
-          { key: 'name', label: 'Template' },
-          { key: 'type', label: 'Type' },
-          { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Active' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.status}</Badge> },
-        ]} data={templates} className="p-0" />
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading templates...</div> : (
+          <Table columns={[
+            { key: 'name', label: 'Template' },
+            { key: 'type', label: 'Type' },
+            { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Active' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.status}</Badge> },
+            { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={() => handleDeleteTemplate(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button> },
+          ]} data={templates} className="p-0" />
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsSecurityPage() {
+  const [form, setForm] = useState({
+    passwordPolicy: '',
+    sessionTimeout: '',
+    loginAttempts: '',
+    twoFactorAuth: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminSecuritySettings();
+        if (!active) return;
+        setForm({
+          passwordPolicy: toSettingValue(data, ['passwordPolicy', 'password_policy']),
+          sessionTimeout: toSettingValue(data, ['sessionTimeout', 'session_timeout']),
+          loginAttempts: toSettingValue(data, ['loginAttempts', 'login_attempts']),
+          twoFactorAuth: toSettingValue(data, ['twoFactorAuth', 'two_factor_auth', '2fa']),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load security settings');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminSecuritySettings();
+      const saved = await updateAdminSecuritySettings({
+        ...(current || {}),
+        passwordPolicy: form.passwordPolicy,
+        password_policy: form.passwordPolicy,
+        sessionTimeout: form.sessionTimeout,
+        session_timeout: form.sessionTimeout,
+        loginAttempts: form.loginAttempts,
+        login_attempts: form.loginAttempts,
+        twoFactorAuth: form.twoFactorAuth,
+        two_factor_auth: form.twoFactorAuth,
+      });
+      setForm({
+        passwordPolicy: toSettingValue(saved, ['passwordPolicy', 'password_policy']),
+        sessionTimeout: toSettingValue(saved, ['sessionTimeout', 'session_timeout']),
+        loginAttempts: toSettingValue(saved, ['loginAttempts', 'login_attempts']),
+        twoFactorAuth: toSettingValue(saved, ['twoFactorAuth', 'two_factor_auth', '2fa']),
+      });
+      setSuccess('Security settings saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save security settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Security settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Security' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />}>Save</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Security settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Security' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<ShieldCheck className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="Password policy" value="8+ characters, 1 number, 1 symbol" onChange={() => undefined} />
-          <LabeledInput label="Session timeout" value="30 minutes" onChange={() => undefined} />
-          <LabeledInput label="Login attempts" value="5 attempts" onChange={() => undefined} />
-          <LabeledInput label="2FA" value="Required for admins" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading security settings...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="Password policy" value={form.passwordPolicy} onChange={(value) => setForm((prev) => ({ ...prev, passwordPolicy: value }))} />
+            <LabeledInput label="Session timeout" value={form.sessionTimeout} onChange={(value) => setForm((prev) => ({ ...prev, sessionTimeout: value }))} />
+            <LabeledInput label="Login attempts" value={form.loginAttempts} onChange={(value) => setForm((prev) => ({ ...prev, loginAttempts: value }))} />
+            <LabeledInput label="2FA" value={form.twoFactorAuth} onChange={(value) => setForm((prev) => ({ ...prev, twoFactorAuth: value }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );
 }
 
 export function SettingsLocalizationPage() {
+  const [form, setForm] = useState({
+    language: '',
+    currency: '',
+    timezone: '',
+    dateFormat: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getAdminLocalizationSettings();
+        if (!active) return;
+        setForm({
+          language: toSettingValue(data, ['language', 'defaultLanguage']),
+          currency: toSettingValue(data, ['currency', 'defaultCurrency']),
+          timezone: toSettingValue(data, ['timezone', 'timeZone']),
+          dateFormat: toSettingValue(data, ['dateFormat', 'date_format']),
+        });
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Failed to load localization settings');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      const current = await getAdminLocalizationSettings();
+      const saved = await updateAdminLocalizationSettings({
+        ...(current || {}),
+        language: form.language,
+        defaultLanguage: form.language,
+        currency: form.currency,
+        defaultCurrency: form.currency,
+        timezone: form.timezone,
+        timeZone: form.timezone,
+        dateFormat: form.dateFormat,
+        date_format: form.dateFormat,
+      });
+      setForm({
+        language: toSettingValue(saved, ['language', 'defaultLanguage']),
+        currency: toSettingValue(saved, ['currency', 'defaultCurrency']),
+        timezone: toSettingValue(saved, ['timezone', 'timeZone']),
+        dateFormat: toSettingValue(saved, ['dateFormat', 'date_format']),
+      });
+      setSuccess('Localization settings saved successfully.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save localization settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="Localization" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Localization' }]} activePath="/admin/settings" actions={<PrimaryButton icon={<Globe className="h-4 w-4" />}>Save</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Localization" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Localization' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleSave} disabled={saving || loading} icon={<Globe className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save'}</PrimaryButton>}>
       <Card className="p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <LabeledInput label="Language" value="English" onChange={() => undefined} />
-          <LabeledInput label="Currency" value="INR" onChange={() => undefined} />
-          <LabeledInput label="Timezone" value="Asia/Kolkata" onChange={() => undefined} />
-          <LabeledInput label="Date format" value="DD/MM/YYYY" onChange={() => undefined} />
-        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+        {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {loading ? <div className="text-sm text-slate-400">Loading localization settings...</div> : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <LabeledInput label="Language" value={form.language} onChange={(value) => setForm((prev) => ({ ...prev, language: value }))} />
+            <LabeledInput label="Currency" value={form.currency} onChange={(value) => setForm((prev) => ({ ...prev, currency: value }))} />
+            <LabeledInput label="Timezone" value={form.timezone} onChange={(value) => setForm((prev) => ({ ...prev, timezone: value }))} />
+            <LabeledInput label="Date format" value={form.dateFormat} onChange={(value) => setForm((prev) => ({ ...prev, dateFormat: value }))} />
+          </div>
+        )}
       </Card>
     </AdminShell>
   );

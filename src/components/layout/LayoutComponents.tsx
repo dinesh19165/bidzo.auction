@@ -96,39 +96,3 @@ export function Breadcrumb({ items }: { items: Array<{ label: string; to?: strin
   );
 }
 
-export function Footer({ theme }: { theme: 'dark' | 'light' }) {
-  return (
-    <footer className={`border-t ${theme === 'dark' ? 'border-white/10 bg-slate-950/80' : 'border-slate-200 bg-white/80'}`}>
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-4 lg:px-8">
-          <div>
-            <p className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Bidzo</p>
-            <p className={`mt-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Enterprise-grade auction and marketplace experiences for modern commerce.</p>
-          </div>
-        <div>
-          <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Company</p>
-          <ul className={`mt-3 space-y-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-            <li><Link to="/about" className="hover:text-blue-500">About</Link></li>
-            <li><Link to="/careers" className="hover:text-blue-500">Careers</Link></li>
-            <li><Link to="/contact" className="hover:text-blue-500">Contact</Link></li>
-          </ul>
-        </div>
-        <div>
-          <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Resources</p>
-          <ul className={`mt-3 space-y-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-            <li><Link to="/faq" className="hover:text-blue-500">FAQ</Link></li>
-            <li><Link to="/blog" className="hover:text-blue-500">Blog</Link></li>
-            <li><Link to="/help" className="hover:text-blue-500">Help Center</Link></li>
-          </ul>
-        </div>
-        <div>
-          <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Policies</p>
-          <ul className={`mt-3 space-y-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-            <li><Link to="/privacy" className="hover:text-blue-500">Privacy</Link></li>
-            <li><Link to="/terms" className="hover:text-blue-500">Terms</Link></li>
-            <li><Link to="/refund" className="hover:text-blue-500">Refunds</Link></li>
-          </ul>
-        </div>
-      </div>
-    </footer>
-  );
-}

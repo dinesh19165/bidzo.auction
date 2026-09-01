@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Heart, ShieldCheck, Sparkles, Star, Users, Clock3, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { createAuctionRazorpayPayment, getAuctionById, getAuctionImages, getAuctionWinner, getEffectiveAuctionStatus, verifyAuctionRazorpayPayment, type AuctionImageResponse, type AuctionResponse, type AuctionWinnerResponse } from '../api/auctionApi';
+import { createAuctionRazorpayPayment, getAuctionById, getAuctionImages, getAuctionWinner, getEffectiveAuctionStatus, getProductImages, verifyAuctionRazorpayPayment, type AuctionImageResponse, type AuctionResponse, type AuctionWinnerResponse } from '../api/auctionApi';
 import { getAuctionBids, placeBid, type BidResponse } from '../api/bidApi';
 import { getOrderById } from '../api/orderApi';
 import { getPaymentsForOrder } from '../api/paymentApi';
@@ -115,7 +115,14 @@ export function AuctionDetailPage() {
       ]);
 
       setAuction(auctionDetails);
-      setImages(auctionImages);
+      if (auctionImages.length > 0) {
+        setImages(auctionImages);
+      } else if (auctionDetails.productId) {
+        const productImages = await getProductImages(auctionDetails.productId);
+        setImages(productImages.map((image) => ({ id: image.id, url: image.url, altText: image.altText || undefined, auctionId })));
+      } else {
+        setImages([]);
+      }
       setBids(auctionBids.sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()));
 
       if (loadWinner || auctionDetails.status === 'ENDED') {
@@ -356,24 +363,28 @@ export function AuctionDetailPage() {
     setPaymentError(null);
 
     try {
-      if (import.meta.env.DEV) console.debug('AUCTION VERIFY', { internalOrderId, razorpayOrderId, razorpayPaymentId: response.razorpay_payment_id });
       const verifyResponse = await verifyAuctionRazorpayPayment(auctionId, internalOrderId, {
         razorpayPaymentId: response.razorpay_payment_id,
         razorpayOrderId: response.razorpay_order_id,
         razorpaySignature: response.razorpay_signature,
       });
 
-      if (import.meta.env.DEV) {
-        console.debug('AUCTION RAZORPAY SUCCESS', response);
-        console.debug('AUCTION PAYMENT VERIFY RESPONSE', verifyResponse);
+      const extractedOrderId = Number(
+        verifyResponse?.orderId ??
+        (verifyResponse as any)?.data?.orderId ??
+        (verifyResponse as any)?.orderId ??
+        internalOrderId
+      );
+
+      if (!Number.isFinite(extractedOrderId) || extractedOrderId <= 0) {
+        throw new Error('Payment was successful but the backend did not return a valid order ID.');
       }
+
       setPaymentCompleted(true);
-      if (verifyResponse.orderId) {
-        saveStoredAuctionOrderId(auctionId, verifyResponse.orderId);
-        await loadOrderPaymentState(verifyResponse.orderId);
-      }
+      saveStoredAuctionOrderId(auctionId, extractedOrderId);
+      await loadOrderPaymentState(extractedOrderId);
       markOrderConfirmed();
-      navigate('/customer/order-success', { replace: true });
+      navigate(`/customer/orders/${extractedOrderId}`, { replace: true });
     } catch (err: any) {
       setPaymentError(err?.message || 'Unable to verify payment.');
     } finally {

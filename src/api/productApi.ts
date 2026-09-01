@@ -43,12 +43,12 @@ export interface ProductListItem {
   category: string;
   condition: string;
   seller: string;
-  rating: number;
-  verified: boolean;
+  rating?: number;
+  verified?: boolean;
   image: string;
-  location: string;
+  location?: string;
   badge?: string;
-  reviews: number;
+  reviews?: number;
   sku: string;
   brandId?: number | null;
   categoryId?: number | null;
@@ -122,26 +122,25 @@ function mapProductSpecifications(specs?: ProductSpecificationResponse[] | null)
 function mapProduct(response: ProductApiResponse, imageOverride?: string): ProductListItem {
   const price = formatPrice(response.price);
   const status = response.status || 'ACTIVE';
-  const statusLower = status.toLowerCase();
   const sellingType = normalizeSellingType(response.sellingType);
-  const isAuction = sellingType === 'AUCTION' || statusLower.includes('auction');
-  const isDirectBuy = sellingType === 'DIRECT_BUY' || statusLower.includes('buy');
+  const isAuction = sellingType === 'AUCTION';
+  const isDirectBuy = sellingType === 'DIRECT_BUY';
   const badge = isAuction ? 'Live Auction' : isDirectBuy ? 'Buy Now' : undefined;
 
   return {
     id: response.id,
     title: response.name,
-    description: response.description || 'No description available for this product.',
+    description: response.description || '',
     price,
-    category: response.categoryId != null ? `Category ${response.categoryId}` : 'General',
-    condition: isAuction ? 'Auction' : isDirectBuy ? 'Buy Now' : status.replace(/_/g, ' ').toUpperCase(),
-    seller: response.brandId != null ? `Brand ${response.brandId}` : (response.vendorId != null ? `Vendor ${response.vendorId}` : 'Verified seller'),
-    rating: 4.8,
-    verified: statusLower === 'published' || statusLower === 'active',
+    category: response.categoryId != null ? String(response.categoryId) : '',
+    condition: '',
+    seller: '',
+    rating: undefined,
+    verified: undefined,
     image: imageOverride || findPrimaryProductImage(response),
-    location: 'India',
+    location: undefined,
     badge,
-    reviews: 124,
+    reviews: undefined,
     sku: response.sku,
     brandId: response.brandId,
     categoryId: response.categoryId,

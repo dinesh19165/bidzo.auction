@@ -26,6 +26,7 @@ interface ProductCardProps {
   location?: string;
   actionLabel?: string;
   actionLink?: string;
+  showSellerMeta?: boolean;
 }
 
 function parseCountdown(value?: string) {
@@ -73,6 +74,7 @@ export const ProductCard = memo(function ProductCard({
   location,
   actionLabel,
   actionLink,
+  showSellerMeta = true,
 }: ProductCardProps) {
   const [favorited, setFavorited] = useState<boolean>(() => {
     try {
@@ -129,7 +131,7 @@ export const ProductCard = memo(function ProductCard({
 
   const { formatCurrency, translate } = useLocaleContext();
   const priceLabel = translate(isAuction ? 'currentBid' : 'price');
-  const priceValue = formatCurrency(isAuction ? (currentBid || price) : price);
+  const priceValue = formatCurrency(isAuction ? (currentBid || price).replace(/,/g, '') : price.replace(/,/g, ''));
 
   useEffect(() => {
     if (!quickOpen) return;
@@ -212,7 +214,7 @@ export const ProductCard = memo(function ProductCard({
           ) : null}
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+        {showSellerMeta && seller ? <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15 text-sm font-semibold text-blue-200">
@@ -224,16 +226,14 @@ export const ProductCard = memo(function ProductCard({
                   {verified ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : null}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                  <span className="inline-flex items-center gap-1 text-amber-300">
-                    <Star className="h-3.5 w-3.5" /> {rating ?? 4.8}
-                  </span>
-                  <span>{reviews ?? 124} Reviews</span>
+                  {rating !== undefined ? <span className="inline-flex items-center gap-1 text-amber-300"><Star className="h-3.5 w-3.5" /> {rating}</span> : null}
+                  {reviews !== undefined ? <span>{reviews} Reviews</span> : null}
                 </div>
               </div>
             </div>
             {verified ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300">Verified</span> : null}
           </div>
-        </div>
+        </div> : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 overflow-hidden rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-all duration-250 hover:-translate-y-0.5 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 active:scale-[0.98]">
@@ -398,10 +398,10 @@ export function SellerCard({ name, specialty, rating }: { name: string; specialt
   );
 }
 
-export function ReviewCard({ quote, author, rating }: { quote: string; author: string; rating: number }) {
+export function ReviewCard({ quote, author, rating, imageUrl }: { quote: string; author: string; rating: number; imageUrl?: string }) {
   return (
     <div className="w-full max-w-full rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition duration-300">
-      <p className="text-amber-300">{'★'.repeat(rating)}</p>
+      <div className="flex items-center justify-between gap-3"><p className="text-amber-300">{'★'.repeat(rating)}</p>{imageUrl ? <img src={imageUrl} alt="" className="h-9 w-9 rounded-full object-cover" /> : null}</div>
       <p className="mt-4 text-sm text-slate-300">“{quote}”</p>
       <p className="mt-5 text-sm font-semibold text-white">{author}</p>
     </div>

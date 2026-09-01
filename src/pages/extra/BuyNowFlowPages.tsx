@@ -8,6 +8,7 @@ import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentA
 import { createProductImage, createBuyNowOrder } from '../../api/productApi';
 import { getOrderById } from '../../api/orderApi';
 import { readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
+import { loadRazorpay, type RazorpayInstance, type RazorpayOptions, type RazorpayPaymentResponse } from '../../utils/razorpay';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
 import type { AddressResponse } from '../../api/addressApi';
 
@@ -203,7 +204,7 @@ export function BuyNowPaymentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flowState = readBuyNowFlowState();
-  const rzpRef = useRef<any>(null);
+  const rzpRef = useRef<RazorpayInstance | null>(null);
 
   if (!flowState.orderId || flowState.flowStage !== 'PAYMENT') {
     return <Navigate to="/marketplace" replace />;
@@ -216,8 +217,12 @@ export function BuyNowPaymentPage() {
     try {
       // Create Razorpay payment session
       const paymentSession = await createRazorpayPayment(flowState.orderId);
+      const loaded = await loadRazorpay();
+      if (!loaded || !window.Razorpay) {
+        throw new Error('Razorpay Checkout could not be loaded.');
+      }
 
-      const options = {
+      const options: RazorpayOptions = {
         key: paymentSession.razorpayKeyId,
         order_id: paymentSession.razorpayOrderId,
         amount: paymentSession.amount,
@@ -229,7 +234,7 @@ export function BuyNowPaymentPage() {
           email: user.email,
           contact: user.phone,
         },
-        handler: async (response: any) => {
+        handler: async (response: RazorpayPaymentResponse) => {
           try {
             // Verify payment
             await verifyRazorpayPayment(flowState.orderId!, {
@@ -253,11 +258,12 @@ export function BuyNowPaymentPage() {
         },
       };
 
-      const razorpay = new (window as any).Razorpay(options);
+      const razorpay = new window.Razorpay(options);
+      rzpRef.current = razorpay;
       razorpay.open();
       setLoading(false);
     } catch (err) {
-      setError('Failed to initiate payment. Please try again.');
+      setError(err instanceof Error && err.message === 'Razorpay Checkout could not be loaded.' ? err.message : 'Failed to initiate payment. Please try again.');
       console.error('Payment error:', err);
       setLoading(false);
     }

@@ -130,7 +130,7 @@ export const getAdminOrder = (id: string | number) => detail<AdminRecord>(`/api/
 export const searchAdminOrders = (search: string) => list<AdminRecord>('/api/admin/orders/search', { search });
 export const getAdminOrdersByStatus = (status: string) => list<AdminRecord>(`/api/admin/orders/status/${encodeURIComponent(status)}`);
 export const getAdminOrdersByDateRange = (startDate: string, endDate: string) => list<AdminRecord>('/api/admin/orders/date-range', { startDate, endDate });
-export const updateAdminOrderStatus = (id: string | number, status: string) => fetchJson<AdminRecord | ApiEnvelope<AdminRecord>>(`/api/admin/orders/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+export const updateAdminOrderStatus = (id: string | number, status: string) => fetchJson<AdminRecord | ApiEnvelope<AdminRecord>>(`/api/admin/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 
 export const getAdminProducts = (query?: AdminQuery) => list<AdminRecord>('/api/admin/products', query);
 export const getAdminProductsPaginated = (query?: AdminQuery) => paginated<AdminRecord>('/api/admin/products/paginated', query);

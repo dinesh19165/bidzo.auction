@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from '../types';
-import { login as loginApi, authMe, register as registerApi } from '../api/authApi';
+import { login as loginApi, authMe, register as registerApi, getStoredVendorProfileId, resolveVendorProfileId, setStoredVendorProfileId } from '../api/authApi';
 
 export type UserType = 'customer' | 'vendor' | 'admin' | 'delivery' | 'support';
 
@@ -12,8 +12,8 @@ type AuthContextType = {
   login: (identifier: string, password?: string, selectedRole?: UserType) => Promise<User>;
   logout: () => void;
   clearSession: () => void;
-  registerCustomer: (data: any, selectedRole?: UserType) => Promise<void>;
-  registerVendor: (data: any, selectedRole?: UserType) => Promise<void>;
+  registerCustomer: (data: any, selectedRole?: UserType) => Promise<any>;
+  registerVendor: (data: any, selectedRole?: UserType) => Promise<any>;
   clearPendingRole: () => void;
 };
 
@@ -94,8 +94,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : 'customer';
 
     const displayName = me.name || me.username || (me.email ? me.email.split('@')[0] : 'User');
+    const resolvedVendorId = resolveVendorProfileId(me);
+    if (resolvedVendorId !== undefined && resolvedVendorId !== null && resolvedVendorId !== '') {
+      setStoredVendorProfileId(String(resolvedVendorId));
+    }
+
+    const userId = me.userId ?? me.id ?? loginResponse.userId ?? undefined;
     const u: User = {
-      id: String(me.id),
+      id: String(userId ?? me.id ?? loginResponse.userId ?? 'unknown-user'),
+      userId: userId ?? me.id ?? loginResponse.userId,
       name: displayName,
       username: me.username,
       email: me.email,
@@ -103,6 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role,
       type,
       token: loginResponse.token,
+      vendorId: resolvedVendorId !== undefined && resolvedVendorId !== null && resolvedVendorId !== '' ? String(resolvedVendorId) : undefined,
+      vendorProfileId: resolvedVendorId !== undefined && resolvedVendorId !== null && resolvedVendorId !== '' ? String(resolvedVendorId) : undefined,
     };
     if (import.meta.env.DEV) {
       console.debug('[Bidzo auth] auth-me and final user', {
@@ -119,6 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearSession = useCallback(() => {
     setUser(null);
     localStorage.removeItem('bidzo_user');
+    localStorage.removeItem('bidzo_vendor_profile_id');
   }, []);
 
   const logout = () => {
@@ -133,7 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Name, email, password, and phone number are required');
     }
 
-    await registerApi({
+    return registerApi({
       username: data.name,
       email: data.email,
       password: data.password,
@@ -148,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Business name, email, password, and phone number are required');
     }
 
-    await registerApi({
+    return registerApi({
       username: data.businessName,
       email: data.email,
       password: data.password,

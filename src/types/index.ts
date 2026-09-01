@@ -26,6 +26,9 @@ export interface User {
   type?: 'customer' | 'vendor' | 'admin' | 'delivery' | 'support';
   token?: string;
   avatar?: string;
+  userId?: string | number;
+  vendorId?: string | number;
+  vendorProfileId?: string | number;
   vendorVerified?: boolean;
 }
 
@@ -161,14 +164,15 @@ export interface OrderRequestDto {
 export interface OrderItemResponseDto {
   id: number;
   orderId: number;
-  productVariantId: number;
-  productId?: number;
+  productVariantId?: number | null;
+  productId?: number | null;
+  vendorId?: number | null;
   quantity: number;
   price: number;
-  productName?: string;
-  name?: string;
-  vendorName?: string;
-  sellerName?: string;
+  productName?: string | null;
+  name?: string | null;
+  vendorName?: string | null;
+  sellerName?: string | null;
 }
 
 export interface OrderResponseDto {
@@ -218,8 +222,18 @@ export interface PaymentResponseDto {
   amount: number;
   paidAt?: string;
   paymentRef?: string;
+  paymentId?: string;
+  razorpayPaymentId?: string;
+  razorpayOrderId?: string;
+  paymentMethod?: string;
+  paymentMethodName?: string;
+  method?: string;
   status: string;
   orderId: number;
+  receiptUrl?: string;
+  qrCodeUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Order {

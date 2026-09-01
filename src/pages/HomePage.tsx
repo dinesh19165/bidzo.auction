@@ -3,91 +3,37 @@ import { useThemeContext } from '../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useLocaleContext } from '../context/LocaleContext';
-import { ArrowRight, ChevronLeft, ChevronRight, CheckCircle2, Clock3, Globe, Heart, MapPin, Mic, Package, Search, ShieldCheck, Smartphone, Sparkles, Store, TrendingUp, Truck } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import {
-  featuredProducts,
-  products,
-  chartSeries,
-  reviews,
-  auctionItems,
-  sellers,
-  featuredCategories,
-  flashDeals,
-  topCollections,
-  popularSearches,
-  appStats,
-  marketplaceCategories,
-  topCategories,
-  verifiedVendors,
-  premiumAuctions,
-  sponsoredProducts,
-  trustStatements,
-  statsOverview,
-  testimonials,
-  downloadCards,
-} from '../data/mockData';
-import { PrimaryButton, SecondaryButton, Badge } from '../components/common/Buttons';
-import { StatisticCard, ProductCard, ReviewCard, AuctionCard, CategoryCard, SellerCard } from '../components/cards/MarketplaceCards';
+import { ChevronLeft, ChevronRight, MapPin, Package, Search, Smartphone, Sparkles, Store, Truck } from 'lucide-react';
+import { ProductCard, ReviewCard } from '../components/cards/MarketplaceCards';
 import { getHomeData } from '../api/homeApi';
-import { getEffectiveAuctionStatus } from '../api/auctionApi';
-import type { HomeDataResponse, CategoryResponse, ProductResponse, AuctionResponse } from '../api/homeApi';
-
-const pieData = [
-  { name: 'Auctions', value: 44 },
-  { name: 'Buy Now', value: 31 },
-  { name: 'Services', value: 25 },
-];
+import { getAuctions, getEffectiveAuctionStatus } from '../api/auctionApi';
+import { getPublishedTestimonials, type PublicTestimonial } from '../api/cmsApi';
+import { getProducts } from '../api/productApi';
+import type { HomeDataResponse } from '../api/homeApi';
 
 export function HomePage() {
   const [searchCategory, setSearchCategory] = useState('All Categories');
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [counterValues, setCounterValues] = useState({ activeAuctions: 0, buyers: 0, sellers: 0, sold: 0 });
 
   // API data states
   const [homeData, setHomeData] = useState<HomeDataResponse | null>(null);
+  const [directBuyProducts, setDirectBuyProducts] = useState<Awaited<ReturnType<typeof getProducts>>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
+  const [testimonialsLoading, setTestimonialsLoading] = useState(true);
+  const [testimonialsError, setTestimonialsError] = useState<string | null>(null);
 
   const categoryIcons = [
-    <Smartphone className="h-5 w-5" />, <Truck className="h-5 w-5" />, <Store className="h-5 w-5" />, <Heart className="h-5 w-5" />,
-    <Package className="h-5 w-5" />, <TrendingUp className="h-5 w-5" />, <ShieldCheck className="h-5 w-5" />, <MapPin className="h-5 w-5" />,
-    <Search className="h-5 w-5" />, <Globe className="h-5 w-5" />,
+    <Smartphone className="h-5 w-5" />, <Truck className="h-5 w-5" />, <Store className="h-5 w-5" />, <MapPin className="h-5 w-5" />,
+    <Package className="h-5 w-5" />, <Search className="h-5 w-5" />,
   ];
 
-  const heroSlides = [
-    {
-      title: 'Bid on premium inventory with confidence',
-      description: 'Live auctions, trusted sellers and secure checkout for enterprise-grade deals.',
-      cta: 'Explore auctions',
-      link: '/auctions',
-    },
-    {
-      title: 'Shop curated listings across vehicles, tech and luxury goods',
-      description: 'Verified sellers, fast delivery and premium buyer protection in every order.',
-      cta: 'Browse marketplace',
-      link: '/marketplace',
-    },
-    {
-      title: 'Discover featured sellers and top-rated offers today',
-      description: 'Track trending inventory, flash deals and handpicked premium collections.',
-      cta: 'See featured sellers',
-      link: '/marketplace',
-    },
-  ];
-
-  // Fallback to mock data if API data is not available
-  const featuredProductsList = homeData?.featuredProducts?.slice(0, 4) || featuredProducts.slice(0, 4);
-  const popularCategories = homeData?.categories?.slice(0, 6) || marketplaceCategories.slice(0, 6);
-  const stats = homeData?.stats || { totalProducts: 0, liveAuctions: 0, upcomingAuctions: 0, totalCategories: 0, totalVendors: 0, totalCustomers: 0 };
-  
-  // Combine live and upcoming auctions for trending section
-  const trendingAuctions = [
-    ...(homeData?.liveAuctions || []),
-    ...(homeData?.upcomingAuctions || []),
-  ].slice(0, 6) || auctionItems.slice(0, 6);
-  
-  const sellerHighlights = verifiedVendors.slice(0, 3);
+  const stats = homeData?.stats;
+  const popularCategories = homeData?.categories?.slice(0, 6) || [];
+  const featuredProductsList = directBuyProducts.slice(0, 4);
+  const trendingAuctions = [...(homeData?.liveAuctions || []), ...(homeData?.upcomingAuctions || [])].slice(0, 6);
+  const auctionSpotlight = homeData?.liveAuctions?.[0];
   const [activeTrendingIndex, setActiveTrendingIndex] = useState(0);
   const trendingScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -113,31 +59,47 @@ export function HomePage() {
   };
 
   // Fetch home data on component mount
-  useEffect(() => {
-    const loadHomeData = async () => {
+  const loadHomeData = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getHomeData();
-        setHomeData(data);
+        const [data, marketplaceProducts] = await Promise.all([getHomeData(), getProducts()]);
+        setDirectBuyProducts(marketplaceProducts.filter((product) => product.sellingType === 'DIRECT_BUY'));
+        if (data.liveAuctions.length === 0 && data.upcomingAuctions.length === 0) {
+          const marketplaceAuctions = await getAuctions();
+          const liveAuctions = marketplaceAuctions
+            .filter((auction) => getEffectiveAuctionStatus(auction.status, auction.startAt, auction.endAt) === 'RUNNING')
+            .map((auction) => ({
+              id: auction.id,
+              title: auction.title,
+              status: auction.status,
+              startAt: auction.startAt || '',
+              endAt: auction.endAt || '',
+              startingPrice: Number(auction.startingPrice) || 0,
+              productId: auction.productId,
+              image: auction.image,
+            }));
+          setHomeData({ ...data, liveAuctions });
+        } else {
+          setHomeData(data);
+        }
       } catch (err) {
         console.error('Error loading home data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load home data');
-        // Continue with mock data as fallback
       } finally {
         setIsLoading(false);
       }
-    };
+  };
 
-    loadHomeData();
-  }, []);
+  useEffect(() => { loadHomeData(); }, []);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setActiveTestimonial((value) => (value + 1) % testimonials.length), 8000);
-    return () => window.clearInterval(interval);
+    getPublishedTestimonials()
+      .then(setTestimonials)
+      .catch((reason: unknown) => setTestimonialsError(reason instanceof Error ? reason.message : 'Failed to load testimonials'))
+      .finally(() => setTestimonialsLoading(false));
   }, []);
 
-  // Update counter values based on stats from API
   useEffect(() => {
     if (!stats) return;
 
@@ -180,6 +142,14 @@ export function HomePage() {
 
   const { theme } = useThemeContext();
   const { translate, formatCurrency } = useLocaleContext();
+
+  if (isLoading) {
+    return <div className="flex min-h-[60vh] items-center justify-center bg-[var(--app-bg)] text-slate-300"><p>Loading homepage...</p></div>;
+  }
+
+  if (error || !homeData) {
+    return <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-[var(--app-bg)] px-4 text-center text-slate-300"><p>Unable to load homepage data.</p><p className="text-sm text-slate-400">{error || 'No homepage data is available.'}</p><button type="button" onClick={loadHomeData} className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">Retry</button></div>;
+  }
 
   // Helper function to format auction status
   const getAuctionStatus = (status?: string, startAt?: string, endAt?: string) => {
@@ -229,7 +199,7 @@ export function HomePage() {
       <section className="relative overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_35%),radial-gradient(circle_at_20%_30%,_rgba(56,189,248,0.12),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(251,191,36,0.10),_transparent_20%)]" />
         <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-          <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
+          <div className={`grid gap-12 items-center ${auctionSpotlight ? 'lg:grid-cols-[1.05fr_0.95fr]' : ''}`}>
             <div className="space-y-8">
               <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${theme === 'dark' ? 'bg-slate-900/70 text-slate-200 ring-1 ring-white/10' : 'bg-[var(--surface-muted)] text-[var(--text-primary)] ring-[var(--border-color)]'}`}>
                 <Sparkles className="h-4 w-4 text-amber-300" />
@@ -258,8 +228,8 @@ export function HomePage() {
                       <span className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Category</span>
                       <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} className={`w-full rounded-lg bg-transparent text-sm ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'} outline-none`}>
                         <option>All Categories</option>
-                        {marketplaceCategories.slice(0, 6).map((item) => (
-                          <option key={item.title} className={theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-[var(--surface)] text-[var(--text-primary)]'}>{item.title}</option>
+                        {popularCategories.map((item) => (
+                          <option key={item.id} className={theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-[var(--surface)] text-[var(--text-primary)]'}>{item.name}</option>
                         ))}
                       </select>
                     </div>
@@ -279,61 +249,45 @@ export function HomePage() {
               <div className="grid gap-4 sm:grid-cols-3">
               <Link to="/auctions" className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'} hover:-translate-y-1 hover:shadow-[0_20px_60px_-20px_rgba(15,23,42,0.12)]`}>
                 <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Live auctions</p>
-                <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{counterValues.activeAuctions}</p>
+                <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{stats ? counterValues.activeAuctions : '—'}</p>
                 <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Active auctions right now</p>
               </Link>
                 <div className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
                   <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Registered buyers</p>
-                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{counterValues.buyers > 0 ? `${Math.round(counterValues.buyers / 1000)}k+` : '0'}</p>
+                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{stats ? counterValues.buyers : '—'}</p>
                   <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Premium buyers on Bidzo</p>
                 </div>
                 <div className={`rounded-[28px] border p-6 text-center shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-slate-950/20' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
                   <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Verified sellers</p>
-                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{counterValues.sellers > 0 ? `${Math.round(counterValues.sellers / 1000)}k+` : '0'}</p>
+                  <p className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{stats ? counterValues.sellers : '—'}</p>
                   <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Curated seller network</p>
                 </div>
               </div>
             </div>
 
             <div className="grid gap-5">
-              <div className={`rounded-[32px] border p-6 shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-[0_40px_120px_-70px_rgba(15,23,42,0.8)]' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
+              {auctionSpotlight ? <div className={`rounded-[32px] border p-6 shadow-xl transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/80 shadow-[0_40px_120px_-70px_rgba(15,23,42,0.8)]' : 'border-[var(--border-color)] bg-[var(--surface)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]'}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Auction spotlight</p>
-                    <h2 className={`mt-3 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>Rolex Oyster Reserve</h2>
+                    <h2 className={`mt-3 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{auctionSpotlight.title}</h2>
                   </div>
-                  <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs uppercase tracking-[0.18em] text-emerald-300">Live</span>
+                  <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs uppercase tracking-[0.18em] text-emerald-300">{getAuctionStatus(auctionSpotlight.status, auctionSpotlight.startAt, auctionSpotlight.endAt)}</span>
                 </div>
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
                   <div className={`rounded-[28px] p-4 ${theme === 'dark' ? 'bg-slate-950/70' : 'bg-[var(--surface-muted)]'}`}>
-                    <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')}</p>
-                    <p className={`mt-2 text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(312000)}</p>
+                    <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Starting price</p>
+                    <p className={`mt-2 text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(auctionSpotlight.startingPrice)}</p>
                   </div>
                   <div className={`rounded-[28px] p-4 ${theme === 'dark' ? 'bg-slate-950/70' : 'bg-[var(--surface-muted)]'}`}>
-                    <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Bidders</p>
-                    <p className={`mt-2 text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>24</p>
+                    <p className={`text-sm uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Ends</p>
+                    <p className={`mt-2 text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{getCountdownText(auctionSpotlight.endAt, auctionSpotlight.status, auctionSpotlight.startAt)}</p>
                   </div>
                 </div>
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <Link to="/auctions/101" className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">View auction</Link>
-                  <span className={`inline-flex items-center rounded-full px-4 py-3 text-sm ${theme === 'dark' ? 'bg-white/5 text-slate-300' : 'bg-[var(--surface-muted)] text-[var(--text-primary)]'}`}>Verified seller</span>
+                  <Link to={`/auctions/${auctionSpotlight.id}`} className="rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">View auction</Link>
                 </div>
-              </div>
-              <div className={`rounded-[32px] border p-6 shadow-xl shadow-slate-950/20 ${theme === 'dark' ? 'border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-950/90 to-slate-900/80' : 'border-[var(--border-color)] bg-[var(--surface)]'}`}>
-                <p className="text-sm uppercase tracking-[0.24em] text-blue-300">Fast access</p>
-                <h2 className="mt-3 text-3xl font-semibold text-white">Premium listings, refined for you</h2>
-                <p className="mt-5 text-sm leading-7 text-slate-300">Explore curated products and live auctions that match your premium buying criteria.</p>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-3xl bg-white/5 p-4">
-                    <p className="text-sm text-slate-400">Trusted sellers</p>
-                    <p className="mt-2 text-lg font-semibold text-white">1.4k</p>
-                  </div>
-                  <div className="rounded-3xl bg-white/5 p-4">
-                    <p className="text-sm text-slate-400">Fast delivery</p>
-                    <p className="mt-2 text-lg font-semibold text-white">24h+</p>
-                  </div>
-                </div>
-              </div>
+              </div> : null}
             </div>
           </div>
         </div>
@@ -355,8 +309,8 @@ export function HomePage() {
                   {categoryIcons[index % categoryIcons.length]}
                 </div>
                 <p className="mt-6 text-sm uppercase tracking-[0.24em] text-slate-400">{item.name || item.title}</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{item.count || '0'}</p>
-                <p className="mt-4 text-sm leading-6 text-slate-400">{item.description || 'Premium listings curated for buyers seeking quality.'}</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{item.count ?? '—'}</p>
+                <p className="mt-4 text-sm leading-6 text-slate-400">{item.description ?? ''}</p>
               </Link>
             ))
           ) : (
@@ -388,7 +342,6 @@ export function HomePage() {
                 </div>
                 <h3 className={`text-lg font-semibold break-words ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
                 <p className={`mt-3 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.startingPrice || 0)}</span></p>
-                <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants || 0} bidders • {item.watchers || 0} watchers</p>
               </Link>
             ))
           ) : (
@@ -411,7 +364,6 @@ export function HomePage() {
                   </div>
                   <h3 className={`text-lg font-semibold break-words ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{item.title}</h3>
                   <p className={`mt-3 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{translate('currentBid')} <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{formatCurrency(item.startingPrice || 0)}</span></p>
-                  <p className={`mt-2 text-sm break-words ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>{item.participants || 0} bidders • {item.watchers || 0} watchers</p>
                 </Link>
               ))
             ) : (
@@ -467,24 +419,25 @@ export function HomePage() {
         </div>
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {featuredProductsList && featuredProductsList.length > 0 ? (
-            featuredProductsList.map((item: any) => {
+            featuredProductsList.map((item) => {
               const sellingTypeLabel = item.sellingType === 'AUCTION' ? 'Auction' : item.sellingType === 'DIRECT_BUY' ? 'Direct Buy' : 'Product';
               return (
                 <ProductCard
                   key={item.id}
                   id={item.id}
-                  title={item.name || item.title || 'Product'}
-                  description={item.description || ''}
+                  title={item.title}
+                  description={item.description ?? ''}
                   image={item.image || '/logo.png'}
-                  price={`₹${item.price || 0}`}
-                  category={item.categoryId ? `Category ${item.categoryId}` : 'Uncategorized'}
-                  condition="New"
-                  seller={item.vendorId ? `Vendor ${item.vendorId}` : 'Unknown Seller'}
-                  rating={4.5}
-                  reviews={0}
-                  verified={true}
+                  price={item.price}
+                  category={item.category}
+                  condition=""
+                  seller=""
+                  rating={item.rating}
+                  reviews={item.reviews}
+                  verified={item.verified}
+                  showSellerMeta={false}
                   badge={sellingTypeLabel}
-                  location="India"
+                  location={item.location ?? ''}
                   actionLabel={item.sellingType === 'AUCTION' ? 'Bid now' : 'Buy now'}
                   actionLink={`/marketplace/${item.id}`}
                 />
@@ -501,74 +454,14 @@ export function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Why choose Bidzo</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Premium features for modern auctions</h2>
-          </div>
-          <Link to="/faq" className="text-sm font-medium text-slate-300 transition hover:text-white">Learn more</Link>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {[
-            { icon: <ShieldCheck className="h-5 w-5" />, title: 'Verified Sellers', description: 'Every listing is vetted before approval.' },
-            { icon: <ArrowRight className="h-5 w-5" />, title: 'Secure Payments', description: 'Escrow support with verified checkout flows.' },
-            { icon: <Clock3 className="h-5 w-5" />, title: 'Live Auctions', description: 'Real-time bidding with immediate notifications.' },
-            { icon: <Package className="h-5 w-5" />, title: 'Fast Delivery', description: 'Priority logistics for premium orders.' },
-            { icon: <Globe className="h-5 w-5" />, title: 'AI Recommendations', description: 'Smart matching for buyers and sellers.' },
-            { icon: <Heart className="h-5 w-5" />, title: '24/7 Support', description: 'Marketplace support whenever you need it.' },
-          ].map((item) => (
-            <div key={item.title} className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition hover:-translate-y-1 hover:bg-slate-900/90">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-3xl bg-slate-950/70 text-cyan-300">{item.icon}</div>
-              <h3 className="mt-5 text-lg font-semibold text-white">{item.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-slate-400">{item.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
             <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Testimonials</p>
             <h2 className="mt-2 text-2xl font-semibold text-white">Trusted by buyers and sellers</h2>
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <button onClick={() => setActiveTestimonial((value) => (value - 1 + testimonials.length) % testimonials.length)} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-2 transition hover:bg-slate-900">Prev</button>
-            <button onClick={() => setActiveTestimonial((value) => (value + 1) % testimonials.length)} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-2 transition hover:bg-slate-900">Next</button>
-          </div>
+          {testimonialsError ? <button type="button" onClick={() => { setTestimonialsLoading(true); setTestimonialsError(null); getPublishedTestimonials().then(setTestimonials).catch((reason: unknown) => setTestimonialsError(reason instanceof Error ? reason.message : 'Failed to load testimonials')).finally(() => setTestimonialsLoading(false)); }} className="text-sm font-medium text-slate-300 transition hover:text-white">Retry</button> : null}
         </div>
-        <div className="grid gap-5 lg:grid-cols-3">
-          {testimonials.map((item, index) => (
-            <div key={item.author} className={index === activeTestimonial ? 'block' : 'hidden lg:block'}>
-              <ReviewCard quote={item.quote} author={`${item.author} • ${item.role}`} rating={5} />
-            </div>
-          ))}
-        </div>
+        {testimonialsLoading ? <div className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 text-sm text-slate-400">Loading testimonials...</div> : testimonialsError ? <div className="rounded-[28px] border border-rose-500/20 bg-rose-500/10 p-6 text-sm text-rose-200">Unable to load testimonials: {testimonialsError}</div> : testimonials.length === 0 ? <div className="rounded-[28px] border border-dashed border-white/10 bg-white/5 p-10 text-center text-sm text-slate-400">No published testimonials available.</div> : <div className="grid gap-5 lg:grid-cols-3">{testimonials.map((testimonial) => <div key={testimonial.id}><ReviewCard quote={testimonial.message} author={testimonial.customerName} rating={Math.max(1, Math.min(5, Math.round(testimonial.rating)))} imageUrl={testimonial.imageUrl || '/logo.png'} /></div>)}</div>}
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">How it works</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">A premium process for buyers and sellers</h2>
-          </div>
-          <Link to="/onboarding" className="text-sm font-medium text-slate-300 transition hover:text-white">Get started</Link>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {[
-            { step: '01', title: 'Register', description: 'Create your account and complete onboarding.' },
-            { step: '02', title: 'Verify', description: 'Finish KYC and seller verification quickly.' },
-            { step: '03', title: 'Start Selling', description: 'List premium inventory or launch auctions.' },
-            { step: '04', title: 'Place Bids', description: 'Join live auctions with confidence.' },
-            { step: '05', title: 'Win Auction', description: 'Secure the best deals with transparent bidding.' },
-            { step: '06', title: 'Delivery', description: 'Track fast delivery and secure fulfillment.' },
-          ].map((item) => (
-            <div key={item.step} className="rounded-[28px] border border-white/10 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30 transition hover:-translate-y-1">
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-3xl bg-cyan-500/10 text-cyan-300">{item.step}</div>
-              <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">{item.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
     </>
   );
 }

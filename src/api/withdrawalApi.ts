@@ -33,10 +33,29 @@ interface ApiResponse<T> {
 function unwrap<T>(response: T | ApiResponse<T>, message: string): T {
   if (response && typeof response === 'object' && 'data' in response) {
     const wrapped = response as ApiResponse<T>;
-    if (wrapped.success === false || !wrapped.data) {
+    if (wrapped.success === false) {
       throw new Error(wrapped.message || message);
     }
-    return wrapped.data;
+    if (wrapped.data !== undefined && wrapped.data !== null) {
+      return wrapped.data;
+    }
+    if (wrapped.success === true) {
+      return ({} as T);
+    }
+    throw new Error(wrapped.message || message);
+  }
+
+  if (response && typeof response === 'object' && 'success' in response) {
+    const wrapped = response as ApiResponse<T>;
+    if (wrapped.success === false) {
+      throw new Error(wrapped.message || message);
+    }
+    if (wrapped.data !== undefined && wrapped.data !== null) {
+      return wrapped.data;
+    }
+    if (wrapped.success === true) {
+      return ({} as T);
+    }
   }
 
   return response as T;

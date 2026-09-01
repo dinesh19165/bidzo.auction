@@ -104,7 +104,7 @@ export function MarketplacePage() {
             return;
           }
 
-          if (String(product.sellingType || '').toUpperCase() !== 'DIRECT_BUY' && product.isAuction) return;
+          if (String(product.sellingType || '').toUpperCase() !== 'DIRECT_BUY') return;
 
           merged.push({
             ...product,
@@ -136,12 +136,12 @@ export function MarketplacePage() {
     }
     if (category) list = list.filter((p) => p.category === category);
     if (seller) list = list.filter((p) => p.seller.toLowerCase().includes(seller.toLowerCase()));
-    if (rating) list = list.filter((p) => p.rating >= Number(rating));
+    if (rating) list = list.filter((p) => (p.rating ?? 0) >= Number(rating));
     if (verifiedOnly) list = list.filter((p) => p.verified === true);
     if (auctionOnly) list = list.filter((p) => p.isAuction || (p.badge || '').toLowerCase().includes('auction'));
     if (buyNowOnly) list = list.filter((p) => p.isDirectBuy || (p.badge || '').toLowerCase().includes('buy now') || (p.badge || '').toLowerCase().includes('buy'));
     if (condition) list = list.filter((p) => p.condition === condition);
-    if (location) list = list.filter((p) => p.location.toLowerCase().includes(location.toLowerCase()));
+    if (location) list = list.filter((p) => (p.location ?? '').toLowerCase().includes(location.toLowerCase()));
     if (minPrice) list = list.filter((p) => parsePrice(p.price) >= Number(minPrice));
     if (maxPrice) list = list.filter((p) => parsePrice(p.price) <= Number(maxPrice));
 

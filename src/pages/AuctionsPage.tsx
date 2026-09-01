@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SectionShell } from '../components/SectionShell';
 import { AuctionCard } from '../components/cards/MarketplaceCards';
-import { getAuctions, type AuctionListItem } from '../api/auctionApi';
+import { getAuctions, getEffectiveAuctionStatus, type AuctionListItem } from '../api/auctionApi';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
 
 export function AuctionsPage() {
@@ -15,7 +15,11 @@ export function AuctionsPage() {
       setError(null);
       try {
         const items = await getAuctions();
-        setAuctions(items);
+        const visibleAuctions = items.filter((item) => {
+          const effectiveStatus = getEffectiveAuctionStatus(item.status, item.startAt, item.endAt);
+          return effectiveStatus === 'RUNNING' || effectiveStatus === 'SCHEDULED';
+        });
+        setAuctions(visibleAuctions);
       } catch (err: any) {
         setError(err?.message || 'Unable to load auctions');
       } finally {

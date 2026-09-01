@@ -5,6 +5,7 @@ import { Card } from '../../components/common/Card';
 import { PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
 import { EmptyState, ErrorState, SkeletonTable } from '../../components/loading/LoadingComponents';
 import DeliveryAddressViewer from '../../components/orders/DeliveryAddressViewer';
+import { ApiError } from '../../api/apiClient';
 import {
   getAdminAuction, getAdminAuctionsPaginated, getAdminAuctionsByStatus, searchAdminAuctions,
   getAdminCustomer, getAdminCustomersPaginated, getAdminCustomerOrders, getAdminCustomerBids, getAdminCustomerPayments, getAdminOrder, getAdminOrdersPaginated, getAdminOrdersByStatus, getAdminOrdersByDateRange, searchAdminOrders,
@@ -33,7 +34,7 @@ const resourceConfig: Record<Resource, { label: string; load: (query: AdminQuery
   users: { label: 'Users', load: getAdminUsersPaginated, statuses: ['ACTIVE', 'INACTIVE'] },
   customers: { label: 'Customers', load: getAdminCustomersPaginated, statuses: ['ACTIVE', 'INACTIVE'] },
   vendors: { label: 'Vendors', load: getAdminVendorsPaginated, statuses: ['ACTIVE', 'INACTIVE', 'PENDING'] },
-  orders: { label: 'Orders', load: getAdminOrdersPaginated, statuses: ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] },
+  orders: { label: 'Orders', load: getAdminOrdersPaginated, statuses: ['CONFIRMED', 'PACKING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
   products: { label: 'Products', load: getAdminProductsPaginated, statuses: ['ACTIVE', 'INACTIVE', 'PENDING'] },
   payments: { label: 'Payments', load: getAdminPaymentsPaginated, statuses: ['PENDING', 'SUCCESS', 'FAILED', 'REFUNDED'] },
   auctions: { label: 'Auctions', load: getAdminAuctionsPaginated, statuses: ['LIVE', 'UPCOMING', 'COMPLETED', 'PENDING'] },
@@ -51,6 +52,7 @@ export function AdminResourcePage({ resource }: { resource: Resource }) {
   const [processingVendorId, setProcessingVendorId] = useState<string | number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [processingOrderId, setProcessingOrderId] = useState<string | number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -103,6 +105,33 @@ export function AdminResourcePage({ resource }: { resource: Resource }) {
     }
   };
 
+  const nextOrderStatus = (currentStatus: unknown) => {
+    const nextStatuses = ['CONFIRMED', 'PACKING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+    const index = nextStatuses.indexOf(String(currentStatus ?? '').toUpperCase());
+    return index >= 0 && index < nextStatuses.length - 1 ? nextStatuses[index + 1] : null;
+  };
+
+  const updateOrderStatus = async (order: AdminRecord) => {
+    const id = order.id;
+    const nextStatus = nextOrderStatus(order.orderStatus ?? order.status);
+    if ((typeof id !== 'string' && typeof id !== 'number') || !nextStatus || processingOrderId !== null) return;
+    setProcessingOrderId(id);
+    setError(null);
+    setMessage(null);
+    try {
+      await updateAdminOrderStatus(id, nextStatus);
+      setResult((current) => ({ ...current, items: current.items.map((item) => item.id === id ? { ...item, orderStatus: nextStatus } : item) }));
+      setMessage(`Order status updated to ${nextStatus}.`);
+    } catch (err) {
+      const statusMessage = err instanceof ApiError
+        ? err.status === 400 ? 'This order status transition is not valid.' : err.status === 403 ? "You don't have permission to update order statuses." : err.status >= 500 ? 'The server could not update this order. Please try again.' : err.message
+        : err instanceof Error ? err.message : 'Unable to update order status.';
+      setError(statusMessage);
+    } finally {
+      setProcessingOrderId(null);
+    }
+  };
+
   return (
     <AdminShell title="Enterprise admin" subtitle={`${config.label} management`} breadcrumbs={[{ label: 'Admin' }, { label: config.label }]} activePath={`/admin/${resource}`}>
       <Card className="p-4">
@@ -113,12 +142,30 @@ export function AdminResourcePage({ resource }: { resource: Resource }) {
           <PrimaryButton onClick={load}>Refresh</PrimaryButton>
         </div>
         {message ? <div className="mb-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}
-        {error ? <ErrorState title={`Unable to load ${config.label.toLowerCase()}`} description={error} /> : loading ? <SkeletonTable /> : result.items.length === 0 ? <EmptyState title={`No ${config.label.toLowerCase()} found`} description="There are no records matching the current filters." /> : <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-left text-sm"><thead className="text-slate-400"><tr>{columns.map((column) => <th key={column} className="px-3 py-3">{titleCase(column)}</th>)}</tr></thead><tbody className="text-slate-300">{result.items.map((item, index) => <tr key={String(item.userId ?? item.id ?? index)} className="border-t border-white/6">{columns.map((column) => <td key={column} className="px-3 py-3">{resource === 'vendors' && column === 'status' ? <span className={item.active === true ? 'text-emerald-300' : 'text-amber-300'}>{item.active === true ? 'ACTIVE' : 'DEACTIVATED'}</span> : resource === 'vendors' && column === 'action' ? <SecondaryButton disabled={processingVendorId !== null} onClick={() => updateVendorStatus(item)}>{processingVendorId === item.userId ? 'Updating...' : item.active === true ? 'Deactivate' : 'Activate'}</SecondaryButton> : resource === 'orders' && column === 'deliveryAddress' ? <DeliveryAddressViewer address={item.deliveryAddress as Record<string, unknown> | string | null | undefined} /> : value(item, [column])}</td>)}</tr>)}</tbody></table></div>}
+        {error ? <ErrorState title={`Unable to load ${config.label.toLowerCase()}`} description={error} /> : loading ? <SkeletonTable /> : result.items.length === 0 ? <EmptyState title={`No ${config.label.toLowerCase()} found`} description="There are no records matching the current filters." /> : <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-left text-sm"><thead className="text-slate-400"><tr>{columns.map((column) => <th key={column} className="px-3 py-3">{titleCase(column)}</th>)}{resource === 'orders' ? <th className="px-3 py-3">Next Status</th> : null}</tr></thead><tbody className="text-slate-300">{result.items.map((item, index) => <tr key={String(item.userId ?? item.id ?? index)} className="border-t border-white/6">{columns.map((column) => <td key={column} className="px-3 py-3">{resource === 'vendors' && column === 'status' ? <span className={item.active === true ? 'text-emerald-300' : 'text-amber-300'}>{item.active === true ? 'ACTIVE' : 'DEACTIVATED'}</span> : resource === 'vendors' && column === 'action' ? <SecondaryButton disabled={processingVendorId !== null} onClick={() => updateVendorStatus(item)}>{processingVendorId === item.userId ? 'Updating...' : item.active === true ? 'Deactivate' : 'Activate'}</SecondaryButton> : resource === 'orders' && column === 'orderStatus' ? <span className="font-medium text-cyan-200">{value(item, [column])}</span> : resource === 'orders' && column === 'deliveryAddress' ? <DeliveryAddressViewer address={item.deliveryAddress as Record<string, unknown> | string | null | undefined} /> : value(item, [column])}</td>)}{resource === 'orders' ? <td className="px-3 py-3">{nextOrderStatus(item.orderStatus ?? item.status) ? <SecondaryButton disabled={processingOrderId !== null} onClick={() => updateOrderStatus(item)}>{processingOrderId === item.id ? 'Updating...' : `Move to ${nextOrderStatus(item.orderStatus ?? item.status)}`}</SecondaryButton> : <span className="text-slate-500">No further transition</span>}</td> : null}</tr>)}</tbody></table></div>}
         <div className="mt-4 flex items-center justify-between text-sm text-slate-400"><span>{result.total} total</span><div className="flex gap-2"><SecondaryButton disabled={page <= 0} onClick={() => setPage((current) => current - 1)}>Previous</SecondaryButton><SecondaryButton disabled={page + 1 >= totalPages} onClick={() => setPage((current) => current + 1)}>Next</SecondaryButton></div></div>
       </Card>
     </AdminShell>
   );
 }
+
+const maskAccountNumber = (value: unknown) => {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '-' || raw === 'null' || raw === 'undefined') {
+    return 'Not provided';
+  }
+
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) {
+    return raw;
+  }
+
+  if (digits.length <= 4) {
+    return `******${digits}`;
+  }
+
+  return `******${digits.slice(-4)}`;
+};
 
 const detailLoaders: Record<Resource, (id: string) => Promise<AdminRecord>> = { users: getAdminUser, customers: getAdminCustomer, vendors: getAdminVendor, orders: getAdminOrder, products: getAdminProduct, payments: getAdminPayment, auctions: getAdminAuction };
 
@@ -143,7 +190,27 @@ export function AdminResourceDetailPage({ resource }: { resource: Resource }) {
     Promise.all(loaders.map(async ([label, loader]) => [label, await loader()] as const)).then((entries) => setRelated(Object.fromEntries(entries))).catch(() => setRelated({}));
   }, [id, resource]);
   const updateStatus = async () => { if (!status) return; try { if (resource === 'orders') { await updateAdminOrderStatus(id, status); } else if (resource === 'products') { await updateAdminProductStatus(id, status); } setMessage('Status updated successfully.'); await load(); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to update status.'); } };
-  return <AdminShell title="Enterprise admin" subtitle={`${titleCase(resource)} details`} breadcrumbs={[{ label: 'Admin' }, { label: titleCase(resource), to: `/admin/${resource}` }, { label: 'Details' }]} activePath={`/admin/${resource}`}><Card className="p-6">{message ? <div className="mb-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}{error ? <ErrorState title="Unable to load details" description={error} /> : loading ? <SkeletonTable /> : record ? <div className="space-y-3 text-sm text-slate-300">{Object.entries(record).filter(([, item]) => typeof item !== 'object').map(([key, item]) => <div key={key} className="flex justify-between gap-4 border-b border-white/6 py-3"><span className="text-slate-400">{titleCase(key)}</span><span className="text-right text-white">{String(item ?? '-')}</span></div>)}{Object.entries(related).map(([label, items]) => <div key={label} className="border-t border-white/10 pt-4"><p className="font-semibold text-white">{label} ({items.length})</p>{items.slice(0, 5).map((item, index) => <p key={String(item.id ?? index)} className="mt-2 text-slate-400">{value(item, ['name', 'title', 'orderNumber', 'amount', 'status', 'id'])}</p>)}</div>)}{(resource === 'orders' || resource === 'products') ? <div className="flex gap-3 pt-3"><select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-white"><option value="">Update status</option><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option><option value="PROCESSING">PROCESSING</option><option value="SHIPPED">SHIPPED</option><option value="DELIVERED">DELIVERED</option><option value="CANCELLED">CANCELLED</option></select><PrimaryButton onClick={updateStatus}>Save status</PrimaryButton></div> : null}</div> : <EmptyState title="Record not found" description="The requested record is unavailable." />}</Card></AdminShell>;
+
+  const vendorBankFields = resource === 'vendors' && record ? {
+    accountHolderName: String(value(record, ['accountHolderName', 'account_holder_name', 'bankAccountHolderName', 'holderName']) ?? 'Not provided'),
+    bankName: String(value(record, ['bankName', 'bank_name', 'bank', 'bankAccountName']) ?? 'Not provided'),
+    accountNumber: String(value(record, ['bankAccountNumber', 'bank_account_number', 'accountNumber', 'account_number', 'bankNumber']) ?? 'Not provided'),
+    ifscCode: String(value(record, ['ifscCode', 'ifsc_code', 'ifsc', 'bankIfsc']) ?? 'Not provided'),
+    branchName: String(value(record, ['branchName', 'branch_name', 'bankBranch', 'bank_branch', 'branch']) ?? 'Not provided'),
+    gstNumber: String(value(record, ['gstNumber', 'gst_number', 'gst', 'gstNo']) ?? 'Not provided'),
+    documentName: String(value(record, ['bankDocumentName', 'bank_document_name', 'bankProofName', 'bank_proof_name', 'documentName', 'bankStatementName']) ?? 'No bank document provided'),
+    documentUrl: typeof record.bankDocumentUrl === 'string' ? record.bankDocumentUrl : typeof record.bank_document_url === 'string' ? record.bank_document_url : typeof record.bankProofUrl === 'string' ? record.bankProofUrl : typeof record.bank_proof_url === 'string' ? record.bank_proof_url : typeof record.documentUrl === 'string' ? record.documentUrl : '',
+    bankStatus: String(value(record, ['bankVerificationStatus', 'bank_verification_status', 'bankStatus', 'verificationStatus', 'payoutStatus']) ?? 'Not available'),
+  } : null;
+
+  return <AdminShell title="Enterprise admin" subtitle={`${titleCase(resource)} details`} breadcrumbs={[{ label: 'Admin' }, { label: titleCase(resource), to: `/admin/${resource}` }, { label: 'Details' }]} activePath={`/admin/${resource}`}><Card className="p-6">{message ? <div className="mb-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">{message}</div> : null}{error ? <ErrorState title="Unable to load details" description={error} /> : loading ? <SkeletonTable /> : record ? <div className="space-y-3 text-sm text-slate-300">{Object.entries(record).filter(([, item]) => typeof item !== 'object').map(([key, item]) => <div key={key} className="flex justify-between gap-4 border-b border-white/6 py-3"><span className="text-slate-400">{titleCase(key)}</span><span className="text-right text-white">{String(item ?? '-')}</span></div>)}{vendorBankFields ? <div className="border-t border-white/10 pt-4"><p className="mb-3 text-base font-semibold text-white">Vendor payout details</p><div className="grid gap-3 md:grid-cols-2">{[
+        { label: 'GST number', value: vendorBankFields.gstNumber },
+        { label: 'Account holder', value: vendorBankFields.accountHolderName },
+        { label: 'Bank name', value: vendorBankFields.bankName },
+        { label: 'Account number', value: vendorBankFields.accountNumber },
+        { label: 'IFSC', value: vendorBankFields.ifscCode },
+        { label: 'Branch', value: vendorBankFields.branchName },
+      ].map((field) => <div key={field.label} className="rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-slate-400">{field.label}</p><p className="mt-2 text-white">{field.value !== '-' ? field.value : 'Bank details not provided'}</p></div>)}{vendorBankFields.documentName !== '-' ? <div className="rounded-2xl border border-white/10 bg-white/5 p-4 md:col-span-2"><p className="text-slate-400">Bank proof</p><div className="mt-2 flex items-center justify-between gap-3"><span className="text-white">{vendorBankFields.documentName}</span>{vendorBankFields.documentUrl ? <a href={vendorBankFields.documentUrl} target="_blank" rel="noreferrer" className="text-emerald-300 underline">View</a> : null}</div></div> : <div className="rounded-2xl border border-white/10 bg-white/5 p-4 md:col-span-2"><p className="text-slate-400">Bank proof</p><p className="mt-2 text-white">No bank document provided</p></div>}</div></div> : null}{Object.entries(related).map(([label, items]) => <div key={label} className="border-t border-white/10 pt-4"><p className="font-semibold text-white">{label} ({items.length})</p>{items.slice(0, 5).map((item, index) => <p key={String(item.id ?? index)} className="mt-2 text-slate-400">{value(item, ['name', 'title', 'orderNumber', 'amount', 'status', 'id'])}</p>)}</div>)}{(resource === 'orders' || resource === 'products') ? <div className="flex gap-3 pt-3"><select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-white"><option value="">Update status</option><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option><option value="PROCESSING">PROCESSING</option><option value="SHIPPED">SHIPPED</option><option value="DELIVERED">DELIVERED</option><option value="CANCELLED">CANCELLED</option></select><PrimaryButton onClick={updateStatus}>Save status</PrimaryButton></div> : null}</div> : <EmptyState title="Record not found" description="The requested record is unavailable." />}</Card></AdminShell>;
 }
 
 export function AdminDashboardApiPage() {
