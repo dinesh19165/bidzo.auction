@@ -1,5 +1,5 @@
-//export const API_BASE_URL = 'https://bidzo-backend.onrender.com/api';
-export const API_BASE_URL = 'http://localhost:8080/api';
+export const API_BASE_URL = 'https://bidzo-backend.onrender.com/api';
+//export const API_BASE_URL = 'http://localhost:8080/api';
 
 export class ApiError extends Error {
   status: number;
