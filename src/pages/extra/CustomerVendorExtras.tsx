@@ -2380,12 +2380,13 @@ export function CustomerAuctionDetailPage() {
                 ) : (
                   <>
                     <p className="text-sm text-blue-100 mt-2">Amount: {formatCurrency(winner.finalPrice)}</p>
-                    <Link
-                      to={`/customer/auctions/${id}/pay`}
-                      className="mt-3 block text-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/auction/${id}`)}
+                      className="mt-3 block w-full rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
                     >
                       Pay Now
-                    </Link>
+                    </button>
                   </>
                 )}
               </div>

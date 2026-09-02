@@ -17,7 +17,7 @@ import { formatCurrency } from '../utils/formatters';
 import { BidHistory, BidCard, CountdownTimer, WinnerBanner } from '../components/auction/AuctionComponents';
 import { getProductById } from '../api/productApi';
 import DeliveryAddressSelector from '../components/checkout/DeliveryAddressSelector';
-import type { AddressResponse } from '../api/addressApi';
+import { getAddresses, type AddressResponse } from '../api/addressApi';
 
 function formatDateTime(value?: string) {
   if (!value) return 'N/A';
@@ -301,6 +301,39 @@ export function AuctionDetailPage() {
 
   const isWinner = Boolean(winner && user && String(winner.winnerId) === String(user.id));
 
+  useEffect(() => {
+    if (!isWinner || !authReady || !user || paymentCompleted) return;
+
+    let active = true;
+
+    const loadSavedAddress = async () => {
+      try {
+        const addresses = await getAddresses();
+        if (!active || addresses.length === 0) return;
+
+        const savedAddressId = readAuctionFlowState().addressId;
+        const matchedAddress = savedAddressId
+          ? addresses.find((address) => address.id === savedAddressId)
+          : null;
+        const selected = matchedAddress ?? addresses.find((address) => address.isDefault) ?? addresses[0];
+
+        if (!selected) return;
+
+        setSelectedAddress(selected);
+        setShowAddressSelector(false);
+        writeAuctionFlowState({ ...readAuctionFlowState(), addressId: selected.id });
+      } catch {
+        // Keep the existing selector flow as a fallback if the address API is unavailable.
+      }
+    };
+
+    void loadSavedAddress();
+
+    return () => {
+      active = false;
+    };
+  }, [authReady, isWinner, paymentCompleted, user?.id]);
+
   const readStoredAuctionOrderId = (auctionId: number): number | null => {
     if (typeof window === 'undefined') return null;
     const raw = window.localStorage.getItem(`bidzo_auction_order_id_${auctionId}`);
@@ -382,6 +415,7 @@ export function AuctionDetailPage() {
 
       setPaymentCompleted(true);
       saveStoredAuctionOrderId(auctionId, extractedOrderId);
+      window.localStorage.setItem(`bidzo_paid_auction_${auctionId}`, '1');
       await loadOrderPaymentState(extractedOrderId);
       markOrderConfirmed();
       navigate(`/customer/orders/${extractedOrderId}`, { replace: true });

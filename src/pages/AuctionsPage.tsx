@@ -1,10 +1,28 @@
 import { useEffect, useState } from 'react';
 import { SectionShell } from '../components/SectionShell';
 import { AuctionCard } from '../components/cards/MarketplaceCards';
-import { getAuctions, getEffectiveAuctionStatus, type AuctionListItem } from '../api/auctionApi';
+import { getAuctions, getAuctionWinner, getEffectiveAuctionStatus, type AuctionListItem } from '../api/auctionApi';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
+import { useAuth } from '../context/AuthContext';
+
+function getPaidAuctionIds() {
+  if (typeof window === 'undefined') return new Set<number>();
+
+  const ids = new Set<number>();
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (!key || !key.startsWith('bidzo_paid_auction_')) continue;
+    const auctionId = Number(key.replace('bidzo_paid_auction_', ''));
+    if (Number.isFinite(auctionId)) {
+      ids.add(auctionId);
+    }
+  }
+
+  return ids;
+}
 
 export function AuctionsPage() {
+  const { user } = useAuth();
   const [auctions, setAuctions] = useState<AuctionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,11 +33,30 @@ export function AuctionsPage() {
       setError(null);
       try {
         const items = await getAuctions();
-        const visibleAuctions = items.filter((item) => {
-          const effectiveStatus = getEffectiveAuctionStatus(item.status, item.startAt, item.endAt);
-          return effectiveStatus === 'RUNNING' || effectiveStatus === 'SCHEDULED';
-        });
-        setAuctions(visibleAuctions);
+        const paidAuctionIds = getPaidAuctionIds();
+
+        const visibleAuctions = await Promise.all(
+          items.map(async (item) => {
+            const effectiveStatus = getEffectiveAuctionStatus(item.status, item.startAt, item.endAt);
+
+            if (effectiveStatus === 'RUNNING' || effectiveStatus === 'SCHEDULED') {
+              return item;
+            }
+
+            if (effectiveStatus !== 'ENDED' || !user?.id || paidAuctionIds.has(item.id)) {
+              return null;
+            }
+
+            try {
+              const winner = await getAuctionWinner(item.id);
+              return Number(winner.winnerId) === Number(user.id) ? item : null;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        setAuctions(visibleAuctions.filter((item): item is AuctionListItem => item !== null));
       } catch (err: any) {
         setError(err?.message || 'Unable to load auctions');
       } finally {
@@ -28,7 +65,7 @@ export function AuctionsPage() {
     };
 
     loadAuctions();
-  }, []);
+  }, [user?.id]);
 
   return (
     <SectionShell title="Auctions" subtitle="Live, upcoming, and closed bidding">
