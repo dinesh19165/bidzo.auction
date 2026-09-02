@@ -731,7 +731,7 @@ export function VendorRegisterPage() {
 export function OTPPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { pendingRole, clearPendingRole, login } = useAuth();
+  const { pendingRole, clearPendingRole } = useAuth();
   const state = (location.state || {}) as { role?: 'customer' | 'vendor'; email?: string; phone?: string; flow?: 'registration' | 'reset'; registrationData?: Record<string, string>; vendorId?: string | number; vendorProfileId?: string | number };
   const email = state.email || '';
   const phone = state.phone || state.registrationData?.phone || '';
@@ -796,6 +796,7 @@ export function OTPPage() {
   }, [secondsLeft]);
 
   const submit = async () => {
+    if (isSubmitting) return;
     if (flow !== 'reset' && otpChannel === 'SMS' && !phone) { setError('Your phone number is missing. Please start again.'); return; }
     if (flow !== 'reset' && !email && otpChannel === 'EMAIL') { setError('Your email is missing. Please start again.'); return; }
     if (flow === 'reset' && !email) { setError('Your email is missing. Please start again.'); return; }
@@ -808,6 +809,7 @@ export function OTPPage() {
         await verifyResetOtp({ email, otp });
         navigate('/reset-password', { replace: true, state: { email, otp } });
       } else {
+        setMessage('Creating your account...');
         await verifyRegistrationOtp({
           email: otpChannel === 'EMAIL' ? email : undefined,
           phoneNumber: otpChannel === 'SMS' ? phone : undefined,
@@ -815,25 +817,19 @@ export function OTPPage() {
           channel: otpChannel,
         });
         clearPendingRole();
-        setMessage(`${otpChannel === 'SMS' ? 'Phone' : 'Email'} verified successfully. You can now continue.`);
         if ((state.role || pendingRole) === 'vendor') {
           const vendorId = state.vendorId ?? state.vendorProfileId ?? getStoredVendorProfileId();
           if (vendorId !== undefined && vendorId !== null && vendorId !== '') {
             setStoredVendorProfileId(vendorId);
           }
-
-          const registrationPassword = state.registrationData?.password;
-          if (registrationPassword) {
-            await login(email, registrationPassword, 'vendor');
-          }
-
-          console.debug('[Bidzo OTP] vendor authenticated and redirected to dashboard', { vendorId, email });
-          navigate('/dashboards/vendor', { replace: true, state: { role: 'vendor', message: 'Vendor account verified successfully.' } });
-        } else {
-          navigate('/login', { replace: true, state: { role: 'customer', message: `${otpChannel === 'SMS' ? 'Phone' : 'Email'} verified successfully. You can now sign in.` } });
         }
+        const role = (state.role || pendingRole) === 'vendor' ? 'vendor' : 'customer';
+        navigate('/login', { replace: true, state: { role, message: 'Account created successfully! Please log in to continue.' } });
       }
     } catch (reason: unknown) {
+      if (flow !== 'reset') {
+        setMessage(`A verification OTP has been sent to ${deliveryValue}.`);
+      }
       setError(reason instanceof Error ? reason.message : 'Unable to verify the OTP. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -891,7 +887,7 @@ export function OTPPage() {
         </div>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <button onClick={submit} disabled={isSubmitting || isResending || secondsLeft === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
-            {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Verifying…</> : flow === 'reset' ? 'Verify OTP' : 'Verify account'}
+            {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> {flow === 'reset' ? 'Verifying…' : 'Creating account…'}</> : flow === 'reset' ? 'Verify OTP' : 'Verify account'}
           </button>
           <button onClick={resend} disabled={isSubmitting || isResending} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
             {isResending ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : 'Resend OTP'}
