@@ -12,20 +12,6 @@ import { EmptyState, SkeletonCard, ErrorState } from '../components/loading/Load
 
 const ALL_CATEGORIES = '';
 
-const categoryChips = [
-  { label: 'Electronics', icon: '💻', value: 'Electronics' },
-  { label: 'Vehicles', icon: '🚗', value: 'Vehicles' },
-  { label: 'Real Estate', icon: '🏠', value: 'Real Estate' },
-  { label: 'Fashion', icon: '👕', value: 'Fashion' },
-  { label: 'Furniture', icon: '🪑', value: 'Furniture' },
-  { label: 'Agriculture', icon: '🌾', value: 'Agriculture' },
-  { label: 'Livestock', icon: '🐄', value: 'Livestock' },
-  { label: 'Services', icon: '🛠', value: 'Services' },
-  { label: 'Books', icon: '📚', value: 'Books' },
-  { label: 'Pets', icon: '🐶', value: 'Pets' },
-  { label: 'Live Auctions', icon: '🔴', value: 'auction' },
-] as const;
-
 function parsePrice(price: string) {
   const n = Number(price.replace(/[^0-9.-]+/g, ''));
   return Number.isFinite(n) ? n : 0;
@@ -275,33 +261,6 @@ export function MarketplacePage() {
               <Sparkles className="mr-2 h-4 w-4 text-amber-300" />
               {translate('curatedMarketplacePicks')}
             </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {categoryChips.map((chip) => {
-              const isActive = chip.value === 'auction' ? auctionOnly : category === chip.value;
-              return (
-                <button
-                  type="button"
-                  key={chip.label}
-                  onClick={() => {
-                    if (chip.value === 'auction') {
-                      setAuctionOnly(true);
-                      setBuyNowOnly(false);
-                      setCategory(ALL_CATEGORIES);
-                    } else {
-                      setCategory(chip.value);
-                      setAuctionOnly(false);
-                    }
-                    setPage(1);
-                  }}
-                  aria-pressed={isActive}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-all duration-250 transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 ${isActive ? 'border-blue-500/40 bg-blue-600 text-white shadow-[0_10px_30px_rgba(59,130,246,0.16)]' : theme === 'dark' ? 'border-white/15 bg-slate-900/70 text-slate-200 hover:border-cyan-400/40 hover:bg-cyan-500/15 hover:text-white hover:brightness-105 hover:scale-[1.02]' : 'border-slate-300/80 bg-white/90 text-slate-900 hover:border-cyan-400/40 hover:bg-cyan-100 hover:text-slate-900 hover:brightness-105 hover:scale-[1.02]'}`}>
-                  <span>{chip.icon}</span>
-                  <span>{chip.label}</span>
-                </button>
-              );
-            })}
           </div>
 
           {activeFilters.length > 0 ? (

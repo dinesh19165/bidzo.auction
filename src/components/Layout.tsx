@@ -44,9 +44,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   // Mobile-only links: keep only essential customer-facing items and hide vendor/admin links on mobile
   const mobileLinks = [
     { to: '/', label: 'Home' },
-    { to: '/marketplace', label: 'Marketplace' },
-    { to: '/categories', label: 'Categories' },
-    { to: '/auctions', label: 'Auctions' },
+    { to: '/auctions', label: 'Live Auctions' },
+    { to: '/marketplace', label: 'Direct Buy' },
     { to: '/login', label: 'Login' },
     { to: '/register', label: 'Register' },
     { to: '/register/vendor', label: 'Become Seller' },
@@ -155,7 +154,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
            </Link>
           </div>
 
-          <div className={`hidden flex-1 items-center gap-2 rounded-full px-2 py-1.5 lg:flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-900/70' : 'border border-slate-200 bg-white shadow-sm'}`}>
+          <div className={`hidden min-w-0 flex-1 items-center gap-2 rounded-full px-2 py-1.5 lg:flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-900/70' : 'border border-slate-200 bg-white shadow-sm'}`}>
             <button type="button" aria-label="Focus search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               <Search className="h-4 w-4" />
             </button>
@@ -221,24 +220,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        <div className={`border-t transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/75' : 'border-slate-200 bg-white'}`}>
-          <div className={`mx-auto flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap px-4 py-1.5 text-sm transition duration-300 scrollbar-hidden sm:px-6 lg:px-8 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
-            <Link to="/auctions" className={`shrink-0 snap-start rounded-full border px-3 py-1 font-medium transition ${isLiveAuctionsPage
-              ? 'border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300'
+        <nav className={`border-t px-4 py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
+          <div className="mx-auto flex flex-col items-start gap-2 sm:flex-row">
+            <Link to="/auctions" className={`inline-flex min-h-[42px] items-center justify-center rounded-full border px-5 py-2 text-sm font-semibold transition ${isLiveAuctionsPage
+              ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
               : theme === 'dark'
-                ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
                 : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-              Live auctions
+              Live Auctions
             </Link>
-            <Link to="/marketplace" className={`shrink-0 snap-start rounded-full border px-3 py-1 font-medium transition ${isDirectBuyPage
-              ? 'border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300'
+            <Link to="/marketplace" className={`inline-flex min-h-[42px] items-center justify-center rounded-full border px-5 py-2 text-sm font-semibold transition ${isDirectBuyPage
+              ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
               : theme === 'dark'
-                ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
                 : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               Direct Buy
             </Link>
           </div>
-        </div>
+        </nav>
+
       </header>
 
       <AnimatePresence>

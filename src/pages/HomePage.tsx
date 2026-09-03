@@ -3,7 +3,7 @@ import { useThemeContext } from '../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useLocaleContext } from '../context/LocaleContext';
-import { ChevronLeft, ChevronRight, MapPin, Package, Search, Smartphone, Sparkles, Store, Truck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Sparkles } from 'lucide-react';
 import { ProductCard, ReviewCard } from '../components/cards/MarketplaceCards';
 import { getHomeData } from '../api/homeApi';
 import { getAuctions, getEffectiveAuctionStatus } from '../api/auctionApi';
@@ -23,11 +23,6 @@ export function HomePage() {
   const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
   const [testimonialsLoading, setTestimonialsLoading] = useState(true);
   const [testimonialsError, setTestimonialsError] = useState<string | null>(null);
-
-  const categoryIcons = [
-    <Smartphone className="h-5 w-5" />, <Truck className="h-5 w-5" />, <Store className="h-5 w-5" />, <MapPin className="h-5 w-5" />,
-    <Package className="h-5 w-5" />, <Search className="h-5 w-5" />,
-  ];
 
   const stats = homeData?.stats;
   const popularCategories = homeData?.categories?.slice(0, 6) || [];
@@ -238,10 +233,10 @@ export function HomePage() {
 
                 <div className="grid gap-3">
                   <Link to="/auctions" className="inline-flex min-h-[56px] items-center justify-center rounded-3xl bg-gradient-to-r from-cyan-400 to-sky-500 px-6 text-sm font-semibold text-slate-950 transition hover:brightness-110">
-                    {translate('startBidding')}
+                    Live Auctions
                   </Link>
                   <Link to="/marketplace" className="inline-flex min-h-[56px] items-center justify-center rounded-3xl border border-white/10 bg-slate-900/80 px-6 text-sm font-semibold text-white transition hover:bg-slate-900">
-                    {translate('exploreMarketplace')}
+                    Direct Buy
                   </Link>
                 </div>
               </div>
@@ -290,34 +285,6 @@ export function HomePage() {
               </div> : null}
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Browse categories</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Shop by category</h2>
-          </div>
-          <Link to="/categories" className="text-sm font-medium text-slate-300 transition hover:text-white">View all categories</Link>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {popularCategories && popularCategories.length > 0 ? (
-            popularCategories.map((item: any, index: number) => (
-              <Link key={item.id} to={`/marketplace?category=${item.id || item.title}`} className="group rounded-[28px] border border-white/10 bg-slate-900/80 p-6 transition hover:-translate-y-1 hover:border-cyan-400/20 hover:bg-slate-950/90">
-                <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-slate-950/70 text-cyan-300 transition group-hover:bg-cyan-500/10">
-                  {categoryIcons[index % categoryIcons.length]}
-                </div>
-                <p className="mt-6 text-sm uppercase tracking-[0.24em] text-slate-400">{item.name || item.title}</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{item.count ?? '—'}</p>
-                <p className="mt-4 text-sm leading-6 text-slate-400">{item.description ?? ''}</p>
-              </Link>
-            ))
-          ) : (
-            <div className="col-span-full text-center py-12">
-              <p className="text-slate-400">No categories available</p>
-            </div>
-          )}
         </div>
       </section>
 
@@ -412,10 +379,10 @@ export function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Marketplace products</p>
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Direct Buy products</p>
             <h2 className="mt-2 text-2xl font-semibold text-white">Premium listings ready to buy or bid</h2>
           </div>
-          <Link to="/marketplace" className="text-sm font-medium text-slate-300 transition hover:text-white">Explore the full marketplace</Link>
+          <Link to="/marketplace" className="text-sm font-medium text-slate-300 transition hover:text-white">Browse Direct Buy</Link>
         </div>
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {featuredProductsList && featuredProductsList.length > 0 ? (

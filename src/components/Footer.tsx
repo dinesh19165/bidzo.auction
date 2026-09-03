@@ -45,9 +45,9 @@ export function Footer() {
           </div>
         </div>
         <div>
-          <p className="text-sm font-semibold text-white">Marketplace</p>
+          <p className="text-sm font-semibold text-white">Shopping</p>
           <ul className="mt-3 space-y-2 text-sm text-slate-400">
-            <li><Link to="/marketplace" className="hover:text-white">Marketplace</Link></li>
+            <li><Link to="/marketplace" className="hover:text-white">Direct Buy</Link></li>
             <li><Link to="/auctions" className="hover:text-white">Auctions</Link></li>
             <li><Link to="/wishlist" className="hover:text-white">Wishlist</Link></li>
             <li><Link to="/blog" className="hover:text-white">Blog</Link></li>

@@ -56,6 +56,8 @@ const progressSteps = [
 ];
 
 function ProgressIndicator({ activeStep }: { activeStep: number }) {
+  const { theme } = useThemeContext();
+
   return (
     <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {progressSteps.map((step, index) => {
@@ -63,15 +65,15 @@ function ProgressIndicator({ activeStep }: { activeStep: number }) {
         const base = 'rounded-2xl border p-3 text-left transition';
         const classes =
           status === 'complete'
-            ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+            ? theme === 'dark' ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100' : 'border-emerald-300 bg-emerald-50 text-emerald-800'
             : status === 'current'
-              ? 'border-blue-400/30 bg-blue-500/10 text-white shadow-[0_0_0_1px_rgba(59,130,246,0.2)]'
-              : 'border-white/10 bg-slate-950/40 text-slate-400';
+              ? theme === 'dark' ? 'border-blue-400/30 bg-blue-500/10 text-white shadow-[0_0_0_1px_rgba(59,130,246,0.2)]' : 'border-blue-300 bg-blue-50 text-blue-900 shadow-[0_0_0_1px_rgba(59,130,246,0.12)]'
+              : theme === 'dark' ? 'border-white/10 bg-slate-950/40 text-slate-400' : 'border-slate-300 bg-slate-100 text-slate-600';
 
         return (
           <div key={step.title} className={`${base} ${classes}`}>
             <div className="flex items-center gap-2 text-sm font-semibold">
-              {status === 'complete' ? <CheckCircle2 className="h-4 w-4" /> : <div className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${status === 'current' ? 'bg-blue-500/20 text-blue-200' : 'bg-white/10 text-slate-400'}`}>{index + 1}</div>}
+              {status === 'complete' ? <CheckCircle2 className="h-4 w-4" /> : <div className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${status === 'current' ? theme === 'dark' ? 'bg-blue-500/20 text-blue-200' : 'bg-blue-100 text-blue-700' : theme === 'dark' ? 'bg-white/10 text-slate-400' : 'bg-slate-200 text-slate-500'}`}>{index + 1}</div>}
               <span>{step.title}</span>
             </div>
             <p className="mt-1 text-xs opacity-80">{step.subtitle}</p>
@@ -452,6 +454,7 @@ export function RegisterPage() {
 export function CustomerRegisterPage() {
   const navigate = useNavigate();
   const { registerCustomer } = useAuth();
+  const { theme } = useThemeContext();
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -497,25 +500,25 @@ export function CustomerRegisterPage() {
   return (
     <SectionShell title="Customer registration" subtitle="Create your buyer profile">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <form onSubmit={submit} noValidate className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+        <form onSubmit={submit} noValidate className={`rounded-[24px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-300 bg-white shadow-sm'}`}>
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
             <Sparkles className="h-4 w-4" /> Step 1 of 4
           </div>
           <ProgressIndicator activeStep={0} />
           <div className="mt-4 space-y-4">
-            {submitError ? <p className="text-sm text-amber-300">{submitError}</p> : null}
+            {submitError ? <p className="text-sm text-red-400">{submitError}</p> : null}
             <FormField label="Full name" placeholder="As shown on your ID" value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} icon={BadgeCheck} />
-            {errors.name ? <p className="text-sm text-amber-300">{errors.name}</p> : null}
+            {errors.name ? <p className="text-sm text-red-400">{errors.name}</p> : null}
             <FormField label="Email address" placeholder="name@company.com" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} icon={Mail} />
-            {errors.email ? <p className="text-sm text-amber-300">{errors.email}</p> : null}
+            {errors.email ? <p className="text-sm text-red-400">{errors.email}</p> : null}
             <FormField label="Phone number" placeholder="10-digit mobile number" value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} icon={Phone} />
-            {errors.phone ? <p className="text-sm text-amber-300">{errors.phone}</p> : null}
+            {errors.phone ? <p className="text-sm text-red-400">{errors.phone}</p> : null}
             <FormField label="Password" placeholder="Create a strong password" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} icon={Lock} type="password" />
-            {errors.password ? <p className="text-sm text-amber-300">{errors.password}</p> : null}
+            {errors.password ? <p className="text-sm text-red-400">{errors.password}</p> : null}
             <FormField label="Confirm password" placeholder="Re-enter your password" value={form.confirmPassword} onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))} icon={Lock} type="password" />
-            {errors.confirmPassword ? <p className="text-sm text-amber-300">{errors.confirmPassword}</p> : null}
+            {errors.confirmPassword ? <p className="text-sm text-red-400">{errors.confirmPassword}</p> : null}
           </div>
-          <div className="mt-5 flex items-start gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
+          <div className={`mt-5 flex items-start gap-2 rounded-2xl border p-3 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
             <CircleAlert className="mt-0.5 h-4 w-4 text-amber-300" />
             We’ll verify your email and phone before activation so your account is ready for secure bidding.
           </div>
@@ -523,7 +526,7 @@ export function CustomerRegisterPage() {
             {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : <><span>Continue to OTP</span><ArrowRight className="h-4 w-4" /></>}
           </button>
         </form>
-        <div className="relative overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/80 to-cyan-500/20 p-4 sm:p-8">
+        <div className={`relative overflow-hidden rounded-[28px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/80 to-cyan-500/20' : 'border-cyan-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50'}`}>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.2),_transparent_40%)]" />
           <div className="absolute right-3 top-3 text-[110px] font-black leading-none text-white/10 sm:text-[160px]">BIDZO</div>
           <div className="relative">
@@ -531,7 +534,7 @@ export function CustomerRegisterPage() {
               <Sparkles className="h-4 w-4" />
               <p className="text-sm font-semibold uppercase tracking-[0.24em]">Discover. Bid. Win.</p>
             </div>
-            <p className="mt-2 text-sm text-slate-400">Find products you love and compete in real-time auctions.</p>
+            <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Find products you love and compete in real-time auctions.</p>
 
             <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
               <div className="flex items-center justify-between rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
@@ -579,6 +582,7 @@ export function CustomerRegisterPage() {
 export function VendorRegisterPage() {
   const navigate = useNavigate();
   const { registerVendor } = useAuth();
+  const { theme } = useThemeContext();
   const [form, setForm] = useState({ businessName: '', ownerName: '', email: '', phone: '', gst: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = useState<{ businessName?: string; ownerName?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -645,28 +649,28 @@ export function VendorRegisterPage() {
   return (
     <SectionShell title="Vendor registration" subtitle="Create your seller storefront">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <form onSubmit={submit} noValidate className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+        <form onSubmit={submit} noValidate className={`rounded-[24px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-300 bg-white shadow-sm'}`}>
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-emerald-300">
             <Briefcase className="h-4 w-4" /> Step 1 of 4
           </div>
           <ProgressIndicator activeStep={0} />
           <div className="mt-4 space-y-4">
-            {submitError ? <p className="text-sm text-amber-300">{submitError}</p> : null}
+            {submitError ? <p className="text-sm text-red-400">{submitError}</p> : null}
             <FormField label="Business name" placeholder="Your registered business" value={form.businessName} onChange={(e) => setForm((s) => ({ ...s, businessName: e.target.value }))} icon={Building2} accent="emerald" />
-            {errors.businessName ? <p className="text-sm text-amber-300">{errors.businessName}</p> : null}
+            {errors.businessName ? <p className="text-sm text-red-400">{errors.businessName}</p> : null}
             <FormField label="Owner name" placeholder="Legal representative" value={form.ownerName} onChange={(e) => setForm((s) => ({ ...s, ownerName: e.target.value }))} icon={BadgeCheck} accent="emerald" />
-            {errors.ownerName ? <p className="text-sm text-amber-300">{errors.ownerName}</p> : null}
+            {errors.ownerName ? <p className="text-sm text-red-400">{errors.ownerName}</p> : null}
             <FormField label="Email address" placeholder="team@yourbrand.com" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} icon={Mail} accent="emerald" />
-            {errors.email ? <p className="text-sm text-amber-300">{errors.email}</p> : null}
+            {errors.email ? <p className="text-sm text-red-400">{errors.email}</p> : null}
             <FormField label="Phone number" placeholder="Business contact number" value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} icon={Phone} accent="emerald" />
-            {errors.phone ? <p className="text-sm text-amber-300">{errors.phone}</p> : null}
+            {errors.phone ? <p className="text-sm text-red-400">{errors.phone}</p> : null}
             <FormField label="Password" placeholder="Create a strong password" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} icon={Lock} type="password" accent="emerald" />
-            {errors.password ? <p className="text-sm text-amber-300">{errors.password}</p> : null}
+            {errors.password ? <p className="text-sm text-red-400">{errors.password}</p> : null}
             <FormField label="Confirm password" placeholder="Re-enter your password" value={form.confirmPassword} onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))} icon={Lock} type="password" accent="emerald" />
-            {errors.confirmPassword ? <p className="text-sm text-amber-300">{errors.confirmPassword}</p> : null}
+            {errors.confirmPassword ? <p className="text-sm text-red-400">{errors.confirmPassword}</p> : null}
             <FormField label="GST / tax ID (optional)" placeholder="Optional for faster onboarding" value={form.gst} onChange={(e) => setForm((s) => ({ ...s, gst: e.target.value }))} icon={FileCheck2} accent="emerald" />
           </div>
-          <div className="mt-5 flex items-start gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
+          <div className={`mt-5 flex items-start gap-2 rounded-2xl border p-3 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
             <CircleAlert className="mt-0.5 h-4 w-4 text-amber-300" />
             Verified seller accounts unlock inventory, auction tools, and premium analytics.
           </div>
@@ -674,7 +678,7 @@ export function VendorRegisterPage() {
             {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : <><span>Continue to verification</span><ArrowRight className="h-4 w-4" /></>}
           </button>
         </form>
-        <div className="relative overflow-hidden rounded-[28px] border border-emerald-400/20 bg-gradient-to-br from-emerald-600/20 via-slate-900/80 to-cyan-500/20 p-4 sm:p-8">
+        <div className={`relative overflow-hidden rounded-[28px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-emerald-400/20 bg-gradient-to-br from-emerald-600/20 via-slate-900/80 to-cyan-500/20' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-cyan-50'}`}>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.2),_transparent_40%)]" />
           <div className="absolute right-3 top-3 text-[110px] font-black leading-none text-white/10 sm:text-[160px]">B</div>
           <div className="relative">
@@ -682,7 +686,7 @@ export function VendorRegisterPage() {
               <Briefcase className="h-4 w-4" />
               <p className="text-sm font-semibold uppercase tracking-[0.24em]">Grow your business with Bidzo</p>
             </div>
-            <p className="mt-2 text-sm text-slate-400">Powerful tools to sell, auction and grow your business.</p>
+            <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Powerful tools to sell, auction and grow your business.</p>
 
             <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
               <div className="flex items-center gap-3">
@@ -879,9 +883,9 @@ export function OTPPage() {
         <ProgressIndicator activeStep={1} />
         <p className="mt-2 text-slate-300">{message || `A verification OTP has been sent to ${deliveryValue}.`}</p>
         {resendNotice ? <p className="mt-2 text-sm font-medium text-emerald-300">{resendNotice}</p> : null}
-        {error ? <p className="mt-3 text-sm text-amber-300">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
         <input aria-label="6-digit OTP" inputMode="numeric" maxLength={6} autoComplete="one-time-code" value={otp} onChange={(event) => { setOtp(event.target.value.replace(/\D/g, '').slice(0, 6)); setError(''); }} onPaste={(event) => { event.preventDefault(); setOtp(event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)); }} className="mx-auto mt-5 block w-full max-w-xs rounded-2xl border border-blue-400/20 bg-slate-950/60 px-4 py-3 text-center text-2xl tracking-[0.5em] text-white outline-none" placeholder="000000" />
-        <p className={`mt-3 text-sm ${secondsLeft ? 'text-slate-400' : 'text-amber-300'}`}>{secondsLeft ? `OTP expires in ${minutes}:${seconds}` : 'This OTP has expired.'}</p>
+        <p className={`mt-3 text-sm ${secondsLeft ? 'text-slate-400' : 'text-red-400'}`}>{secondsLeft ? `OTP expires in ${minutes}:${seconds}` : 'This OTP has expired.'}</p>
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
           A one-time code keeps your account protected while we verify your identity.
         </div>
@@ -1168,7 +1172,7 @@ export function KYCPage() {
         <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-400">
           {file ? <span className="text-emerald-200">Uploaded: {file.name} • {formatFileSize(file.size)}</span> : note}
         </div>
-        {documentErrors[field] ? <p className="mt-2 text-xs text-amber-300">{documentErrors[field]}</p> : null}
+        {documentErrors[field] ? <p className="mt-2 text-xs text-red-400">{documentErrors[field]}</p> : null}
         <label className={`mt-3 inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-slate-950/50 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:text-white ${isUploading ? 'cursor-not-allowed opacity-60' : ''}`}>
           {isUploading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
           {isUploading ? 'Uploading…' : 'Choose file'}
@@ -1210,7 +1214,7 @@ export function KYCPage() {
           <button onClick={submitKyc} disabled={!hasAllRequiredDocuments || isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
             {isSubmitting ? 'Submitting verification…' : 'Submit KYC'} <ArrowRight className="h-4 w-4" />
           </button>
-          {!hasAllRequiredDocuments ? <p className="mt-3 text-sm text-amber-300">Aadhaar and PAN are required for vendor approval. Upload both to continue.</p> : null}
+          {!hasAllRequiredDocuments ? <p className="mt-3 text-sm text-red-400">Aadhaar and PAN are required for vendor approval. Upload both to continue.</p> : null}
         </div>
         <div className="rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/15 to-amber-500/10 p-4 sm:p-8">
           <h3 className="text-xl font-semibold text-white">Verification checklist</h3>
