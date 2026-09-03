@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom';
-import React, { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
@@ -18,6 +19,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useThemeContext();
   const { language, currency, languageLabel, currencyLabel, setLanguage, setCurrency, translate, formatCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
+  const isDirectBuyPage = location.pathname.startsWith('/marketplace');
   const languageOptions = [
     { key: 'en', label: 'English' },
     { key: 'hi', label: 'Hindi' },
@@ -219,13 +223,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <div className={`border-t transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/75' : 'border-slate-200 bg-white'}`}>
           <div className={`mx-auto flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap px-4 py-1.5 text-sm transition duration-300 scrollbar-hidden sm:px-6 lg:px-8 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
-            {['Electronics', 'Vehicles', 'Real Estate', 'Fashion', 'Furniture', 'Agriculture', 'Livestock', 'Services', 'Books', 'Pets'].map((item) => (
-              <Link key={item} to="/marketplace" className={`shrink-0 snap-start rounded-full border px-3 py-1 transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-                {item}
-              </Link>
-            ))}
-            <Link to="/auctions" className={`shrink-0 snap-start rounded-full px-3 py-1 font-medium transition ${theme === 'dark' ? 'bg-amber-500/10 text-amber-200 hover:bg-amber-500/20' : 'border border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300'}`}>
+            <Link to="/auctions" className={`shrink-0 snap-start rounded-full border px-3 py-1 font-medium transition ${isLiveAuctionsPage
+              ? 'border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300'
+              : theme === 'dark'
+                ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               Live auctions
+            </Link>
+            <Link to="/marketplace" className={`shrink-0 snap-start rounded-full border px-3 py-1 font-medium transition ${isDirectBuyPage
+              ? 'border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300'
+              : theme === 'dark'
+                ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+              Direct Buy
             </Link>
           </div>
         </div>
@@ -281,9 +291,71 @@ export function Layout({ children }: { children: React.ReactNode }) {
 function AuthActions() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const initials = user ? user.name.split(' ').map((s) => s[0]).slice(0, 2).join('') : '';
+  const isAdmin = user?.type === 'admin' || ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user?.role || '');
+  const isCustomer = user?.type === 'customer' || user?.role === 'CUSTOMER';
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handleOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!profileRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer);
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !profileRef.current || !menuRef.current) {
+      return;
+    }
+
+    const updateMenuPosition = () => {
+      const safeMargin = 12;
+      const triggerRect = profileRef.current?.getBoundingClientRect();
+      const menuRect = menuRef.current?.getBoundingClientRect();
+      if (!triggerRect || !menuRect) {
+        return;
+      }
+
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight;
+      const availableHeight = Math.max(0, viewportHeight - safeMargin * 2);
+      const menuWidth = Math.min(224, Math.max(0, viewportWidth - safeMargin * 2));
+      const menuHeight = Math.min(menuRect.height, availableHeight);
+      const spaceBelow = viewportHeight - triggerRect.bottom - safeMargin;
+      const opensBelow = spaceBelow >= menuHeight || spaceBelow >= triggerRect.top - safeMargin;
+      const top = opensBelow
+        ? Math.min(triggerRect.bottom + 8, viewportHeight - safeMargin - menuHeight)
+        : Math.max(safeMargin, triggerRect.top - 8 - menuHeight);
+      const left = Math.min(
+        Math.max(safeMargin, triggerRect.right - menuWidth),
+        Math.max(safeMargin, viewportWidth - safeMargin - menuWidth),
+      );
+
+      setMenuPosition({ top, left, width: menuWidth, maxHeight: availableHeight });
+    };
+
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [open]);
+
   return (
-    <div className="flex items-center gap-3">
+    <div ref={profileRef} className="flex items-center gap-3">
       {!user ? (
         <>
           <Link to="/login" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Login</Link>
@@ -297,17 +369,34 @@ function AuthActions() {
             <span className="hidden sm:inline">{user.name}</span>
             <ChevronDown className="h-4 w-4" />
           </button>
-          {open ? (
-            // On small screens make the dropdown fixed and scrollable so it never gets clipped.
-            // On sm+ screens keep the original absolute placement and sizing.
-            <div className="fixed left-4 right-4 top-16 z-50 max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-slate-900/95 p-3 shadow-lg sm:static sm:left-auto sm:right-0 sm:top-auto sm:max-h-auto sm:overflow-visible sm:mt-2 sm:w-56">
-              <Link to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Dashboard</Link>
-              {user.type === 'customer' ? <Link to="/customer/orders" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link> : <Link to="/vendor/orders" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>}
-              <Link to="/customer/wishlist" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wishlist</Link>
-              <Link to="/wallet" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
+          {open ? createPortal(
+            <div
+              ref={menuRef}
+              style={{
+                position: 'fixed',
+                top: menuPosition?.top ?? 12,
+                left: menuPosition?.left ?? 12,
+                width: menuPosition?.width ?? 224,
+                maxHeight: menuPosition?.maxHeight ?? 'calc(100vh - 24px)',
+                visibility: menuPosition ? 'visible' : 'hidden',
+              }}
+              className="z-[60] overflow-auto rounded-xl border border-white/10 bg-slate-900/95 p-3 shadow-lg"
+            >
+              {!isAdmin ? (
+                <>
+                  <Link to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Dashboard</Link>
+                  {isCustomer ? (
+                    <>
+                      <Link to="/customer/orders" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>
+                      <Link to="/customer/wishlist" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wishlist</Link>
+                      <Link to="/wallet" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
               <button onClick={() => logout()} className="mt-2 w-full rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button>
             </div>
-          ) : null}
+          , document.body) : null}
         </div>
       )}
 
