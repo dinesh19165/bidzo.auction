@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useNavigate } from 'react-router-dom';
 import type { User } from '../types';
 import { login as loginApi, authMe, register as registerApi, getStoredVendorProfileId, resolveVendorProfileId, setStoredVendorProfileId } from '../api/authApi';
+import { resetAuthExpirationHandling } from '../api/apiClient';
 
 export type UserType = 'customer' | 'vendor' | 'admin' | 'delivery' | 'support';
 
@@ -44,6 +45,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     setAuthReady(true);
   }, []);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null);
+      setPendingRole(null);
+      navigate('/login', { replace: true, state: { message: 'Your session has expired. Please login again.' } });
+    };
+
+    window.addEventListener('bidzo:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('bidzo:session-expired', handleSessionExpired);
+  }, [navigate]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -127,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
     setUser(u);
+    resetAuthExpirationHandling();
     setPendingRole(null);
     return u;
   };

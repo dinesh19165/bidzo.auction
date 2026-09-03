@@ -12,6 +12,24 @@ export class ApiError extends Error {
   }
 }
 
+let sessionExpirationHandled = false;
+
+export function resetAuthExpirationHandling(): void {
+  sessionExpirationHandled = false;
+}
+
+export function handleUnauthorized(): void {
+  localStorage.removeItem('bidzo_user');
+  localStorage.removeItem('bidzo_vendor_profile_id');
+
+  if (sessionExpirationHandled || typeof window === 'undefined') {
+    return;
+  }
+
+  sessionExpirationHandled = true;
+  window.dispatchEvent(new CustomEvent('bidzo:session-expired'));
+}
+
 export function getStoredAuthToken(): string | null {
   const raw = localStorage.getItem('bidzo_user');
   if (!raw) {
@@ -65,6 +83,10 @@ function applyAuthHeaders(headers: Headers, token?: string | null) {
 }
 
 export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth = true): Promise<T> {
+  if (useAuth && sessionExpirationHandled) {
+    throw new ApiError(401, 'Unauthorized');
+  }
+
   const headers = new Headers(init.headers);
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -79,7 +101,9 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth
   });
 
   if (response.status === 401) {
-    localStorage.removeItem('bidzo_user');
+    if (useAuth) {
+      handleUnauthorized();
+    }
     throw new ApiError(response.status, 'Unauthorized');
   }
   if (response.status === 403) {
@@ -96,6 +120,10 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth
 }
 
 export async function fetchJsonWithToken<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
+  if (sessionExpirationHandled) {
+    throw new Error('Unauthorized');
+  }
+
   const headers = new Headers(init.headers);
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -108,7 +136,9 @@ export async function fetchJsonWithToken<T>(path: string, token: string, init: R
   });
 
   if (response.status === 401 || response.status === 403) {
-    localStorage.removeItem('bidzo_user');
+    if (response.status === 401) {
+      handleUnauthorized();
+    }
     throw new Error('Unauthorized');
   }
 
@@ -121,12 +151,18 @@ export async function fetchJsonWithToken<T>(path: string, token: string, init: R
 }
 
 export async function fetchBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  if (sessionExpirationHandled) {
+    throw new Error('Unauthorized');
+  }
+
   const headers = new Headers(init.headers);
   const token = getStoredAuthToken();
   applyAuthHeaders(headers, token);
   const response = await fetch(getApiUrl(path), { ...init, headers });
   if (response.status === 401 || response.status === 403) {
-    localStorage.removeItem('bidzo_user');
+    if (response.status === 401) {
+      handleUnauthorized();
+    }
     throw new Error(response.status === 403 ? "You don't have permission to perform this action" : 'Unauthorized');
   }
   if (!response.ok) throw new Error(response.statusText || 'Request failed');
