@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 
 export interface AuctionFormData {
   title: string;
+  productPrice?: number | string;
+  categoryId?: number | string | null;
   reserve: string;
   durationDays: number;
   bidIncrement: string;
@@ -62,6 +64,12 @@ export const AuctionForm: React.FC<Props> = ({ initial, onChange, onValidate }) 
 
   return (
     <div className="space-y-4">
+      {(initial?.productPrice !== undefined || initial?.categoryId !== undefined) && (
+        <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4 text-sm text-slate-300">
+          {initial?.productPrice !== undefined ? <p>Product price: ₹{String(initial.productPrice).replace(/[^\d.]/g, '')}</p> : null}
+          {initial?.categoryId !== undefined ? <p className="mt-1">Category: {initial.categoryId ?? 'Not available'}</p> : null}
+        </div>
+      )}
       <div>
         <label className="text-sm text-slate-400">Auction title</label>
         <input placeholder="e.g. Vintage Camera Kit (Lot #12)" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white" />

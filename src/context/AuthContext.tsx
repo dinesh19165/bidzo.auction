@@ -93,6 +93,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ? 'support'
             : 'customer';
 
+    if (selectedRole && (selectedRole === 'customer' || selectedRole === 'vendor') && type !== selectedRole) {
+      localStorage.removeItem('bidzo_user');
+      localStorage.removeItem('bidzo_vendor_profile_id');
+      throw new Error(`These credentials belong to a ${type} account. Select ${type === 'vendor' ? 'Vendor' : 'Customer'} login to continue.`);
+    }
+
     const displayName = me.name || me.username || (me.email ? me.email.split('@')[0] : 'User');
     const resolvedVendorId = resolveVendorProfileId(me);
     if (resolvedVendorId !== undefined && resolvedVendorId !== null && resolvedVendorId !== '') {

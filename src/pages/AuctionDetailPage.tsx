@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { SectionShell } from '../components/SectionShell';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Heart, ShieldCheck, Sparkles, Star, Users, Clock3, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -98,8 +98,10 @@ export function AuctionDetailPage() {
   const [placingBid, setPlacingBid] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [bidError, setBidError] = useState<string | null>(null);
+  const auctionRequestVersion = useRef(0);
 
   const loadAuction = async (loadWinner = false) => {
+    const requestVersion = ++auctionRequestVersion.current;
     if (!Number.isFinite(auctionId)) {
       setError('Invalid auction identifier');
       setLoading(false);
@@ -114,21 +116,26 @@ export function AuctionDetailPage() {
         getAuctionBids(auctionId),
       ]);
 
+      if (requestVersion !== auctionRequestVersion.current) return;
       setAuction(auctionDetails);
       if (auctionImages.length > 0) {
         setImages(auctionImages);
       } else if (auctionDetails.productId) {
         const productImages = await getProductImages(auctionDetails.productId);
+        if (requestVersion !== auctionRequestVersion.current) return;
         setImages(productImages.map((image) => ({ id: image.id, url: image.url, altText: image.altText || undefined, auctionId })));
       } else {
         setImages([]);
       }
+      if (requestVersion !== auctionRequestVersion.current) return;
       setBids(auctionBids.sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()));
 
       if (loadWinner || auctionDetails.status === 'ENDED') {
         try {
           const winnerResponse = await getAuctionWinner(auctionId);
-          setWinner(winnerResponse);
+          if (requestVersion === auctionRequestVersion.current) {
+            setWinner(winnerResponse);
+          }
         } catch (winnerErr: any) {
           if (!String(winnerErr?.message).toLowerCase().includes('not found')) {
             console.warn('Winner load failed', winnerErr);
@@ -136,14 +143,52 @@ export function AuctionDetailPage() {
         }
       }
     } catch (err: any) {
+      if (requestVersion !== auctionRequestVersion.current) return;
       setError(err?.message || 'Unable to load auction details');
     } finally {
-      setLoading(false);
+      if (requestVersion === auctionRequestVersion.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     loadAuction(true);
+  }, [auctionId]);
+
+  useEffect(() => {
+    let active = true;
+
+    const pollAuctionState = async () => {
+      if (!active) return;
+      const requestVersion = ++auctionRequestVersion.current;
+      try {
+        const [auctionDetails, auctionBids] = await Promise.all([
+          getAuctionById(auctionId),
+          getAuctionBids(auctionId),
+        ]);
+
+        if (!active || requestVersion !== auctionRequestVersion.current) return;
+
+        setAuction(auctionDetails);
+        setBids(auctionBids.sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()));
+
+        const status = getEffectiveAuctionStatus(auctionDetails.status, auctionDetails.startAt, auctionDetails.endAt);
+        if (status === 'ENDED' || status === 'CANCELLED') {
+          active = false;
+        }
+      } catch (pollError) {
+        if (active) {
+          console.warn('Auction polling failed', pollError);
+        }
+      }
+    };
+
+    const interval = window.setInterval(pollAuctionState, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [auctionId]);
 
   useEffect(() => {

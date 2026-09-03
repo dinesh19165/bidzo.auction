@@ -367,7 +367,7 @@ export function LoginPage() {
                 <Link to="/forgot-password" className={`transition ${theme === 'dark' ? 'hover:text-white' : 'text-slate-900 hover:text-slate-700'}`}>Forgot password?</Link>
                 <div className={`rounded-2xl border px-3 py-2 text-center sm:text-right transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/60 text-slate-300' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
                   <p className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>New to Bidzo?</p>
-                  <Link to="/register" className={`font-medium transition ${theme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-600 hover:text-cyan-700'}`}>Create account</Link>
+                  <Link to={selectedRole === 'vendor' ? '/register/vendor' : '/register/customer'} className={`font-medium transition ${theme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-600 hover:text-cyan-700'}`}>Create account</Link>
                 </div>
               </div>
 

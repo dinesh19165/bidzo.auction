@@ -2329,11 +2329,13 @@ export function VendorCreateAuctionWizardPage() {
   const steps = ['Settings', 'Details', 'Preview', 'Publish'];
   const [step, setStep] = useState(1);
   const [data, setData] = useState<any>({
-    title: isBikeAuction ? 'Bike Auction Bundle' : 'Vintage Camera Kit',
-    description: 'New auction listing for your selected product.',
-    reserve: isBikeAuction ? '₹75,000' : '₹1,00,000',
+    title: '',
+    description: '',
+    reserve: '',
+    productPrice: '',
+    categoryId: null,
     durationDays: isBikeAuction ? 5 : 3,
-    bidIncrement: isBikeAuction ? '₹2,000' : '₹1,000',
+    bidIncrement: '',
     startAt: '',
     endAt: '',
     productId: null as number | null,
@@ -2346,6 +2348,20 @@ export function VendorCreateAuctionWizardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  const applyProductToAuction = (product: { id: number; name: string; description?: string | null; price: number | string; categoryId?: number | null }) => {
+    const productPrice = String(product.price ?? '').trim();
+    setSelectedProductId(product.id);
+    setData((prev: any) => ({
+      ...prev,
+      productId: product.id,
+      title: product.name,
+      description: product.description || prev.description || '',
+      reserve: productPrice,
+      productPrice,
+      categoryId: product.categoryId ?? null,
+    }));
+  };
 
   useEffect(() => {
     let active = true;
@@ -2366,12 +2382,13 @@ export function VendorCreateAuctionWizardPage() {
 
         const requestedProduct = availableProducts.find((product) => product.id === requestedProductId);
         const firstProductId = requestedProduct?.id ?? availableProducts[0]?.id ?? null;
-        setSelectedProductId(firstProductId);
-        setData((prev: any) => ({
-          ...prev,
-          productId: firstProductId,
-          vendorId: vendorProfile?.id ?? prev.vendorId,
-        }));
+        const selectedProduct = availableProducts.find((product) => product.id === firstProductId);
+        setData((prev: any) => ({ ...prev, vendorId: vendorProfile?.id ?? prev.vendorId }));
+        if (selectedProduct) {
+          applyProductToAuction(selectedProduct);
+        } else {
+          setSelectedProductId(null);
+        }
       } catch {
         if (active) {
           setProducts([]);
@@ -2449,7 +2466,7 @@ export function VendorCreateAuctionWizardPage() {
 
   let canContinueAuction = true;
   if (step === 1) {
-    canContinueAuction = !!(data.title && data.title.toString().trim().length > 0 && data.reserve && data.bidIncrement);
+    canContinueAuction = !!(selectedProductId || data.productId);
   } else if (step === 2) {
     canContinueAuction = auctionFormValid;
   } else if (step === 3) {
@@ -2488,8 +2505,7 @@ export function VendorCreateAuctionWizardPage() {
                         key={product.id}
                         type="button"
                         onClick={() => {
-                          setSelectedProductId(product.id);
-                          setData((prev: any) => ({ ...prev, productId: product.id }));
+                          applyProductToAuction(product);
                         }}
                         className={`w-full rounded-2xl border px-4 py-3 text-left text-sm ${selectedProductId === product.id ? 'border-blue-500/40 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}
                       >
@@ -2506,6 +2522,8 @@ export function VendorCreateAuctionWizardPage() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
               <p className="text-lg font-semibold text-white">Preview</p>
               <p className="mt-2">Title: {data.title}</p>
+              <p className="mt-2">Product price: ₹{String(data.productPrice || '').replace(/[^\d.]/g, '') || '0'}</p>
+              <p className="mt-2">Category ID: {data.categoryId ?? 'Not available'}</p>
               <p className="mt-2">Description: {data.description}</p>
               <p className="mt-2">Start: {data.startAt || 'Not set'}</p>
               <p className="mt-2">End: {data.endAt || 'Not set'}</p>
