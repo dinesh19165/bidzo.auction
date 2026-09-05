@@ -150,7 +150,12 @@ export function LoginPage() {
   const [touched, setTouched] = useState({ identifier: false, password: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState((location.state as { message?: string } | null)?.message ?? '');
-  const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor'>((location.state as { role?: 'customer' | 'vendor' } | null)?.role ?? 'customer');
+  const expiryRole = typeof window !== 'undefined' ? sessionStorage.getItem('bidzo_expired_login_role') : null;
+  const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor'>((location.state as { role?: 'customer' | 'vendor' } | null)?.role ?? (expiryRole === 'vendor' ? 'vendor' : 'customer'));
+
+  useEffect(() => {
+    if (expiryRole) sessionStorage.removeItem('bidzo_expired_login_role');
+  }, [expiryRole]);
 
   const roleOptions: Array<{ value: 'customer' | 'vendor'; label: string; description: string; features: string[] }> = [
     {

@@ -75,3 +75,10 @@ export function loadRazorpay(): Promise<boolean> {
 
   return razorpayLoading;
 }
+
+export function openRazorpayCheckout(options: RazorpayOptions): RazorpayInstance {
+  if (!window.Razorpay) throw new Error('Razorpay Checkout could not be loaded.');
+  const checkout = new window.Razorpay(options);
+  checkout.open();
+  return checkout;
+}

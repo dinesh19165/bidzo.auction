@@ -12,13 +12,14 @@ import { getOrderById, getOrders } from '../../api/orderApi';
 import { getAuctionById, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus } from '../../api/auctionApi';
 import { getAuctionBids, placeBid } from '../../api/bidApi';
 import { getPaymentsForOrder } from '../../api/paymentApi';
-import { buildAddressPayload, getAddresses, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
+import { buildAddressPayload, getAddresses, getAddressById, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
 import { useAuth } from '../../context/AuthContext';
 import type { OrderResponseDto } from '../../types';
 import { getMyBids, type BidResponse } from '../../api/bidApi';
 import { deleteVendorProduct, getVendorProducts, getProductImage, formatCurrency as formatProductCurrency, mapSellingTypeLabel, updateVendorProduct, type VendorProductApiResponse } from '../../api/vendorProductApi';
 import { getVendorAuctions, type VendorAuctionApiResponse } from '../../api/vendorAuctionApi';
 import { getVendorOrders, type VendorOrderApiResponse } from '../../api/vendorOrderApi';
+import { formatOrderNumber, getOrderCustomer, getOrderProductName, getOrderStatus, getOrderTotal, getOrderType, getOrderVendor } from '../../utils/orderDisplay';
 import DeliveryAddressViewer from '../../components/orders/DeliveryAddressViewer';
 import { getVendorRevenue } from '../../api/vendorRevenueApi';
 import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
@@ -1907,6 +1908,7 @@ export function CustomerOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [order, setOrder] = useState<OrderResponseDto | null>(null);
+  const [resolvedAddress, setResolvedAddress] = useState<AddressResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -1918,7 +1920,24 @@ export function CustomerOrderDetailPage() {
         return;
       }
       try {
-        setOrder(await getOrderById(Number(id)));
+        const orderData = await getOrderById(Number(id));
+        setOrder(orderData);
+        const embeddedAddress = orderData.deliveryAddress;
+        if (embeddedAddress && typeof embeddedAddress === 'object') {
+          const addressId = orderData.addressId ?? Number(embeddedAddress.id);
+          const hasAddressDetails = Boolean(embeddedAddress.fullName && embeddedAddress.addressLine1 && embeddedAddress.city && embeddedAddress.state && embeddedAddress.postalCode && embeddedAddress.country);
+          if (hasAddressDetails) {
+            setResolvedAddress(null);
+          } else if (Number.isFinite(addressId)) {
+            try {
+              setResolvedAddress(await getAddressById(addressId));
+            } catch {
+              setResolvedAddress(null);
+            }
+          }
+        } else {
+          setResolvedAddress(null);
+        }
       } catch (err: any) {
         setError(err?.message || 'Unable to load order details.');
       } finally {
@@ -1931,8 +1950,20 @@ export function CustomerOrderDetailPage() {
   if (loading) return <SectionShell title="Order details" subtitle="Loading order"><SkeletonCard /></SectionShell>;
   if (error || !order) return <SectionShell title="Order details" subtitle="Order unavailable"><ErrorState title="Unable to load order details" description={error || 'Order not found.'} /></SectionShell>;
 
-  const address = order.deliveryAddress;
-  const addressValue = (keys: string[]) => typeof address === 'object' && address ? String(keys.map((key) => address[key]).find((value) => value !== undefined && value !== null && value !== '') ?? '-') : '-';
+  const address = resolvedAddress ?? order.deliveryAddress;
+  const addressValue = (keys: string[]) => {
+    if (!address || typeof address !== 'object') return '';
+    const addressRecord = address as Record<string, unknown>;
+    return String(keys.map((key) => addressRecord[key]).find((value) => value !== undefined && value !== null && value !== '') ?? '');
+  };
+  const addressLines = typeof address === 'object' && address ? [
+    addressValue(['fullName', 'name']),
+    addressValue(['phone']),
+    addressValue(['addressLine1']),
+    addressValue(['addressLine2']),
+    [addressValue(['city']), addressValue(['state'])].filter(Boolean).join(', '),
+    [addressValue(['postalCode', 'zipCode'])].filter(Boolean).concat(addressValue(['country']) ? [addressValue(['country'])] : []).join(', '),
+  ].filter(Boolean) : [];
   const productDisplay = order.items?.map((item) => item.productName || item.name || (item.productId ? `Product #${item.productId}` : 'Product details unavailable')).filter(Boolean).join(', ') || 'Product unavailable';
   const sellerDisplay = order.items?.map((item) => item.vendorName || item.sellerName).filter(Boolean).join(', ') || 'Not provided';
 
@@ -1975,7 +2006,7 @@ export function CustomerOrderDetailPage() {
               <div className="space-y-3 text-sm text-slate-300">
                 <div>
                   <p className="text-slate-400">Delivery Address</p>
-                  {address ? typeof address === 'string' ? <p className="mt-1 whitespace-pre-wrap text-white">{address}</p> : <div className="mt-1 space-y-1 text-white"><p>{addressValue(['fullName', 'name'])}</p><p>{addressValue(['phone'])}</p><p>{addressValue(['addressLine1'])}</p><p>{addressValue(['addressLine2'])}</p><p>{addressValue(['city'])}, {addressValue(['state'])}</p><p>{addressValue(['postalCode'])}, {addressValue(['country'])}</p></div> : <p className="mt-1 text-white">Address not available</p>}
+                  {address ? typeof address === 'string' ? <p className="mt-1 whitespace-pre-wrap text-white">{address}</p> : addressLines.length > 0 ? <div className="mt-1 space-y-1 text-white">{addressLines.map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}</div> : <p className="mt-1 text-white">Address not available</p> : <p className="mt-1 text-white">Address not available</p>}
                 </div>
                 {order.trackingNumber ? <div>
                   <p className="text-slate-400">Tracking Number</p>
@@ -2548,6 +2579,7 @@ export function VendorGstPage() {
 }
 
 export function VendorBankPage() {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<VendorProfileResponse | null>(null);
   const [bankRecord, setBankRecord] = useState<VendorBankRecord | null>(null);
   const [bankProofFile, setBankProofFile] = useState<File | null>(null);
@@ -2656,6 +2688,9 @@ export function VendorBankPage() {
 
   return (
     <SectionShell title="Bank details" subtitle="Secure payout and settlement setup">
+      <button type="button" onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10">
+        <ChevronLeft className="h-4 w-4" /> Back
+      </button>
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
         <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/50 p-5">
           <h3 className="text-lg font-semibold text-white">Saved bank account</h3>
@@ -3204,6 +3239,12 @@ export function VendorOrdersPage() {
     pending: 'bg-slate-500/10 text-slate-200',
     cancelled: 'bg-rose-500/10 text-rose-200',
   };
+  const nextStatus = (order: VendorOrderApiResponse) => {
+    const current = getOrderStatus(order).toUpperCase();
+    const statuses = ['CONFIRMED', 'PACKING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+    const index = statuses.indexOf(current);
+    return index >= 0 && index < statuses.length - 1 ? statuses[index + 1] : 'N/A';
+  };
 
   return (
     <SectionShell title="Orders" subtitle="Your active and completed customer orders" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Orders' }]}>
@@ -3232,28 +3273,32 @@ export function VendorOrdersPage() {
               <EmptyState title="No matching orders" description="There are no vendor orders for the current backend response." />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[680px] table-auto text-sm">
+                <table className="w-full min-w-[1100px] table-auto text-sm">
                   <thead>
                     <tr className="text-left text-slate-400">
-                      <th className="px-3 py-3">Order</th>
+                      <th className="px-3 py-3">Product Name</th>
+                      <th className="px-3 py-3">Order Number</th>
+                      <th className="px-3 py-3">Order Type</th>
+                      <th className="px-3 py-3">Vendor</th>
                       <th className="px-3 py-3">Customer</th>
-                      <th className="px-3 py-3">Product</th>
-                      <th className="px-3 py-3">Total</th>
-                      <th className="px-3 py-3">Status</th>
-                      <th className="px-3 py-3">Date</th>
+                      <th className="px-3 py-3">Order Status</th>
+                      <th className="px-3 py-3">Total Amount</th>
                       <th className="px-3 py-3">Delivery Address</th>
+                      <th className="px-3 py-3">Next Status</th>
                     </tr>
                   </thead>
                   <tbody className="text-slate-300">
                     {pageOrders.map((order) => (
                       <tr key={order.id} className="border-t border-white/6 hover:bg-white/5">
-                        <td className="px-3 py-3 font-medium text-white">{order.orderNumber || order.id}</td>
-                        <td className="px-3 py-3">{order.customerName || order.customer || 'Customer'}</td>
-                        <td className="px-3 py-3">{order.productName || order.product || order.items?.[0]?.productName || order.items?.[0]?.name || 'Product'}</td>
-                        <td className="px-3 py-3">{toMoney(order.totalAmount ?? order.amount)}</td>
-                        <td className="px-3 py-3"><Badge className={statusColors[String(order.orderStatus || order.status || 'pending').toLowerCase()] ?? 'bg-slate-500/10 text-slate-200'}>{String(order.orderStatus || order.status || 'Pending')}</Badge></td>
-                        <td className="px-3 py-3">{order.createdAt || order.orderDate || order.date || '—'}</td>
+                        <td className="px-3 py-3 text-white">{getOrderProductName(order)}</td>
+                        <td className="px-3 py-3 font-medium text-white">{formatOrderNumber(order)}</td>
+                        <td className="px-3 py-3">{getOrderType(order)}</td>
+                        <td className="px-3 py-3">{getOrderVendor(order)}</td>
+                        <td className="px-3 py-3">{getOrderCustomer(order)}</td>
+                        <td className="px-3 py-3"><Badge className={statusColors[getOrderStatus(order).toLowerCase()] ?? 'bg-slate-500/10 text-slate-200'}>{getOrderStatus(order)}</Badge></td>
+                        <td className="px-3 py-3">{getOrderTotal(order)}</td>
                         <td className="px-3 py-3"><DeliveryAddressViewer address={order.deliveryAddress} /></td>
+                        <td className="px-3 py-3">{nextStatus(order)}</td>
                       </tr>
                     ))}
                   </tbody>

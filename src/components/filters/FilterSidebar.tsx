@@ -1,6 +1,6 @@
 import { Input, Select, Checkbox } from '../forms/FormComponents';
 import { Monitor, Search, User, Star, ShieldCheck, Gavel, ShoppingBag, Tag, Funnel, RefreshCw, Check } from 'lucide-react';
-import { categories } from '../../data/mockData';
+import type { MarketplaceCategory } from '../../api/marketplaceSearchApi';
 import { useLocaleContext } from '../../context/LocaleContext';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,6 +30,8 @@ export default function FilterSidebar({
   setLocation,
   sort,
   setSort,
+  categories,
+  applyFilters,
   resetFilters,
 }: {
   query: string;
@@ -56,6 +58,8 @@ export default function FilterSidebar({
   setLocation: (v: string) => void;
   sort: string;
   setSort: (v: string) => void;
+  categories: MarketplaceCategory[];
+  applyFilters: () => void;
   resetFilters: () => void;
 }) {
   // Generic custom dropdown matching dark theme
@@ -146,7 +150,7 @@ export default function FilterSidebar({
 
       <div className="mt-2 space-y-3">
         <Input ariaLabel="Search products" icon={<Search className="h-4 w-4 text-slate-400" />} placeholder={translate('searchPlaceholder')} value={query} onChange={(e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)} />
-            <Dropdown label={translate('category')} options={[{ label: translate('allCategories'), value: '' }, ...categories.slice(0, 12).map((c: string) => ({ label: c, value: c }))]} value={category} onChange={(v) => { setCategory(v); }} icon={<Monitor className="h-4 w-4 text-slate-400" />} />
+            <Dropdown label={translate('category')} options={[{ label: translate('allCategories'), value: '' }, ...categories.map((c) => ({ label: c.name, value: c.name }))]} value={category} onChange={(v) => { setCategory(v); }} icon={<Monitor className="h-4 w-4 text-slate-400" />} />
 
         <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
           <Input ariaLabel="Minimum price" placeholder={translate('minPrice')} value={minPrice} onChange={(e: ChangeEvent<HTMLInputElement>) => setMinPrice(e.target.value)} icon={<span className="text-slate-400">{currencySymbol}</span>} />
@@ -202,10 +206,10 @@ export default function FilterSidebar({
             <Dropdown label={translate('sortBy')} options={[{ label: '⇅ Relevance', value: 'relevance' }, { label: '🕒 Newest', value: 'newest' }, { label: '💰 Price Low to High', value: 'price_asc' }, { label: '💎 Premium', value: 'rating' }]} value={sort} onChange={(v) => setSort(v)} icon={<Funnel className="h-4 w-4 text-slate-400" />} />
 
         <div className="mt-2 flex items-center gap-3">
-          <button onClick={resetFilters} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-500">
+          <button type="button" onClick={applyFilters} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-500">
             <Funnel className="h-4 w-4" /> {translate('applyFilters')}
           </button>
-          <button onClick={resetFilters} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300 transition hover:bg-white/10">
+          <button type="button" onClick={resetFilters} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300 transition hover:bg-white/10">
             <RefreshCw className="h-4 w-4" /> {translate('resetAll')}
           </button>
         </div>

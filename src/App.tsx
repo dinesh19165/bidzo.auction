@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Layout } from './components/Layout';
 import { AuthProvider, useAuth, type UserType } from './context/AuthContext';
@@ -64,6 +65,8 @@ import { SuperAdminDashboardPage, FranchiseDashboardAdminPage, RolePermissionMat
 import { CustomerProfilePage, CustomerOrdersPage, CustomerAuctionsPage, CustomerBidsPage, CustomerWonAuctionsPage, CustomerRecentlyViewedPage, CustomerWatchlistPage, CustomerSavedSearchesPage, CustomerTransactionsPage, CustomerAddressesPage, CustomerMessagesPage, CustomerReviewsPage, CustomerSupportPage, CustomerInvoicesPage, CustomerSettingsPage, CustomerOrderDetailPage, CustomerAuctionDetailPage, VendorBusinessInfoPage, VendorGstPage, VendorBankPage, VendorIdentityPage, VendorStoreVerificationPage, VendorStoreProfilePage, VendorStoreSettingsPage, VendorSubscriptionPage, VendorWalletPage, VendorWithdrawPage, VendorSalesAnalyticsPage, VendorOrdersPage, VendorCustomersPage, VendorInventoryPage, VendorProductsPage, VendorProductVariantsPage, VendorCreateProductPage, VendorEditProductPage, VendorDeleteProductPage, VendorCreateAuctionPage, VendorEditAuctionPage, VendorAuctionAnalyticsPage, VendorMessagesPage, VendorNotificationsPage, VendorReviewsPage, VendorSupportTicketsPage, VendorReportsPage } from './pages/extra/CustomerVendorExtras';
 import { BuyNowConfirmPage, BuyNowPaymentPage, BuyNowOrderSuccessPage, BuyNowInvoicePage } from './pages/extra/BuyNowFlowPages';
 import { AdminDashboardApiPage, AdminReportApiPage, AdminResourceDetailPage, AdminResourcePage } from './pages/admin/AdminApiPages';
+import { CustomerCartPage } from './pages/CustomerCartPage';
+import { getStoredAuthToken, handleUnauthorized, isJwtExpired } from './api/apiClient';
 
 function AppRouteGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -74,9 +77,19 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
   const isAdminRoute = pathname === '/dashboards/admin' || pathname.startsWith('/admin');
   const isAdminLoginRoute = pathname === '/admin/login';
 
+  const storedToken = user ? getStoredAuthToken() : null;
+  const expiredSession = Boolean(storedToken && isJwtExpired(storedToken));
+
+  useEffect(() => {
+    if (!expiredSession) return;
+    handleUnauthorized();
+  }, [expiredSession]);
+
   if (!authReady) {
     return null;
   }
+
+  if (expiredSession) return null;
 
   if (isAdminRoute && !isAdminLoginRoute) {
     if (!user) {
@@ -198,6 +211,7 @@ function App() {
             <Route path="/customer/auction-live" element={<CustomerAuctionLivePage />} />
             <Route path="/customer/winner" element={<CustomerWinnerPage />} />
             <Route path="/customer/checkout" element={<CustomerCheckoutPage />} />
+            <Route path="/customer/cart" element={<CustomerCartPage />} />
             <Route path="/customer/address" element={<CustomerAddressPage />} />
             <Route path="/customer/shipping" element={<CustomerShippingPage />} />
             <Route path="/customer/payment" element={<CustomerPaymentPage />} />
@@ -258,6 +272,7 @@ function App() {
             <Route path="/admin/franchise" element={<FranchiseManagementAdminPage />} />
             <Route path="/admin/users" element={<AdminResourcePage resource="users" />} />
             <Route path="/admin/customers" element={<AdminResourcePage resource="customers" />} />
+            <Route path="/admin/customers/:id" element={<AdminResourceDetailPage resource="customers" />} />
             <Route path="/admin/products" element={<AdminResourcePage resource="products" />} />
             <Route path="/admin/payments" element={<AdminResourcePage resource="payments" />} />
             <Route path="/admin/vendors" element={<AdminResourcePage resource="vendors" />} />

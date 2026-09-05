@@ -1,33 +1,54 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { addCartItem, getCart, removeCartItem, updateCartItem, type CartItemResponse, type CartResponse } from '../api/cartApi';
+import { useAuth } from './AuthContext';
 
 interface CartContextValue {
-  items: Array<{ id: string; title: string; quantity: number }>;
-  addItem: (item: { id: string; title: string; quantity?: number }) => void;
-  removeItem: (id: string) => void;
-  clear: () => void;
+  cart: CartResponse;
+  isLoading: boolean;
+  error: string | null;
+  addItem: (productId: number, quantity?: number) => Promise<void>;
+  updateItem: (itemId: number, quantity: number) => Promise<void>;
+  removeItem: (itemId: number) => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
+const emptyCart: CartResponse = { items: [], total: 0 };
 const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<Array<{ id: string; title: string; quantity: number }>>([]);
+  const [cart, setCart] = useState<CartResponse>(emptyCart);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
-  const addItem = (item: { id: string; title: string; quantity?: number }) => {
-    setItems((current) => {
-      const existing = current.find((entry) => entry.id === item.id);
-      if (existing) {
-        return current.map((entry) => entry.id === item.id ? { ...entry, quantity: entry.quantity + (item.quantity ?? 1) } : entry);
-      }
-      return [...current, { ...item, quantity: item.quantity ?? 1 }];
-    });
+  const refresh = async () => {
+    setError(null);
+    try {
+      setCart(await getCart());
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Failed to load cart');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const removeItem = (id: string) => setItems((current) => current.filter((entry) => entry.id !== id));
-  const clear = () => setItems([]);
+  useEffect(() => {
+    if (user?.type === 'customer') {
+      setIsLoading(true);
+      refresh();
+    } else {
+      setCart(emptyCart);
+      setError(null);
+      setIsLoading(false);
+    }
+  }, [user?.type]);
 
-  const value = useMemo(() => ({ items, addItem, removeItem, clear }), [items]);
+  const addItem = async (productId: number, quantity = 1) => setCart(await addCartItem(productId, quantity));
+  const updateItem = async (itemId: number, quantity: number) => setCart(await updateCartItem(itemId, quantity));
+  const removeItem = async (itemId: number) => setCart(await removeCartItem(itemId));
 
+  const value = useMemo(() => ({ cart, isLoading, error, addItem, updateItem, removeItem, refresh }), [cart, isLoading, error]);
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
@@ -36,3 +57,5 @@ export function useCartContext() {
   if (!context) throw new Error('useCartContext must be used within CartProvider');
   return context;
 }
+
+export type { CartItemResponse };

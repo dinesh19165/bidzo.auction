@@ -14,9 +14,9 @@ import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSe
 import type { AddressResponse } from '../../api/addressApi';
 import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } from '../../api/paymentApi';
 import { createVendorProduct, getVendorProducts, type SellingType } from '../../api/vendorProductApi';
-import { createProductImage, createBuyNowOrder } from '../../api/productApi';
+import { createProductImage, createBuyNowOrder, getProducts, type ProductListItem } from '../../api/productApi';
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
-import { getWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
+import { getWishlist, notifyWishlistChanged, removeFromWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
 import { createAuction, getAuctions } from '../../api/auctionApi';
 import { getVendorProfile } from '../../api/vendorApi';
 import { getVendorAuctions } from '../../api/vendorAuctionApi';
@@ -267,6 +267,7 @@ export function CustomerSellerPage() {
 
 export function CustomerWishlistPage() {
   const [wishlist, setWishlist] = useState<WishlistItemResponse[]>([]);
+  const [productsById, setProductsById] = useState<Record<number, ProductListItem>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -276,7 +277,14 @@ export function CustomerWishlistPage() {
         setIsLoading(true);
         setError(null);
         const data = await getWishlist();
-        setWishlist(Array.isArray(data) ? data : []);
+        setWishlist(data);
+
+        try {
+          const products = await getProducts();
+          setProductsById(Object.fromEntries(products.map((product) => [product.id, product])));
+        } catch {
+          setProductsById({});
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load wishlist');
       } finally {
@@ -284,6 +292,17 @@ export function CustomerWishlistPage() {
       }
     };
     loadWishlist();
+  }, []);
+
+  useEffect(() => {
+    const handleWishlistChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ wishlistId?: number; productId?: number; saved: boolean }>).detail;
+      if (!detail.saved) {
+        setWishlist((current) => current.filter((item) => item.id !== detail.wishlistId && item.productId !== detail.productId));
+      }
+    };
+    window.addEventListener('bidzo:wishlist-changed', handleWishlistChanged);
+    return () => window.removeEventListener('bidzo:wishlist-changed', handleWishlistChanged);
   }, []);
 
   const items = wishlist;
@@ -317,17 +336,27 @@ export function CustomerWishlistPage() {
       <FlowBreadcrumbs steps={[{ label: 'Product', to: '/customer/product/1' }, { label: 'Wishlist', to: '/customer/wishlist' }, { label: 'Auction', to: '/customer/watch-auction' }]} />
       {items && items.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
-          {items.map((item: any) => {
-            const product = item.product ?? null;
-            const title = product?.name || 'Wishlist item';
-            const description = product?.description || 'Saved item';
-            const price = Number(product?.price ?? 0);
+          {items.map((item) => {
+            const catalogProduct = productsById[item.productId];
+            const wishlistProduct = item.product;
+            const productId = catalogProduct?.id ?? wishlistProduct?.id;
+            const title = catalogProduct?.title || wishlistProduct?.name || item.title || 'Wishlist item';
+            const description = catalogProduct?.description || wishlistProduct?.description || item.description || 'Saved item';
+            const price = Number(catalogProduct?.price ?? wishlistProduct?.price ?? item.price ?? 0);
+            const image = catalogProduct?.image || item.imageUrl || wishlistProduct?.imageUrl || wishlistProduct?.image || '/logo.png';
 
             return (
-              <div key={item.id || product?.id || title} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
+              <div key={item.id || productId || title} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
+                <img src={image} alt={title} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/logo.png'; }} className="mb-4 h-40 w-full rounded-[20px] object-cover" />
                 <div className="flex items-center justify-between">
                   <p className="font-semibold text-white">{title}</p>
-                  <Heart className="h-4 w-4 text-amber-300" />
+                  <button type="button" onClick={async () => {
+                    await removeFromWishlist(item.id);
+                    setWishlist((current) => current.filter((candidate) => candidate.id !== item.id));
+                    notifyWishlistChanged({ productId: item.productId, auctionId: item.auctionId, wishlistId: item.id, saved: false });
+                  }} aria-label="Remove from wishlist">
+                    <Heart className="h-4 w-4 text-amber-300" />
+                  </button>
                 </div>
                 <p className="mt-2 text-sm text-slate-400">{description}</p>
                 <p className="mt-4 text-lg font-semibold text-white">₹{price.toLocaleString()}</p>

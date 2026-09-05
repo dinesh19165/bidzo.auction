@@ -24,6 +24,7 @@ const navItems = [
   { label: 'Reports', to: '/admin/reports', icon: FileText },
   { label: 'Franchise', to: '/admin/franchise', icon: Building2 },
   { label: 'Vendors', to: '/admin/vendors', icon: Store },
+  { label: 'Customers', to: '/admin/customers', icon: Users },
   { label: 'Orders', to: '/admin/orders', icon: Boxes },
   { label: 'Delivery', to: '/admin/delivery', icon: Truck },
   { label: 'Wallet', to: '/admin/wallet', icon: Wallet2 },

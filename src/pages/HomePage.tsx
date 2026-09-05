@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useThemeContext } from '../context/ThemeContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useLocaleContext } from '../context/LocaleContext';
 import { ChevronLeft, ChevronRight, Search, Sparkles } from 'lucide-react';
@@ -10,10 +10,14 @@ import { getAuctions, getEffectiveAuctionStatus } from '../api/auctionApi';
 import { getPublishedTestimonials, type PublicTestimonial } from '../api/cmsApi';
 import { getProducts } from '../api/productApi';
 import type { HomeDataResponse } from '../api/homeApi';
+import { getMarketplaceCategories, type MarketplaceCategory } from '../api/marketplaceSearchApi';
 
 export function HomePage() {
   const [searchCategory, setSearchCategory] = useState('All Categories');
   const [counterValues, setCounterValues] = useState({ activeAuctions: 0, buyers: 0, sellers: 0, sold: 0 });
+  const [inventoryQuery, setInventoryQuery] = useState('');
+  const [marketplaceCategories, setMarketplaceCategories] = useState<MarketplaceCategory[]>([]);
+  const navigate = useNavigate();
 
   // API data states
   const [homeData, setHomeData] = useState<HomeDataResponse | null>(null);
@@ -87,6 +91,17 @@ export function HomePage() {
   };
 
   useEffect(() => { loadHomeData(); }, []);
+
+  useEffect(() => {
+    getMarketplaceCategories().then(setMarketplaceCategories).catch(() => setMarketplaceCategories([]));
+  }, []);
+
+  const submitInventorySearch = () => {
+    const params = new URLSearchParams({ page: '0' });
+    if (inventoryQuery.trim()) params.set('q', inventoryQuery.trim());
+    if (searchCategory !== 'All Categories') params.set('category', searchCategory);
+    if (inventoryQuery.trim() || searchCategory !== 'All Categories') navigate(`/search?${params.toString()}`);
+  };
 
   useEffect(() => {
     getPublishedTestimonials()
@@ -216,14 +231,14 @@ export function HomePage() {
                   <div className={`mb-4 text-sm font-medium uppercase tracking-[0.24em] ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Search inventory</div>
                   <div className="grid gap-3 sm:grid-cols-[1.5fr_0.8fr]">
                     <div className={`flex items-center gap-3 rounded-3xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-[var(--border-color)] bg-[var(--surface-muted)]'}`}>
-                      <Search className={`h-5 w-5 ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`} />
-                      <input type="search" placeholder="Search auctions, products, sellers" className={`w-full bg-transparent text-sm ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]'} outline-none`} />
+                      <button type="button" aria-label="Search marketplace" onClick={submitInventorySearch} className="text-slate-400 transition hover:text-white"><Search className="h-5 w-5" /></button>
+                      <input type="search" value={inventoryQuery} onChange={(event) => setInventoryQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitInventorySearch(); }} placeholder="Search auctions, products, sellers" className={`w-full bg-transparent text-sm ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]'} outline-none`} />
                     </div>
                     <div className={`flex items-center gap-3 rounded-3xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-[var(--border-color)] bg-[var(--surface-muted)]'}`}>
                       <span className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-[var(--text-muted)]'}`}>Category</span>
                       <select value={searchCategory} onChange={(e) => setSearchCategory(e.target.value)} className={`w-full rounded-lg bg-transparent text-sm ${theme === 'dark' ? 'text-white' : 'text-[var(--text-primary)]'} outline-none`}>
                         <option>All Categories</option>
-                        {popularCategories.map((item) => (
+                        {marketplaceCategories.map((item) => (
                           <option key={item.id} className={theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-[var(--surface)] text-[var(--text-primary)]'}>{item.name}</option>
                         ))}
                       </select>

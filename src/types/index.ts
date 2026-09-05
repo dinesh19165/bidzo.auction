@@ -182,6 +182,7 @@ export interface OrderResponseDto {
   orderStatus: string;
   totalAmount: number;
   customerId: number;
+  addressId?: number | null;
   deliveryAddress?: string | Record<string, unknown> | null;
   trackingNumber?: string | null;
   expectedDeliveryDate?: string | null;

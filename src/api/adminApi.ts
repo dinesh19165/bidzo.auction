@@ -20,6 +20,7 @@ export interface AdminQuery {
   role?: string;
   startDate?: string;
   endDate?: string;
+  active?: boolean;
 }
 
 interface ApiEnvelope<T> {
@@ -101,8 +102,21 @@ export const searchAdminUsers = (search: string) => list<AdminRecord>('/api/admi
 export const getAdminUsersByRole = (role: string) => list<AdminRecord>(`/api/admin/users/role/${encodeURIComponent(role)}`);
 
 export const getAdminCustomers = (query?: AdminQuery) => list<AdminRecord>('/api/admin/customers', query);
-export const getAdminCustomersPaginated = (query?: AdminQuery) => paginated<AdminRecord>('/api/admin/customers/paginated', query);
+export async function getAdminCustomersPaginated(query: AdminQuery = {}): Promise<AdminPage> {
+  const page = query.page ?? 0;
+  const size = query.pageSize ?? 10;
+  const params = new URLSearchParams({ page: String(page), size: String(size), search: query.search ?? '', active: query.active === undefined ? '' : String(query.active) });
+  const response = await fetchJson<unknown>(`/api/admin/customers/paginated?${params.toString()}`);
+  const envelope = response as ApiEnvelope<unknown>;
+  const value = unwrap(response, 'Failed to load admin customers');
+  const items = records<AdminRecord>(value);
+  const valueObject = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const meta = envelope?.meta ?? valueObject.meta as AdminPage | undefined;
+  return { items, page: Number(meta?.page ?? page), pageSize: Number(meta?.pageSize ?? size), total: Number(meta?.total ?? envelope?.totalElements ?? valueObject.totalElements ?? items.length) };
+}
 export const getAdminCustomer = (id: string | number) => detail<AdminRecord>(`/api/admin/customers/${id}`, 'Failed to load customer');
+export const activateAdminCustomer = (userId: string | number) => fetchJson<AdminRecord>(`/api/admin/customers/${userId}/activate`, { method: 'PUT' });
+export const deactivateAdminCustomer = (userId: string | number) => fetchJson<AdminRecord>(`/api/admin/customers/${userId}/deactivate`, { method: 'PUT' });
 export const getAdminCustomerOrders = (id: string | number) => list<AdminRecord>(`/api/admin/customers/${id}/orders`);
 export const getAdminCustomerBids = (id: string | number) => list<AdminRecord>(`/api/admin/customers/${id}/bids`);
 export const getAdminCustomerPayments = (id: string | number) => list<AdminRecord>(`/api/admin/customers/${id}/payments`);

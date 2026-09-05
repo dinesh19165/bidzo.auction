@@ -6,15 +6,45 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, LayoutGrid, List, Sparkles, X } from 'lucide-react';
 import { useLocaleContext } from '../context/LocaleContext';
 import { useThemeContext } from '../context/ThemeContext';
-import { getProducts, type ProductListItem } from '../api/productApi';
-import { getAuctions, getEffectiveAuctionStatus } from '../api/auctionApi';
+import { getMarketplaceCategories, searchMarketplace, type MarketplaceCategory, type MarketplaceSearchOptions, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
+import { API_BASE_URL } from '../api/apiClient';
+import { getWishlist, type WishlistItemResponse } from '../api/wishlistApi';
+import { useAuth } from '../context/AuthContext';
 import { EmptyState, SkeletonCard, ErrorState } from '../components/loading/LoadingComponents';
 
 const ALL_CATEGORIES = '';
+const PAGE_SIZE = 20;
+type MarketplaceFilters = Omit<MarketplaceSearchOptions, 'page' | 'size'>;
 
-function parsePrice(price: string) {
-  const n = Number(price.replace(/[^0-9.-]+/g, ''));
-  return Number.isFinite(n) ? n : 0;
+const DEFAULT_FILTERS: MarketplaceFilters = {
+  query: '', category: '', minPrice: '', maxPrice: '', seller: '', rating: '',
+  verifiedSellersOnly: false, auctionsOnly: false, buyNowOnly: false, sort: 'relevance',
+};
+
+function toCardListing(item: MarketplaceSearchResult) {
+  const isAuction = item.type === 'AUCTION';
+  const image = item.image && !item.image.includes('placeholder.com') ? item.image : '/logo.png';
+  return {
+    id: item.id,
+    title: item.title || item.vendor?.name || 'Marketplace listing',
+    description: item.type === 'VENDOR' ? 'Seller profile' : `${item.type === 'AUCTION' ? 'Auction' : 'Product'} listing`,
+    image: image.startsWith('/') && !image.startsWith('/logo') ? `${API_BASE_URL}${image}` : image,
+    price: String(isAuction ? (item.currentBid ?? item.price ?? 0) : (item.price ?? 0)),
+    category: item.category?.name || 'Marketplace',
+    condition: isAuction ? (item.auctionStatus || 'Auction') : 'Available',
+    seller: item.vendor?.name || (item.type === 'VENDOR' ? item.title : 'Seller'),
+    rating: undefined,
+    reviews: undefined,
+    verified: false,
+    badge: isAuction ? 'LIVE AUCTION' : item.type === 'VENDOR' ? 'SELLER' : 'BUY NOW',
+    location: undefined,
+    route: isAuction ? `/auctions/${item.id}` : item.type === 'VENDOR' ? `/seller/${item.id}` : `/product/${item.id}`,
+    actionLabel: isAuction ? 'Watch Auction' : item.type === 'VENDOR' ? 'View Seller' : 'Buy Now',
+    currentBid: item.currentBid === null ? undefined : String(item.currentBid),
+    endsIn: item.auctionEndsAt || undefined,
+    isAuction,
+    auctionId: isAuction ? item.id : undefined,
+  };
 }
 
 export function MarketplacePage() {
@@ -30,120 +60,38 @@ export function MarketplacePage() {
   const [condition, setCondition] = useState('');
   const [location, setLocation] = useState('');
   const [sort, setSort] = useState('relevance');
-  const [page, setPage] = useState(1);
-  const pageSize = 9;
+  const [page, setPage] = useState(0);
   const [grid, setGrid] = useState(true);
-  const [products, setProducts] = useState<ProductListItem[]>([]);
+  const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
+  const [appliedFilters, setAppliedFilters] = useState<MarketplaceFilters>(DEFAULT_FILTERS);
+  const [results, setResults] = useState<ReturnType<typeof toCardListing>[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [wishlistByProductId, setWishlistByProductId] = useState<Record<number, WishlistItemResponse>>({});
+  const { user } = useAuth();
+
+  useEffect(() => { getMarketplaceCategories().then(setCategories).catch(() => setCategories([])); }, []);
 
   useEffect(() => {
-    const loadProducts = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [productList, auctionList] = await Promise.all([
-          getProducts(),
-          getAuctions(),
-        ]);
-
-        const auctionMap = new Map<number, (typeof auctionList)[number]>();
-        auctionList.forEach((auction) => {
-          if (auction && typeof auction === 'object' && 'productId' in auction) {
-            const productId = Number((auction as any).productId ?? (auction as any).id);
-            if (Number.isFinite(productId)) {
-              auctionMap.set(productId, auction);
-            }
-          }
-        });
-
-        const merged: ProductListItem[] = [];
-
-        productList.forEach((product) => {
-          const isAuctionProduct = String(product.sellingType || '').toUpperCase() === 'AUCTION' || product.isAuction;
-          const matchedAuction = auctionMap.get(product.id);
-
-          if (isAuctionProduct) {
-            if (!matchedAuction) return;
-
-            const effectiveAuctionStatus = getEffectiveAuctionStatus((matchedAuction as any).status, (matchedAuction as any).startAt, (matchedAuction as any).endAt);
-            if (effectiveAuctionStatus === 'ENDED') return;
-
-            merged.push({
-              ...product,
-              id: matchedAuction.id,
-              auctionId: matchedAuction.id,
-              route: `/auctions/${matchedAuction.id}`,
-              actionLabel: 'Watch Auction',
-              badge: effectiveAuctionStatus === 'RUNNING' ? 'LIVE AUCTION' : 'SCHEDULED',
-              condition: effectiveAuctionStatus === 'RUNNING' ? 'Live' : 'Scheduled',
-              currentBid: matchedAuction.currentBid,
-              endsIn: matchedAuction.endsIn,
-              title: matchedAuction.title || product.title,
-              description: matchedAuction.description || product.description,
-              price: matchedAuction.currentBid || product.price,
-              image: matchedAuction.image || product.image,
-              isAuction: true,
-              isDirectBuy: false,
-              sellingType: 'AUCTION',
-            });
-            return;
-          }
-
-          if (String(product.sellingType || '').toUpperCase() !== 'DIRECT_BUY') return;
-
-          merged.push({
-            ...product,
-            route: `/product/${product.id}`,
-            actionLabel: 'Buy Now',
-            badge: product.badge || 'Buy Now',
-            isAuction: false,
-            isDirectBuy: true,
-            sellingType: product.sellingType || 'DIRECT_BUY',
-          });
-        });
-
-        setProducts(merged);
-      } catch (err: any) {
-        setError(err?.message || 'Unable to load marketplace listings');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadProducts();
-  }, []);
-
-  const filtered = useMemo(() => {
-    let list = products.slice();
-    if (query) {
-      const q = query.toLowerCase();
-      list = list.filter((p) => p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.seller.toLowerCase().includes(q));
-    }
-    if (category) list = list.filter((p) => p.category === category);
-    if (seller) list = list.filter((p) => p.seller.toLowerCase().includes(seller.toLowerCase()));
-    if (rating) list = list.filter((p) => (p.rating ?? 0) >= Number(rating));
-    if (verifiedOnly) list = list.filter((p) => p.verified === true);
-    if (auctionOnly) list = list.filter((p) => p.isAuction || (p.badge || '').toLowerCase().includes('auction'));
-    if (buyNowOnly) list = list.filter((p) => p.isDirectBuy || (p.badge || '').toLowerCase().includes('buy now') || (p.badge || '').toLowerCase().includes('buy'));
-    if (condition) list = list.filter((p) => p.condition === condition);
-    if (location) list = list.filter((p) => (p.location ?? '').toLowerCase().includes(location.toLowerCase()));
-    if (minPrice) list = list.filter((p) => parsePrice(p.price) >= Number(minPrice));
-    if (maxPrice) list = list.filter((p) => parsePrice(p.price) <= Number(maxPrice));
-
-    if (sort === 'price_asc') list = list.sort((a, b) => parsePrice(a.price) - parsePrice(b.price));
-    else if (sort === 'price_desc') list = list.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
-    else if (sort === 'rating') list = list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-
-    return list;
-  }, [query, category, seller, rating, verifiedOnly, auctionOnly, buyNowOnly, condition, location, minPrice, maxPrice, sort, products]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+    let active = true;
+    setLoading(true);
+    setError(null);
+    searchMarketplace({ ...appliedFilters, page, size: PAGE_SIZE }).then((data) => {
+      if (!active) return;
+      setResults(data.content.map(toCardListing));
+      setTotalElements(data.totalElements);
+      setTotalPages(data.totalPages);
+    }).catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : 'Unable to load marketplace listings'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [appliedFilters, page]);
 
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+    if (user?.type !== 'customer') return;
+    getWishlist().then((wishlist) => setWishlistByProductId(Object.fromEntries(wishlist.filter((item) => item.itemType !== 'AUCTION').map((item) => [item.productId, item])))).catch(() => setWishlistByProductId({}));
+  }, [user?.type]);
 
   const { translate, currencySymbol } = useLocaleContext();
   const { theme } = useThemeContext();
@@ -161,7 +109,13 @@ export function MarketplacePage() {
     setLocation('');
     setSort('relevance');
     setQuery('');
-    setPage(1);
+    setPage(0);
+    setAppliedFilters(DEFAULT_FILTERS);
+  };
+
+  const applyFilters = () => {
+    setPage(0);
+    setAppliedFilters({ query, category, minPrice, maxPrice, seller, rating, verifiedSellersOnly: verifiedOnly, auctionsOnly: auctionOnly, buyNowOnly, sort });
   };
 
   const activeFilters = useMemo(() => {
@@ -203,9 +157,9 @@ export function MarketplacePage() {
   }, [auctionOnly, buyNowOnly, category, condition, location, maxPrice, minPrice, query, rating, seller, verifiedOnly]);
 
   const visiblePages = useMemo(() => {
-    if (totalPages <= 3) return Array.from({ length: totalPages }, (_, index) => index + 1);
-    if (page === 1) return [1, 2, 3];
-    if (page === totalPages) return [totalPages - 2, totalPages - 1, totalPages];
+    if (totalPages <= 3) return Array.from({ length: totalPages }, (_, index) => index);
+    if (page === 0) return [0, 1, 2];
+    if (page === totalPages - 1) return [totalPages - 3, totalPages - 2, totalPages - 1];
     return [page - 1, page, page + 1];
   }, [page, totalPages]);
 
@@ -215,9 +169,9 @@ export function MarketplacePage() {
         <Sidebar theme="dark">
           <FilterSidebar
             query={query}
-            setQuery={(v) => { setQuery(v); setPage(1); }}
+            setQuery={setQuery}
             category={category}
-            setCategory={(v) => { setCategory(v); setPage(1); }}
+            setCategory={setCategory}
             minPrice={minPrice}
             setMinPrice={setMinPrice}
             maxPrice={maxPrice}
@@ -238,6 +192,8 @@ export function MarketplacePage() {
             setLocation={setLocation}
             sort={sort}
             setSort={setSort}
+            categories={categories}
+            applyFilters={applyFilters}
             resetFilters={resetFilters}
           />
         </Sidebar>
@@ -245,7 +201,7 @@ export function MarketplacePage() {
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <p className="text-sm text-slate-400">{filtered.length} {translate('results')}</p>
+              <p className="text-sm text-slate-400">{totalElements} {translate('results')}</p>
               <div className="h-6 w-px bg-white/5" />
               <div className="text-sm text-slate-300">{translate('view')}</div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-sm text-slate-300">
@@ -285,12 +241,12 @@ export function MarketplacePage() {
             </div>
           ) : error ? (
             <ErrorState title="Product load failed" description={error} />
-          ) : filtered.length === 0 ? (
+          ) : results.length === 0 ? (
             <EmptyState title="No products found" description="Try clearing filters or adjusting search criteria." />
           ) : (
             <div className={`${grid ? 'grid grid-cols-1 gap-4 justify-items-center md:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}`}>
-              {pageItems.map((product) => (
-                <div key={`${product.sellingType || 'listing'}-${product.id}`} className={`${grid ? 'w-full max-w-full sm:max-w-[340px] min-w-0' : 'rounded-[24px] border border-white/10 bg-slate-900/70 p-4 min-w-0'}`}>
+              {results.map((product) => (
+                <div key={`${product.isAuction ? 'auction' : 'listing'}-${product.id}`} className={`${grid ? 'w-full max-w-full sm:max-w-[340px] min-w-0' : 'rounded-[24px] border border-white/10 bg-slate-900/70 p-4 min-w-0'}`}>
                   <ProductCard
                     id={product.id}
                     title={product.title}
@@ -309,6 +265,12 @@ export function MarketplacePage() {
                     actionLabel={product.actionLabel}
                     currentBid={product.currentBid || (product.isAuction ? product.price : undefined)}
                     endsIn={product.endsIn}
+                    wishlistItemType={product.isAuction ? 'AUCTION' : 'PRODUCT'}
+                    wishlistProductId={product.isAuction ? undefined : product.id}
+                    wishlistAuctionId={product.isAuction ? product.auctionId : undefined}
+                    wishlistRecordId={wishlistByProductId[product.isAuction ? (product.auctionId ?? product.id) : product.id]?.id}
+                    initialFavorited={Boolean(wishlistByProductId[product.isAuction ? (product.auctionId ?? product.id) : product.id])}
+                    showAddToCart={!product.isAuction}
                   />
                 </div>
               ))}
@@ -316,17 +278,17 @@ export function MarketplacePage() {
           )}
 
           <div className="flex flex-col gap-4 rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-slate-400">Displaying {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} Listings</div>
+            <div className="text-sm text-slate-400">Displaying {totalElements === 0 ? 0 : page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalElements)} of {totalElements} Listings</div>
             <div className="inline-flex items-center gap-2 text-sm text-slate-300">
-              <button type="button" onClick={() => setPage(Math.max(1, page - 1))} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:bg-white/10 disabled:opacity-50" disabled={page === 1}>
+              <button type="button" onClick={() => setPage(Math.max(0, page - 1))} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:bg-white/10 disabled:opacity-50" disabled={page === 0 || totalPages === 0}>
                 <ArrowLeft className="h-4 w-4" /> {translate('previous')}
               </button>
               {visiblePages.map((pageNumber) => (
                 <button key={pageNumber} type="button" onClick={() => setPage(pageNumber)} className={`h-10 w-10 rounded-full border transition ${page === pageNumber ? 'border-blue-400/40 bg-blue-500/15 text-white' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>
-                  {pageNumber}
+                  {pageNumber + 1}
                 </button>
               ))}
-              <button type="button" onClick={() => setPage(Math.min(totalPages, page + 1))} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:bg-white/10 disabled:opacity-50" disabled={page === totalPages}>
+              <button type="button" onClick={() => setPage(Math.min(totalPages - 1, page + 1))} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:bg-white/10 disabled:opacity-50" disabled={totalPages === 0 || page >= totalPages - 1}>
                 {translate('next')} <ArrowRight className="h-4 w-4" />
               </button>
             </div>

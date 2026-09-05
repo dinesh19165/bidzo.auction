@@ -5,6 +5,8 @@ import { memo, useEffect, useMemo, useState, useCallback, type ReactNode } from 
 import ReactDOM from 'react-dom';
 import { showToast } from '../ui/toast';
 import { useLocaleContext } from '../../context/LocaleContext';
+import { notifyWishlistChanged, removeFromWishlist, toggleWishlist } from '../../api/wishlistApi';
+import { useCartContext } from '../../context/CartContext';
 
 interface ProductCardProps {
   id: string | number;
@@ -27,6 +29,12 @@ interface ProductCardProps {
   actionLabel?: string;
   actionLink?: string;
   showSellerMeta?: boolean;
+  wishlistItemType?: 'PRODUCT' | 'AUCTION';
+  wishlistProductId?: number;
+  wishlistAuctionId?: number;
+  wishlistRecordId?: number;
+  initialFavorited?: boolean;
+  showAddToCart?: boolean;
 }
 
 function parseCountdown(value?: string) {
@@ -75,8 +83,15 @@ export const ProductCard = memo(function ProductCard({
   actionLabel,
   actionLink,
   showSellerMeta = true,
+  wishlistItemType,
+  wishlistProductId,
+  wishlistAuctionId,
+  wishlistRecordId,
+  initialFavorited = false,
+  showAddToCart = false,
 }: ProductCardProps) {
   const [favorited, setFavorited] = useState<boolean>(() => {
+    if (initialFavorited) return true;
     try {
       const raw = localStorage.getItem('bidzo_favorites');
       if (!raw) return false;
@@ -86,10 +101,57 @@ export const ProductCard = memo(function ProductCard({
       return false;
     }
   });
+  const [savedWishlistId, setSavedWishlistId] = useState<number | undefined>(wishlistRecordId);
 
   const [quickOpen, setQuickOpen] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
+  const { addItem } = useCartContext();
+  const [cartPending, setCartPending] = useState(false);
 
-  const toggleFavorite = useCallback(() => {
+  const addToCart = useCallback(async () => {
+    if (cartPending) return;
+    setCartPending(true);
+    try {
+      await addItem(Number(id));
+      showToast('Added to cart', `${title} is ready for checkout.`, 'success');
+    } catch (error) {
+      showToast('Unable to add to cart', error instanceof Error ? error.message : 'Please try again.', 'warning');
+    } finally {
+      setCartPending(false);
+    }
+  }, [addItem, cartPending, id, title]);
+
+  const toggleFavorite = useCallback(async () => {
+    if (favoritePending) return;
+
+    if (wishlistItemType) {
+      setFavoritePending(true);
+      try {
+        if (favorited && savedWishlistId !== undefined) {
+          await removeFromWishlist(savedWishlistId);
+          setFavorited(false);
+          setSavedWishlistId(undefined);
+          notifyWishlistChanged({ productId: wishlistProductId, auctionId: wishlistAuctionId, wishlistId: savedWishlistId, saved: false });
+          showToast('Removed from favourites', 'The listing is no longer in your saved collection.', 'info');
+        } else {
+          const savedItem = await toggleWishlist({
+            itemType: wishlistItemType,
+            productId: wishlistProductId,
+            auctionId: wishlistAuctionId,
+          });
+          setFavorited(true);
+          setSavedWishlistId(savedItem.id);
+          notifyWishlistChanged({ productId: wishlistProductId, auctionId: wishlistAuctionId, wishlistId: savedItem.id, saved: true });
+          showToast('Added to favourites', 'Saved for your next bidding session.', 'success');
+        }
+      } catch (error) {
+        showToast('Unable to update favourites', error instanceof Error ? error.message : 'Please try again.', 'warning');
+      } finally {
+        setFavoritePending(false);
+      }
+      return;
+    }
+
     setFavorited((prev) => {
       const next = !prev;
       try {
@@ -107,7 +169,7 @@ export const ProductCard = memo(function ProductCard({
       } catch (e) {}
       return next;
     });
-  }, [id]);
+  }, [favoritePending, favorited, id, savedWishlistId, wishlistAuctionId, wishlistItemType, wishlistProductId]);
 
   const openQuickView = useCallback(() => setQuickOpen(true), []);
   const closeQuickView = useCallback(() => setQuickOpen(false), []);
@@ -247,6 +309,7 @@ export const ProductCard = memo(function ProductCard({
           <button type="button" onClick={toggleFavorite} className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Favorite listing">
             <Heart className={`h-4 w-4 transition-all duration-200 ${favorited ? 'text-rose-500' : ''}`} />
           </button>
+          {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60">{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
         </div>
       </div>
     </motion.article>

@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
 import { Footer } from './Footer';
+import { getMarketplaceCategories, type MarketplaceCategory } from '../api/marketplaceSearchApi';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -16,12 +17,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
+  const headerDropdownsRef = useRef<HTMLDivElement>(null);
+  const mobileProfileRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useThemeContext();
   const { language, currency, languageLabel, currencyLabel, setLanguage, setCurrency, translate, formatCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [headerSearch, setHeaderSearch] = useState('');
+  const [headerCategory, setHeaderCategory] = useState('All Categories');
+  const [marketplaceCategories, setMarketplaceCategories] = useState<MarketplaceCategory[]>([]);
   const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
+  useEffect(() => { getMarketplaceCategories().then(setMarketplaceCategories).catch(() => setMarketplaceCategories([])); }, []);
+  const submitHeaderSearch = () => {
+    const query = headerSearch.trim();
+    if (!query && headerCategory === 'All Categories') return;
+    const params = new URLSearchParams({ page: '0' });
+    if (query) params.set('q', query);
+    if (headerCategory !== 'All Categories') params.set('category', headerCategory);
+    navigate(`/search?${params.toString()}`);
+  };
   const languageOptions = [
     { key: 'en', label: 'English' },
     { key: 'hi', label: 'Hindi' },
@@ -52,6 +68,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
     // vendor/admin and other non-essential links intentionally omitted for mobile
   ];
 
+  useEffect(() => {
+    if (!languageMenuOpen && !currencyMenuOpen && !mobileProfileOpen) {
+      return;
+    }
+
+    const handleOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!headerDropdownsRef.current?.contains(target) && !mobileProfileRef.current?.contains(target)) {
+        setLanguageMenuOpen(false);
+        setCurrencyMenuOpen(false);
+        setMobileProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer);
+  }, [languageMenuOpen, currencyMenuOpen, mobileProfileOpen]);
+
   return (
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
@@ -61,13 +95,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span className="font-medium">{translate('freeShipping')}</span>
               <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{translate('onOrdersOver', { amount: '₹5,000' })}</span>
             </p>
-            <div className="flex flex-wrap items-center gap-2">
+            <div ref={headerDropdownsRef} className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => {
                     setLanguageMenuOpen((value) => !value);
                     setCurrencyMenuOpen(false);
+                    setMobileProfileOpen(false);
                   }}
                   className={`inline-flex items-center gap-2 rounded-full px-3 py-1 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
                   aria-expanded={languageMenuOpen}
@@ -77,7 +112,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
                 {languageMenuOpen ? (
-                  <div className={`absolute left-0 mt-2 w-44 overflow-hidden rounded-2xl border ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-200/40'}`}>
+                  <div className={`absolute left-0 top-full z-[60] mt-2 w-48 overflow-hidden rounded-xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-200/40'}`}>
                     {languageOptions.map((option) => (
                       <button
                         key={option.key}
@@ -86,7 +121,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           setLanguage(option.key);
                           setLanguageMenuOpen(false);
                         }}
-                        className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}
+                        className={`flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}
                       >
                         <span>{option.label}</span>
                         {language === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}
@@ -102,6 +137,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   onClick={() => {
                     setCurrencyMenuOpen((value) => !value);
                     setLanguageMenuOpen(false);
+                    setMobileProfileOpen(false);
                   }}
                   className={`inline-flex items-center gap-2 rounded-full px-3 py-1 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
                   aria-expanded={currencyMenuOpen}
@@ -111,7 +147,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
                 {currencyMenuOpen ? (
-                  <div className={`absolute left-0 mt-2 w-44 overflow-hidden rounded-2xl border ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-200/40'}`}>
+                  <div className={`absolute left-0 top-full z-[60] mt-2 w-48 overflow-hidden rounded-xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-200/40'}`}>
                     {currencyOptions.map((option) => (
                       <button
                         key={option.key}
@@ -120,7 +156,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           setCurrency(option.key);
                           setCurrencyMenuOpen(false);
                         }}
-                        className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}
+                        className={`flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}
                       >
                         <span>{option.label}</span>
                         {currency === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}
@@ -155,18 +191,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className={`hidden min-w-0 flex-1 items-center gap-2 rounded-full px-2 py-1.5 lg:flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-900/70' : 'border border-slate-200 bg-white shadow-sm'}`}>
-            <button type="button" aria-label="Focus search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+            <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               <Search className="h-4 w-4" />
             </button>
             <input
               ref={desktopSearchRef}
+              value={headerSearch}
+              onChange={(event) => setHeaderSearch(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }}
               placeholder={translate('searchPlaceholder')}
               className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
             />
-            <div className={`hidden items-center gap-1 rounded-full px-2 py-1 text-sm xl:inline-flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300' : 'border border-slate-300 bg-slate-100 text-slate-900'}`}>
-              {translate('allCategories')}
-              <ChevronDown className="h-3.5 w-3.5" />
-            </div>
+            <select aria-label="Search category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} className={`hidden rounded-full px-2 py-1 text-sm outline-none xl:inline-flex ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300' : 'border border-slate-300 bg-slate-100 text-slate-900'}`}><option>All Categories</option>{marketplaceCategories.map((item) => <option key={item.id}>{item.name}</option>)}</select>
             <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               <Mic className="h-4 w-4" />
             </button>
@@ -177,7 +213,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 md:hidden">
-            <button type="button" onClick={() => setMobileSearchOpen((value) => !value)} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+            <button type="button" onClick={() => { setMobileSearchOpen((value) => !value); setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
               <Search className="h-4 w-4" />
             </button>
             {/* Mobile auth: if not logged in show Login/Register, else show compact profile trigger with dropdown */}
@@ -189,8 +225,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Link to="/register" className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">Register</Link>
               </>
             ) : (
-              <div className="relative">
-                <button type="button" onClick={() => setMobileProfileOpen((v) => !v)} className="inline-flex items-center justify-center rounded-full border p-2">
+              <div ref={mobileProfileRef} className="relative">
+                <button type="button" onClick={() => { setMobileProfileOpen((v) => !v); setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className="inline-flex items-center justify-center rounded-full border p-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">{user.name ? user.name.split(' ').map((s) => s[0]).slice(0,2).join('') : 'U'}</div>
                 </button>
                 {mobileProfileOpen ? (
@@ -205,7 +241,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             )}
 
-            <button type="button" onClick={() => setMobileMenuOpen(true)} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+            <button type="button" onClick={() => { setMobileMenuOpen(true); setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
               <Menu className="h-4 w-4" />
             </button>
           </div>
@@ -215,7 +251,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className={`border-t px-4 py-3 md:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
             <div className={`flex items-center gap-2 rounded-full px-3 py-2 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-950/70' : 'border border-slate-200 bg-slate-100'}`}>
               <Search className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
-              <input placeholder="Search products, auctions, sellers..." className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
+              <input value={headerSearch} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products, auctions, sellers..." className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
             </div>
           </div>
         ) : null}
@@ -294,7 +330,8 @@ function AuthActions() {
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const initials = user ? user.name.split(' ').map((s) => s[0]).slice(0, 2).join('') : '';
+  const displayName = user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || 'User';
+  const initials = user ? displayName.split(/\s+/).map((s) => s[0]).slice(0, 2).join('').toUpperCase() : '';
   const isAdmin = user?.type === 'admin' || ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user?.role || '');
   const isCustomer = user?.type === 'customer' || user?.role === 'CUSTOMER';
 
@@ -356,6 +393,11 @@ function AuthActions() {
 
   return (
     <div ref={profileRef} className="flex items-center gap-3">
+      {user && isCustomer ? (
+        <Link to="/customer/cart" className="inline-flex items-center justify-center rounded-full bg-blue-600 p-2 text-white transition hover:bg-blue-500">
+          <ShoppingBag className="h-4 w-4" />
+        </Link>
+      ) : null}
       {!user ? (
         <>
           <Link to="/login" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Login</Link>
@@ -366,7 +408,7 @@ function AuthActions() {
         <div className="relative">
           <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-slate-200">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">{initials}</div>
-            <span className="hidden sm:inline">{user.name}</span>
+            <span className="hidden sm:inline">{displayName}</span>
             <ChevronDown className="h-4 w-4" />
           </button>
           {open ? createPortal(
@@ -401,9 +443,6 @@ function AuthActions() {
       )}
 
       <Link to={user && ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user.role || '') ? '/admin/super-dashboard' : '/admin/login'} className="rounded-full border border-blue-400/30 bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-600/20">ERP Admin</Link>
-      <Link to="/customer/checkout" className="inline-flex items-center justify-center rounded-full bg-blue-600 p-2 text-white transition hover:bg-blue-500">
-        <ShoppingBag className="h-4 w-4" />
-      </Link> 
     </div>
   );
 }
