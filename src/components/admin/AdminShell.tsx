@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom';
 import Logo from '../Logo';
 import type { ReactNode } from 'react';
-import { Activity, Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, LayoutGrid, LogOut, Megaphone, Search, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
+import { BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, LayoutGrid, LogOut, Megaphone, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 type Breadcrumb = { label: string; to?: string };
@@ -69,12 +69,6 @@ export function AdminShell({ title, subtitle, breadcrumbs = [], children, active
                 <h1 className="mt-1 text-2xl font-semibold text-white">{subtitle}</h1>
               </div>
               <div className="flex items-center gap-2">
-                <button className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10">
-                  <Search className="h-4 w-4" />
-                </button>
-                <button className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10">
-                  <Bell className="h-4 w-4" />
-                </button>
                 {actions}
               </div>
             </div>
