@@ -18,6 +18,7 @@ import {
   Shield,
   ShieldCheck,
   Smartphone,
+  ShoppingBag,
   Sparkles,
   Upload,
   Wallet,
@@ -26,7 +27,7 @@ import {
 } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
 import { markAuctionAsRegistered, markRegistrationPaid, readAuctionFlowState, writeAuctionFlowState } from '../utils/auctionFlowState';
-import { useAuth } from '../context/AuthContext';
+import { getPortalHome, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { getOtpDeliveryPreference, normalizeOtpDeliveryChannel, type OtpDeliveryChannel } from '../api/adminSettingsApi';
 import {
@@ -39,8 +40,19 @@ import {
   verifyRegistrationOtp,
   verifyResetOtp,
 } from '../api/authApi';
-import { getVendorDocuments, uploadVendorDocument } from '../api/vendorApi';
-import { useEffect, useState, type ChangeEvent, type DragEvent } from 'react';
+import { getVendorDocuments, uploadVendorDocument, type VendorDocumentRecord } from '../api/vendorApi';
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+
+function friendlyAuthError(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : '';
+  const normalized = message.toLowerCase();
+  if (normalized.includes('invalid') && (normalized.includes('otp') || normalized.includes('code'))) return 'That OTP is incorrect. Please check the code and try again.';
+  if (normalized.includes('expired')) return 'This OTP has expired. Please request a new code.';
+  if (normalized.includes('already') || normalized.includes('exist') || normalized.includes('duplicate')) return 'An account with these details already exists. Try signing in instead.';
+  if (normalized.includes('network') || normalized.includes('fetch') || normalized.includes('failed to fetch')) return "We couldn't complete your request right now. Please try again.";
+  if (message && !/exception|stack|at\s+\w+\s*\(/i.test(message)) return message;
+  return fallback;
+}
 
 const verificationSteps = [
   { title: 'Email verification', done: true },
@@ -161,27 +173,27 @@ export function LoginPage() {
     {
       value: 'customer',
       label: 'Customer',
-      description: 'Buy products, join auctions, track orders',
+      description: 'Buy products, bid in auctions and manage your orders.',
       features: ['Buy products', 'Participate in auctions', 'Track orders'],
     },
     {
       value: 'vendor',
       label: 'Vendor',
-      description: 'Sell products, manage auctions, grow sales',
+      description: 'Sell products, create auctions and grow your business.',
       features: ['Sell products', 'Create and manage auctions', 'Manage orders and sales'],
     },
   ];
 
   const roleCopy = selectedRole === 'customer'
     ? {
-        heading: 'Secure sign-in for buyers',
-        description: 'Use your buyer account credentials to continue safely into your Bidzo workspace.',
+        heading: 'Customer Login',
+        description: 'Sign in to buy products, bid in live auctions and manage your account.',
         onboardingTitle: 'Customer onboarding',
         onboardingMessage: 'Protected checkout, instant bidding access, and order updates stay in one secure experience.',
       }
     : {
-        heading: 'Secure sign-in for sellers',
-        description: 'Use your seller account credentials to continue safely into your Bidzo workspace.',
+        heading: 'Vendor Login',
+        description: 'Sign in to manage your products, auctions and payouts.',
         onboardingTitle: 'Vendor onboarding',
         onboardingMessage: 'Seller verification, approval steps, and daily visibility into orders and sales stay streamlined.',
       };
@@ -201,7 +213,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      navigate(user.role === 'ADMIN' ? '/admin/super-dashboard' : user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer', { replace: true });
+      navigate(getPortalHome(user), { replace: true });
     }
   }, [navigate, user]);
 
@@ -228,15 +240,10 @@ export function LoginPage() {
     setIsSubmitting(true);
     try {
       const user = await login(identifier, password, selectedRole);
-      const redirectTo =
-        user.role === 'ADMIN' ? '/admin/super-dashboard' :
-        user.type === 'vendor' ? '/dashboards/vendor' :
-        user.type === 'delivery' ? '/delivery' :
-        user.type === 'support' ? '/support-tickets' :
-        '/dashboards/customer';
+      const redirectTo = getPortalHome(user);
       navigate(redirectTo, { replace: true });
     } catch (error) {
-      setErrors({ identifier: 'Login failed. Check your credentials and try again.' });
+      setErrors({ identifier: friendlyAuthError(error, 'Email/mobile number or password is incorrect.') });
     } finally {
       setIsSubmitting(false);
     }
@@ -286,10 +293,10 @@ export function LoginPage() {
             </div>
 
             <h3 className={`mt-4 text-3xl font-semibold sm:text-4xl ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
-              {selectedRole === 'vendor' ? 'Welcome back, Vendor' : 'Welcome back, Customer'}
+              Welcome back to Bidzo
             </h3>
             <p className={`mt-2 text-sm sm:text-base ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-              {selectedRole === 'vendor' ? 'Sign in to manage your marketplace' : 'Sign in to discover products and auctions'}
+              Sign in to continue to your account
             </p>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -324,6 +331,10 @@ export function LoginPage() {
             </div>
 
             <div className="mt-6 space-y-4">
+              <div className={`rounded-2xl border p-4 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
+                <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>{roleCopy.heading}</p>
+                <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{roleCopy.description}</p>
+              </div>
               {notice ? <p className="text-sm text-emerald-300">{notice}</p> : null}
               <label className="block">
                 <span className={`mb-2 flex items-center gap-2 text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-900'}`}>
@@ -436,21 +447,24 @@ export function LoginPage() {
 
 export function RegisterPage() {
   return (
-    <SectionShell title="Register" subtitle="Choose account">
-      <div className="mx-auto flex max-w-3xl flex-col gap-4 rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
-        <div className="flex items-start gap-3 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
-          <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-300" />
-          <div>
-            <p className="text-sm font-semibold text-white">Start with a secure, guided onboarding flow</p>
-            <p className="mt-1 text-sm text-slate-300">Create your account in a few polished steps and verify your identity with confidence.</p>
-          </div>
-        </div>
+    <SectionShell title="Create your Bidzo account" subtitle="Choose how you want to use Bidzo.">
+      <div className="mx-auto max-w-4xl rounded-[28px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
         <ProgressIndicator activeStep={0} />
-        <div className="flex justify-start">
-          <Link to="/register/customer" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 sm:w-auto">
-            Continue to customer registration <ArrowRight className="h-4 w-4" />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Link to="/register/customer" className="group rounded-[24px] border border-blue-400/30 bg-blue-500/10 p-6 transition hover:-translate-y-1 hover:border-blue-300/60">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-200"><ShoppingBag className="h-6 w-6" /></div>
+            <h2 className="mt-5 text-xl font-semibold text-white">Customer</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-300">Shop, bid and manage your purchases.</p>
+            <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-blue-200">Create customer account <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></span>
+          </Link>
+          <Link to="/register/vendor" className="group rounded-[24px] border border-emerald-400/30 bg-emerald-500/10 p-6 transition hover:-translate-y-1 hover:border-emerald-300/60">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-200"><Briefcase className="h-6 w-6" /></div>
+            <h2 className="mt-5 text-xl font-semibold text-white">Vendor</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-300">Sell products, create auctions and receive payouts.</p>
+            <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-emerald-200">Create vendor account <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></span>
           </Link>
         </div>
+        <p className="mt-6 text-center text-sm text-slate-400">Already have an account? <Link to="/login" className="font-semibold text-cyan-300 hover:text-cyan-200">Sign in</Link></p>
       </div>
     </SectionShell>
   );
@@ -494,16 +508,16 @@ export function CustomerRegisterPage() {
 
     try {
       await registerCustomer(form, 'customer');
-      navigate('/otp', { replace: true, state: { role: 'customer', email: form.email, registrationData: form } });
+      navigate('/otp', { replace: true, state: { role: 'customer', email: form.email, phone: form.phone, registrationData: { phone: form.phone } } });
     } catch (error: any) {
-      setSubmitError(error?.message || 'Registration failed. Please try again.');
+      setSubmitError(friendlyAuthError(error, "We couldn't complete your request right now. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <SectionShell title="Customer registration" subtitle="Create your buyer profile">
+    <SectionShell title="Create your customer account" subtitle="Join Bidzo to discover products, bid in auctions and shop securely.">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <form onSubmit={submit} noValidate className={`rounded-[24px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-300 bg-white shadow-sm'}`}>
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
@@ -541,36 +555,11 @@ export function CustomerRegisterPage() {
             </div>
             <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Find products you love and compete in real-time auctions.</p>
 
-            <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
-              <div className="flex items-center justify-between rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
-                <span>🔥 LIVE AUCTION</span>
-                <span className="rounded-full bg-cyan-500/20 px-2 py-1">01:12:08</span>
-              </div>
-              <div className="mt-4 rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.35),_transparent_45%),linear-gradient(135deg,_rgba(8,15,35,0.96),_rgba(15,23,42,1))] p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Product preview</p>
-                    <p className="mt-2 text-lg font-semibold text-white">Vintage Rolex</p>
-                  </div>
-                  <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">Live</div>
-                </div>
-                <div className="mt-5 flex items-end justify-between">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Current bid</p>
-                    <p className="mt-1 text-3xl font-semibold text-white">₹12,500</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-right text-sm text-slate-300">
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Bids</p>
-                    <p className="mt-1 font-semibold text-white">128</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {['❤️ Saved', '⚡ Live Bidding', '🏆 Winning Bid'].map((chip) => (
-                  <span key={chip} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1.5 text-[11px] font-medium text-slate-200">
-                    {chip}
-                  </span>
-                ))}
+            <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-5 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
+              <p className="text-sm font-semibold text-white">Your customer workspace</p>
+              <p className="mt-2 text-sm leading-6 text-slate-400">Browse real inventory, save products, place bids and follow your orders from one account.</p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {['Browse products', 'Bid in auctions', 'Track orders'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-center text-xs text-slate-300">{item}</div>)}
               </div>
             </div>
 
@@ -643,16 +632,16 @@ export function VendorRegisterPage() {
       }
 
       setStoredVendorProfileId(vendorId);
-      navigate('/otp', { replace: true, state: { role: 'vendor', email: form.email, registrationData: form, vendorId } });
+      navigate('/otp', { replace: true, state: { role: 'vendor', email: form.email, phone: form.phone, registrationData: { phone: form.phone }, vendorId } });
     } catch (error: any) {
-      setSubmitError(error?.message || 'Registration failed. Please try again.');
+      setSubmitError(friendlyAuthError(error, "We couldn't complete your request right now. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <SectionShell title="Vendor registration" subtitle="Create your seller storefront">
+    <SectionShell title="Create your vendor account" subtitle="Start selling products and managing auctions on Bidzo.">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <form onSubmit={submit} noValidate className={`rounded-[24px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-300 bg-white shadow-sm'}`}>
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-emerald-300">
@@ -677,7 +666,7 @@ export function VendorRegisterPage() {
           </div>
           <div className={`mt-5 flex items-start gap-2 rounded-2xl border p-3 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
             <CircleAlert className="mt-0.5 h-4 w-4 text-amber-300" />
-            Verified seller accounts unlock inventory, auction tools, and premium analytics.
+            <span><strong>Next step: Complete KYC verification.</strong> Your account must be verified before you can start selling.</span>
           </div>
           <button type="submit" disabled={isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
             {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : <><span>Continue to verification</span><ArrowRight className="h-4 w-4" /></>}
@@ -693,37 +682,19 @@ export function VendorRegisterPage() {
             </div>
             <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Powerful tools to sell, auction and grow your business.</p>
 
-            <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
+            <div className="mt-5 rounded-[28px] border border-white/10 bg-slate-950/70 p-5 shadow-[0_20px_45px_rgba(2,6,23,0.35)]">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-400 shadow-lg shadow-emerald-500/20">
                   <Briefcase className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-lg font-semibold text-white">Seller Dashboard</p>
-                  <p className="text-sm text-slate-400">Everything to manage your store</p>
+                  <p className="text-lg font-semibold text-white">Vendor workspace</p>
+                  <p className="text-sm text-slate-400">Tools for products, auctions and payouts</p>
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {[
-                  { label: 'Products', value: '128' },
-                  { label: 'Live Auctions', value: '24' },
-                  { label: 'Orders', value: '86' },
-                  { label: 'Sales', value: '₹2.4L' },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">{item.label}</p>
-                    <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {['✓ Verified Seller', '₹2.4L Sales', '24 Active Listings'].map((chip) => (
-                  <span key={chip} className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1.5 text-[11px] font-medium text-slate-200">
-                    {chip}
-                  </span>
-                ))}
+              <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+                Complete vendor verification after registration to unlock selling tools.
               </div>
             </div>
 
@@ -741,6 +712,7 @@ export function OTPPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { pendingRole, clearPendingRole } = useAuth();
+  const { theme } = useThemeContext();
   const state = (location.state || {}) as { role?: 'customer' | 'vendor'; email?: string; phone?: string; flow?: 'registration' | 'reset'; registrationData?: Record<string, string>; vendorId?: string | number; vendorProfileId?: string | number };
   const email = state.email || '';
   const phone = state.phone || state.registrationData?.phone || '';
@@ -750,6 +722,7 @@ export function OTPPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState('');
+  const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [otpChannel, setOtpChannel] = useState<OtpDeliveryChannel>('EMAIL');
   const [channelLoaded, setChannelLoaded] = useState(false);
   const [resendNotice, setResendNotice] = useState('');
@@ -839,7 +812,7 @@ export function OTPPage() {
       if (flow !== 'reset') {
         setMessage(`A verification OTP has been sent to ${deliveryValue}.`);
       }
-      setError(reason instanceof Error ? reason.message : 'Unable to verify the OTP. Please try again.');
+      setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -870,7 +843,7 @@ export function OTPPage() {
       }
       setOtp(''); setSecondsLeft(600);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : 'Unable to resend the OTP. Please try again.');
+      setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again."));
     } finally {
       setIsResending(false);
     }
@@ -878,20 +851,32 @@ export function OTPPage() {
 
   const minutes = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
   const seconds = (secondsLeft % 60).toString().padStart(2, '0');
+  const updateOtpDigit = (index: number, value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (!digits) return;
+    const next = otp.padEnd(6, ' ').split('');
+    digits.slice(0, 6 - index).split('').forEach((digit, offset) => { next[index + offset] = digit; });
+    const nextOtp = next.join('').replace(/\s/g, '').slice(0, 6);
+    setOtp(nextOtp);
+    setError('');
+    otpRefs.current[Math.min(index + digits.length, 5)]?.focus();
+  };
 
   return (
-    <SectionShell title="OTP verification" subtitle={channelLoaded ? `Enter the code sent to your ${deliveryLabel}` : 'Enter the code sent to your email'}>
-      <div className="mx-auto w-full max-w-2xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 text-center sm:p-8">
+    <SectionShell title="Verify your account" subtitle={channelLoaded ? `OTP sent to your ${deliveryLabel}` : 'OTP sent to your email'}>
+      <div className={`mx-auto w-full max-w-2xl rounded-[24px] border p-4 text-center sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
         <div className="flex items-center justify-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
           <ShieldCheck className="h-4 w-4" /> Secure confirmation
         </div>
         <ProgressIndicator activeStep={1} />
-        <p className="mt-2 text-slate-300">{message || `A verification OTP has been sent to ${deliveryValue}.`}</p>
+        <p className={`mt-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{message || `A verification OTP has been sent to ${deliveryValue}.`}</p>
         {resendNotice ? <p className="mt-2 text-sm font-medium text-emerald-300">{resendNotice}</p> : null}
         {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
-        <input aria-label="6-digit OTP" inputMode="numeric" maxLength={6} autoComplete="one-time-code" value={otp} onChange={(event) => { setOtp(event.target.value.replace(/\D/g, '').slice(0, 6)); setError(''); }} onPaste={(event) => { event.preventDefault(); setOtp(event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)); }} className="mx-auto mt-5 block w-full max-w-xs rounded-2xl border border-blue-400/20 bg-slate-950/60 px-4 py-3 text-center text-2xl tracking-[0.5em] text-white outline-none" placeholder="000000" />
+        <div className="mx-auto mt-5 flex max-w-xs justify-center gap-2" onPaste={(event) => { event.preventDefault(); const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6); setOtp(pasted); setError(''); otpRefs.current[Math.min(pasted.length, 5)]?.focus(); }}>
+          {Array.from({ length: 6 }).map((_, index) => <input key={index} ref={(element) => { otpRefs.current[index] = element; }} aria-label={`OTP digit ${index + 1}`} inputMode="numeric" maxLength={1} autoComplete={index === 0 ? 'one-time-code' : 'off'} value={otp[index] || ''} onChange={(event) => updateOtpDigit(index, event.target.value)} onKeyDown={(event) => { if (event.key === 'Backspace' && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus(); }} className="h-12 w-10 rounded-xl border border-blue-400/20 bg-slate-950/60 text-center text-xl font-semibold text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-400/20 sm:h-14 sm:w-12" />)}
+        </div>
         <p className={`mt-3 text-sm ${secondsLeft ? 'text-slate-400' : 'text-red-400'}`}>{secondsLeft ? `OTP expires in ${minutes}:${seconds}` : 'This OTP has expired.'}</p>
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+        <div className={`mt-6 rounded-2xl border p-4 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
           A one-time code keeps your account protected while we verify your identity.
         </div>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
@@ -909,6 +894,7 @@ export function OTPPage() {
 
 export function ForgotPasswordPage() {
   const navigate = useNavigate();
+  const { theme } = useThemeContext();
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -916,22 +902,23 @@ export function ForgotPasswordPage() {
     if (!email.trim()) { setError('Enter your registered email.'); return; }
     setIsSubmitting(true); setError('');
     try { await forgotPassword(email.trim()); navigate('/otp', { replace: true, state: { email: email.trim(), flow: 'reset' } }); }
-    catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Unable to send the password reset OTP.'); }
+    catch (reason: unknown) { setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again.")); }
     finally { setIsSubmitting(false); }
   };
   return (
     <SectionShell title="Forgot password" subtitle="Reset access securely">
-      <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+      <div className={`mx-auto max-w-xl rounded-[24px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
         <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
           <Shield className="h-4 w-4" /> Recovery request
         </div>
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
+        <div className={`mt-4 flex items-center gap-3 rounded-2xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-100'}`}>
           <Mail className="h-4 w-4 text-blue-300" />
-          <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="Registered email" />
+          <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} className={`w-full bg-transparent text-sm outline-none placeholder:text-slate-500 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} placeholder="Registered email" />
         </div>
+        <div className={`mt-4 grid gap-2 text-xs sm:grid-cols-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{['Enter email', 'Receive OTP', 'Verify OTP', 'New password', 'Sign in'].map((step, index) => <div key={step} className="rounded-xl border border-white/10 px-2 py-2 text-center"><span className="mr-1 font-semibold text-cyan-300">{index + 1}</span>{step}</div>)}</div>
         {error ? <p className="mt-3 text-sm text-amber-300">{error}</p> : null}
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          We’ll email you a secure link to restore access to your Bidzo account.
+        <div className={`mt-4 rounded-2xl border p-4 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+          We’ll send a one-time code to your registered email so you can securely restore access.
         </div>
         <button onClick={submit} disabled={isSubmitting} className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60 sm:w-auto">{isSubmitting ? 'Sending…' : 'Send reset OTP'}</button>
       </div>
@@ -942,6 +929,7 @@ export function ForgotPasswordPage() {
 export function ResetPasswordPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { theme } = useThemeContext();
   const state = (location.state || {}) as { email?: string; otp?: string };
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -953,23 +941,23 @@ export function ResetPasswordPage() {
     if (password !== confirmPassword) { setError('Passwords do not match.'); return; }
     setIsSubmitting(true); setError('');
     try { await resetPassword({ email: state.email, otp: state.otp, newPassword: password }); navigate('/login', { replace: true, state: { message: 'Password reset successfully. Please sign in.' } }); }
-    catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Unable to reset your password.'); }
+    catch (reason: unknown) { setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again.")); }
     finally { setIsSubmitting(false); }
   };
   return (
     <SectionShell title="Reset password" subtitle="Create a new password">
-      <div className="mx-auto max-w-xl rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
+      <div className={`mx-auto max-w-xl rounded-[24px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
         <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-blue-300">
           <Lock className="h-4 w-4" /> New credentials
         </div>
         <div className="mt-4 space-y-4">
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
+          <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-100'}`}>
             <Lock className="h-4 w-4 text-slate-400" />
-            <input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="New password" />
+            <input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} className={`w-full bg-transparent text-sm outline-none placeholder:text-slate-500 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} placeholder="New password" />
           </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
+          <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-100'}`}>
             <Lock className="h-4 w-4 text-slate-400" />
-            <input type="password" value={confirmPassword} onChange={(event) => { setConfirmPassword(event.target.value); setError(''); }} className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" placeholder="Confirm password" />
+            <input type="password" value={confirmPassword} onChange={(event) => { setConfirmPassword(event.target.value); setError(''); }} className={`w-full bg-transparent text-sm outline-none placeholder:text-slate-500 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} placeholder="Confirm password" />
           </div>
         </div>
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
@@ -989,9 +977,13 @@ export function KYCPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
-  const [draggingField, setDraggingField] = useState<'aadhaar' | 'pan' | null>(null);
-  const [uploadingField, setUploadingField] = useState<'aadhaar' | 'pan' | null>(null);
-  const [documentErrors, setDocumentErrors] = useState<Record<'aadhaar' | 'pan', string | null>>({ aadhaar: null, pan: null });
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [existingDocuments, setExistingDocuments] = useState<Record<'aadhaar' | 'pan' | 'selfie', VendorDocumentRecord | null>>({ aadhaar: null, pan: null, selfie: null });
+  const [documentsLoading, setDocumentsLoading] = useState(true);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [draggingField, setDraggingField] = useState<'aadhaar' | 'pan' | 'selfie' | null>(null);
+  const [uploadingField, setUploadingField] = useState<'aadhaar' | 'pan' | 'selfie' | null>(null);
+  const [documentErrors, setDocumentErrors] = useState<Record<'aadhaar' | 'pan' | 'selfie', string | null>>({ aadhaar: null, pan: null, selfie: null });
 
   const kycStorageKey = 'bidzo_vendor_kyc_documents';
 
@@ -1010,12 +1002,51 @@ export function KYCPage() {
   };
 
   useEffect(() => {
+    const routeState = location.state as { vendorId?: string | number; vendorProfileId?: string | number } | null;
+    const authenticatedVendorId = user?.vendorProfileId ?? user?.vendorId;
+    const stateVendorId = routeState?.vendorId ?? routeState?.vendorProfileId ?? authenticatedVendorId;
+    const vendorProfileId = stateVendorId !== undefined && stateVendorId !== null && stateVendorId !== '' ? Number(stateVendorId) || String(stateVendorId) : undefined;
+
+    if (vendorProfileId === undefined) {
+      setDocumentsLoading(false);
+      setDocumentsError('Vendor profile ID is missing. Please authenticate and reopen the KYC flow.');
+      return;
+    }
+
+    let active = true;
+    getVendorDocuments(vendorProfileId)
+      .then((documents) => {
+        if (!active) return;
+        const next: Record<'aadhaar' | 'pan' | 'selfie', VendorDocumentRecord | null> = { aadhaar: null, pan: null, selfie: null };
+        documents.forEach((document) => {
+          const type = String(document.documentType ?? document.type ?? '').toUpperCase();
+          if (type === 'ID_PROOF' || type.includes('AADHAAR') || type.includes('IDENTITY')) next.aadhaar = document;
+          if (type === 'PAN') next.pan = document;
+          if (type === 'SELFIE') next.selfie = document;
+        });
+        setExistingDocuments(next);
+        setDocumentsError(null);
+      })
+      .catch((error) => {
+        if (active) setDocumentsError(error instanceof Error ? error.message : 'Unable to load existing KYC documents.');
+      })
+      .finally(() => {
+        if (active) setDocumentsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [location.state, user?.vendorId, user?.vendorProfileId]);
+
+  useEffect(() => {
     try {
       const raw = window.localStorage.getItem(kycStorageKey);
       if (!raw) return;
-      const stored = JSON.parse(raw) as Partial<Record<'aadhaar' | 'pan', { name: string; size: number; type: string }>>;
+      const stored = JSON.parse(raw) as Partial<Record<'aadhaar' | 'pan' | 'selfie', { name: string; size: number; type: string }>>;
       if (stored.aadhaar) setAadhaarFile(createStoredFile(stored.aadhaar.name, stored.aadhaar.size, stored.aadhaar.type));
       if (stored.pan) setPanFile(createStoredFile(stored.pan.name, stored.pan.size, stored.pan.type));
+      if (stored.selfie) setSelfieFile(createStoredFile(stored.selfie.name, stored.selfie.size, stored.selfie.type));
     } catch {
       // Ignore corrupted local state and keep blank uploads.
     }
@@ -1025,17 +1056,19 @@ export function KYCPage() {
     const payload = {
       aadhaar: aadhaarFile ? { name: aadhaarFile.name, size: aadhaarFile.size, type: aadhaarFile.type } : null,
       pan: panFile ? { name: panFile.name, size: panFile.size, type: panFile.type } : null,
+      selfie: selfieFile ? { name: selfieFile.name, size: selfieFile.size, type: selfieFile.type } : null,
     };
     window.localStorage.setItem(kycStorageKey, JSON.stringify(payload));
-  }, [aadhaarFile, panFile]);
+  }, [aadhaarFile, panFile, selfieFile]);
 
   const submitKyc = async () => {
-    if (!aadhaarFile || !panFile) {
+    const isApproved = (document?: VendorDocumentRecord | null) => ['APPROVED', 'VERIFIED', 'COMPLETED', 'COMPLETE'].includes(String(document?.status ?? '').toUpperCase());
+    if ((!aadhaarFile && !existingDocuments.aadhaar) || (!panFile && !existingDocuments.pan)) {
       return;
     }
 
     setIsSubmitting(true);
-    setDocumentErrors({ aadhaar: null, pan: null });
+    setDocumentErrors({ aadhaar: null, pan: null, selfie: null });
 
     try {
       const routeState = location.state as { vendorId?: string | number; vendorProfileId?: string | number } | null;
@@ -1058,6 +1091,7 @@ export function KYCPage() {
       });
 
       const uploadAadhaar = async () => {
+        if (!aadhaarFile || isApproved(existingDocuments.aadhaar)) return;
         setUploadingField('aadhaar');
         console.debug('[Bidzo vendor KYC] uploading ID_PROOF before vendor document call', {
           vendorId: vendorProfileId,
@@ -1068,6 +1102,7 @@ export function KYCPage() {
       };
 
       const uploadPan = async () => {
+        if (!panFile || isApproved(existingDocuments.pan)) return;
         setUploadingField('pan');
         console.debug('[Bidzo vendor KYC] uploading PAN before vendor document call', {
           vendorId: vendorProfileId,
@@ -1077,12 +1112,27 @@ export function KYCPage() {
         await uploadVendorDocument(vendorProfileId, 'PAN', panFile);
       };
 
+      const uploadSelfie = async () => {
+        if (!selfieFile) return;
+        setUploadingField('selfie');
+        await uploadVendorDocument(vendorProfileId, 'SELFIE', selfieFile);
+      };
+
       await uploadAadhaar();
       await uploadPan();
+      await uploadSelfie();
 
       const uploadedDocs = await getVendorDocuments(vendorProfileId);
+      const nextDocuments: Record<'aadhaar' | 'pan' | 'selfie', VendorDocumentRecord | null> = { aadhaar: null, pan: null, selfie: null };
       const normalizedTypes = uploadedDocs.map((doc) => String(doc.documentType ?? doc.type ?? '').toUpperCase());
-      const hasIdProof = normalizedTypes.includes('ID_PROOF');
+      uploadedDocs.forEach((doc) => {
+        const type = String(doc.documentType ?? doc.type ?? '').toUpperCase();
+        if (type === 'ID_PROOF' || type.includes('AADHAAR') || type.includes('IDENTITY')) nextDocuments.aadhaar = doc;
+        if (type === 'PAN') nextDocuments.pan = doc;
+        if (type === 'SELFIE') nextDocuments.selfie = doc;
+      });
+      setExistingDocuments(nextDocuments);
+      const hasIdProof = normalizedTypes.some((type) => type === 'ID_PROOF' || type.includes('AADHAAR') || type.includes('IDENTITY'));
       const hasPan = normalizedTypes.includes('PAN');
       console.debug('[Bidzo vendor KYC] persisted documents', { vendorProfileId, normalizedTypes });
 
@@ -1096,6 +1146,7 @@ export function KYCPage() {
       setDocumentErrors({
         aadhaar: message,
         pan: message,
+        selfie: message,
       });
     } finally {
       setUploadingField(null);
@@ -1103,29 +1154,30 @@ export function KYCPage() {
     }
   };
 
-  const validateDocument = (file: File | null, field: 'aadhaar' | 'pan') => {
+  const validateDocument = (file: File | null, field: 'aadhaar' | 'pan' | 'selfie') => {
     if (!file) return null;
     setDocumentErrors((current) => ({ ...current, [field]: null }));
     return file;
   };
 
-  const handleFileSelection = async (file: File | null, field: 'aadhaar' | 'pan') => {
+  const handleFileSelection = async (file: File | null, field: 'aadhaar' | 'pan' | 'selfie') => {
     if (!file) return;
 
     const validFile = validateDocument(file, field);
     if (!validFile) return;
 
     if (field === 'aadhaar') setAadhaarFile(validFile);
-    else setPanFile(validFile);
+    else if (field === 'pan') setPanFile(validFile);
+    else setSelfieFile(validFile);
   };
 
-  const handleInputChange = (event: ChangeEvent<HTMLInputElement>, field: 'aadhaar' | 'pan') => {
+  const handleInputChange = (event: ChangeEvent<HTMLInputElement>, field: 'aadhaar' | 'pan' | 'selfie') => {
     const file = event.target.files?.[0] ?? null;
     handleFileSelection(file, field);
     event.target.value = '';
   };
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>, field: 'aadhaar' | 'pan') => {
+  const handleDrop = (event: DragEvent<HTMLDivElement>, field: 'aadhaar' | 'pan' | 'selfie') => {
     event.preventDefault();
     setDraggingField(null);
     const file = event.dataTransfer.files?.[0] ?? null;
@@ -1137,14 +1189,16 @@ export function KYCPage() {
     description,
     field,
     file,
+    existingDocument,
     accent,
     accept,
     note,
   }: {
     title: string;
     description: string;
-    field: 'aadhaar' | 'pan';
+    field: 'aadhaar' | 'pan' | 'selfie';
     file: File | null;
+    existingDocument: VendorDocumentRecord | null;
     accent: 'blue' | 'emerald';
     accept: string;
     note: string;
@@ -1154,6 +1208,9 @@ export function KYCPage() {
       ? 'border-emerald-400/20 bg-emerald-500/10'
       : 'border-blue-400/20 bg-blue-500/10';
     const isUploading = uploadingField === field;
+    const existingStatus = String(existingDocument?.status ?? '').toUpperCase();
+    const statusLabel = existingDocument ? existingStatus === 'APPROVED' || existingStatus === 'VERIFIED' ? 'Approved' : existingStatus === 'REJECTED' ? 'Rejected' : existingStatus === 'CHANGES_REQUESTED' ? 'Requires changes' : existingStatus === 'IN_REVIEW' ? 'In review' : 'Pending' : 'Not uploaded';
+    const statusClass = statusLabel === 'Approved' ? 'text-emerald-300' : statusLabel === 'Rejected' || statusLabel === 'Requires changes' ? 'text-red-300' : statusLabel === 'Pending' || statusLabel === 'In review' ? 'text-amber-300' : 'text-slate-300';
 
     return (
       <div
@@ -1172,11 +1229,13 @@ export function KYCPage() {
             <p className="text-sm font-semibold text-white">{title}</p>
             <p className="mt-1 text-xs text-slate-400">{description}</p>
           </div>
-          {file ? <CheckCircle2 className="h-5 w-5 text-emerald-300" /> : <Upload className="h-5 w-5 text-slate-300" />}
+          <span className={`text-xs font-medium ${statusClass}`}>{statusLabel}</span>
         </div>
         <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-400">
-          {file ? <span className="text-emerald-200">Uploaded: {file.name} • {formatFileSize(file.size)}</span> : note}
+          {file ? <span className="text-emerald-200">Selected: {file.name} • {formatFileSize(file.size)}</span> : existingDocument?.fileName ? <span>Stored: {existingDocument.fileName}</span> : note}
         </div>
+        {existingDocument?.documentUrl || existingDocument?.url ? <a href={existingDocument.documentUrl ?? existingDocument.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-blue-300 underline">Preview existing document</a> : null}
+        {['REJECTED', 'CHANGES_REQUESTED'].includes(existingStatus) ? <p className="mt-2 text-xs text-red-300">{existingDocument?.reason ?? existingDocument?.remarks ?? 'Please re-upload this document.'}</p> : null}
         {documentErrors[field] ? <p className="mt-2 text-xs text-red-400">{documentErrors[field]}</p> : null}
         <label className={`mt-3 inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-slate-950/50 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:text-white ${isUploading ? 'cursor-not-allowed opacity-60' : ''}`}>
           {isUploading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
@@ -1187,7 +1246,7 @@ export function KYCPage() {
     );
   };
 
-  const hasAllRequiredDocuments = Boolean(aadhaarFile && panFile);
+  const hasAllRequiredDocuments = Boolean((aadhaarFile || existingDocuments.aadhaar) && (panFile || existingDocuments.pan));
 
   return (
     <SectionShell title="Vendor verification" subtitle="Complete identity verification">
@@ -1197,24 +1256,28 @@ export function KYCPage() {
             <FileCheck2 className="h-4 w-4" /> Verified identity
           </div>
           <ProgressIndicator activeStep={2} />
-          <p className="text-sm text-slate-300">Upload Aadhaar and PAN documents to complete seller verification.</p>
+          <p className="text-sm text-slate-300">Upload the identity documents required to complete seller verification.</p>
           <div className="mt-4 rounded-[24px] border border-dashed border-blue-400/20 bg-blue-500/10 p-6 text-center text-sm text-slate-300 sm:p-8">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-950/50">
               <Upload className="h-5 w-5 text-blue-200" />
             </div>
-            <p className="mt-3 font-semibold text-white">Upload Aadhaar and PAN for secure vendor verification</p>
+            <p className="mt-3 font-semibold text-white">Upload your KYC documents for secure vendor verification</p>
             <p className="mt-1 text-slate-300">JPG, JPEG, PNG up to 10MB</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-slate-400">
               <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1">Aadhaar</span>
               <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1">PAN</span>
+              <span className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-1">Selfie / Live Photo</span>
             </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {renderUploadCard({ title: 'Aadhaar card', description: 'Required for identity verification', field: 'aadhaar', file: aadhaarFile, accent: 'blue', accept: 'image/*,.pdf', note: 'Drag and drop or browse to upload' })}
-            {renderUploadCard({ title: 'PAN card', description: 'Required for tax and compliance review', field: 'pan', file: panFile, accent: 'emerald', accept: 'image/*,.pdf', note: 'Drag and drop or browse to upload' })}
+            {documentsLoading ? <div className="md:col-span-2 rounded-[20px] border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Loading existing KYC documents...</div> : null}
+            {documentsError ? <div className="md:col-span-2 rounded-[20px] border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300">Unable to load existing KYC documents. You can retry by refreshing the page.</div> : null}
+            {renderUploadCard({ title: 'Aadhaar / ID proof', description: 'Required for identity verification', field: 'aadhaar', file: aadhaarFile, existingDocument: existingDocuments.aadhaar, accent: 'blue', accept: 'image/*,.pdf', note: 'Drag and drop or browse to upload' })}
+            {renderUploadCard({ title: 'PAN card', description: 'Required for tax and compliance review', field: 'pan', file: panFile, existingDocument: existingDocuments.pan, accent: 'emerald', accept: 'image/*,.pdf', note: 'Drag and drop or browse to upload' })}
+            {renderUploadCard({ title: 'Selfie / Live Photo', description: 'Use the existing selfie verification requirement', field: 'selfie', file: selfieFile, existingDocument: existingDocuments.selfie, accent: 'blue', accept: 'image/*', note: 'Upload a clear face photo for identity verification' })}
           </div>
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
-            <div className="flex items-center gap-2 text-white"><CircleAlert className="h-4 w-4 text-amber-300" /> Aadhaar and PAN are required for vendor approval. Upload both to continue.</div>
+            <div className="flex items-center gap-2 text-white"><CircleAlert className="h-4 w-4 text-amber-300" /> Required documents and their approval status are checked by the backend.</div>
           </div>
           <button onClick={submitKyc} disabled={!hasAllRequiredDocuments || isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
             {isSubmitting ? 'Submitting verification…' : 'Submit KYC'} <ArrowRight className="h-4 w-4" />
@@ -1226,6 +1289,7 @@ export function KYCPage() {
           <ul className="mt-4 space-y-3 text-sm text-slate-300">
             <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Aadhaar card upload</li>
             <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />PAN card upload</li>
+            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />Selfie / Live Photo upload</li>
           </ul>
           <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
             <div className="flex items-center gap-2 text-white"><LoaderCircle className="h-4 w-4 text-blue-300" /> Reviews are usually completed within the same business day.</div>

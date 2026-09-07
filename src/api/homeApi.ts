@@ -2,63 +2,79 @@ import { fetchJson } from './apiClient';
 import type { ApiResponse } from '../types';
 
 export interface CategoryResponse {
-  id: number;
+  id: number | string;
   name: string;
   description?: string;
-  parentId?: number;
+  parentId?: number | string | null;
   icon?: string;
   count?: number;
 }
 
 export interface ProductResponse {
-  id: number;
+  id: number | string;
   name: string;
   description?: string;
-  price: number;
+  price?: number | string | null;
   sku?: string;
   status?: string;
-  brandId?: number;
-  categoryId?: number;
+  categoryId?: number | string | null;
+  categoryName?: string | null;
   sellingType?: 'DIRECT_BUY' | 'AUCTION' | null;
-  vendorId?: number;
-  image?: string;
-  images?: string[];
-  rating?: number;
-  reviews?: number;
+  vendorId?: number | string | null;
+  vendorName?: string | null;
+  image?: string | null;
+  imageUrl?: string | null;
+  images?: string[] | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  reviews?: number | null;
   verified?: boolean;
-  location?: string;
-  condition?: string;
-  seller?: string;
+  location?: string | null;
+  condition?: string | null;
+  seller?: string | null;
+  createdAt?: string | null;
+  salesCount?: number | null;
 }
 
 export interface AuctionResponse {
-  id: number;
+  id: number | string;
   title: string;
+  productName?: string | null;
   description?: string;
-  startAt: string;
-  endAt: string;
-  startingPrice: number;
+  startAt?: string | null;
+  endAt?: string | null;
+  startingPrice?: number | string | null;
+  currentBid?: number | string | null;
+  bidCount?: number | null;
   status?: 'SCHEDULED' | 'RUNNING' | 'ENDED' | 'CANCELLED' | string;
-  productId?: number;
-  vendorId?: number;
-  image?: string;
+  productId?: number | string | null;
+  vendorId?: number | string | null;
+  vendorName?: string | null;
+  seller?: string | null;
+  image?: string | null;
+  imageUrl?: string | null;
 }
 
 export interface HomeStatsResponse {
-  totalProducts: number;
-  liveAuctions: number;
-  upcomingAuctions: number;
-  totalCategories: number;
-  totalVendors: number;
-  totalCustomers: number;
+  totalProducts?: number | null;
+  liveAuctions?: number | null;
+  upcomingAuctions?: number | null;
+  totalCategories?: number | null;
+  totalVendors?: number | null;
+  totalCustomers?: number | null;
+  [key: string]: number | string | null | undefined;
 }
 
 export interface HomeDataResponse {
-  stats: HomeStatsResponse;
-  categories: CategoryResponse[];
-  featuredProducts: ProductResponse[];
-  liveAuctions: AuctionResponse[];
-  upcomingAuctions: AuctionResponse[];
+  stats?: HomeStatsResponse | null;
+  categories?: CategoryResponse[] | null;
+  featuredProducts?: ProductResponse[] | null;
+  liveAuctions?: AuctionResponse[] | null;
+  endingSoonAuctions?: AuctionResponse[] | null;
+  upcomingAuctions?: AuctionResponse[] | null;
+  recentProducts?: ProductResponse[] | null;
+  popularProducts?: ProductResponse[] | null;
+  verifiedSellers?: Array<Record<string, unknown>> | null;
 }
 
 /**
@@ -70,7 +86,18 @@ export async function getHomeData(): Promise<HomeDataResponse> {
   if (!response?.data) {
     throw new Error(response?.message || 'Failed to load home data');
   }
-  return response.data;
+  return {
+    ...response.data,
+    stats: response.data.stats ?? null,
+    categories: Array.isArray(response.data.categories) ? response.data.categories : [],
+    featuredProducts: Array.isArray(response.data.featuredProducts) ? response.data.featuredProducts : [],
+    liveAuctions: Array.isArray(response.data.liveAuctions) ? response.data.liveAuctions : [],
+    endingSoonAuctions: Array.isArray(response.data.endingSoonAuctions) ? response.data.endingSoonAuctions : [],
+    upcomingAuctions: Array.isArray(response.data.upcomingAuctions) ? response.data.upcomingAuctions : [],
+    recentProducts: Array.isArray(response.data.recentProducts) ? response.data.recentProducts : [],
+    popularProducts: Array.isArray(response.data.popularProducts) ? response.data.popularProducts : [],
+    verifiedSellers: Array.isArray(response.data.verifiedSellers) ? response.data.verifiedSellers : [],
+  };
 }
 
 /**

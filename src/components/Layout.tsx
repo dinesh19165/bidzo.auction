@@ -4,11 +4,11 @@ import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
 import { Footer } from './Footer';
-import { getMarketplaceCategories, type MarketplaceCategory } from '../api/marketplaceSearchApi';
+import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -26,16 +26,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [headerSearch, setHeaderSearch] = useState('');
   const [headerCategory, setHeaderCategory] = useState('All Categories');
-  const [marketplaceCategories, setMarketplaceCategories] = useState<MarketplaceCategory[]>([]);
+  const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
-  useEffect(() => { getMarketplaceCategories().then(setMarketplaceCategories).catch(() => setMarketplaceCategories([])); }, []);
+  const showMarketplaceControls = !user || user.type === 'customer' || user.role === 'CUSTOMER';
+  useEffect(() => {
+    let active = true;
+    setCategoriesLoading(true);
+    setCategoriesError(null);
+    getCategories().then((categories) => {
+      if (active) setMarketplaceCategories(categories);
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setMarketplaceCategories([]);
+      setCategoriesError(error instanceof Error ? error.message : 'Unable to load categories.');
+      console.error('[Bidzo marketplace] category dropdown failed to load', error);
+    }).finally(() => {
+      if (active) setCategoriesLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const submitHeaderSearch = () => {
     const query = headerSearch.trim();
-    if (!query && headerCategory === 'All Categories') return;
+    if (!query && !headerCategory) return;
     const params = new URLSearchParams({ page: '0' });
     if (query) params.set('q', query);
-    if (headerCategory !== 'All Categories') params.set('category', headerCategory);
+    if (headerCategory) params.set('categoryId', headerCategory);
     navigate(`/search?${params.toString()}`);
   };
   const languageOptions = [
@@ -190,7 +210,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
            </Link>
           </div>
 
-          <div className={`hidden min-w-0 flex-1 items-center gap-2 rounded-full px-2 py-1.5 lg:flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-900/70' : 'border border-slate-200 bg-white shadow-sm'}`}>
+          {showMarketplaceControls ? <div className={`hidden min-w-0 flex-1 items-center gap-2 rounded-full px-2 py-1.5 lg:flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-900/70' : 'border border-slate-200 bg-white shadow-sm'}`}>
             <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               <Search className="h-4 w-4" />
             </button>
@@ -202,20 +222,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
               placeholder={translate('searchPlaceholder')}
               className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
             />
-            <select aria-label="Search category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} className={`hidden rounded-full px-2 py-1 text-sm outline-none xl:inline-flex ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300' : 'border border-slate-300 bg-slate-100 text-slate-900'}`}><option>All Categories</option>{marketplaceCategories.map((item) => <option key={item.id}>{item.name}</option>)}</select>
+            <select aria-label="Search category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} title={categoriesError ?? undefined} className={`hidden rounded-full px-2 py-1 text-sm outline-none xl:inline-flex ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300' : 'border border-slate-300 bg-slate-100 text-slate-900'}`}><option value="">All Categories</option>{categoriesLoading ? <option disabled>Loading categories...</option> : marketplaceCategories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}</select>
             <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               <Mic className="h-4 w-4" />
             </button>
-          </div>
+          </div> : null}
 
           <div className="hidden items-center gap-3 md:flex">
             <AuthActions />
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 md:hidden">
-            <button type="button" onClick={() => { setMobileSearchOpen((value) => !value); setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+            {showMarketplaceControls ? <button type="button" onClick={() => { setMobileSearchOpen((value) => !value); setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
               <Search className="h-4 w-4" />
-            </button>
+            </button> : null}
             {/* Mobile auth: if not logged in show Login/Register, else show compact profile trigger with dropdown */}
             {!user ? (
               <>
@@ -231,10 +251,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </button>
                 {mobileProfileOpen ? (
                   <div className="fixed left-4 right-4 top-16 z-50 max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-slate-900/95 p-3 shadow-lg">
-                    <Link to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Dashboard</Link>
-                    {user.type === 'customer' ? <Link to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link> : <Link to="/vendor/orders" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>}
-                    <Link to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wishlist</Link>
-                    <Link to="/wallet" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
+                    <Link to={getPortalHome(user)} onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Dashboard</Link>
+                    {user.type === 'customer' ? <>
+                      <Link to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>
+                      <Link to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wishlist</Link>
+                      <Link to="/wallet" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
+                    </> : user.type === 'vendor' ? <>
+                      <Link to="/vendor/orders" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>
+                      <Link to="/vendor/wallet" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
+                    </> : null}
                     <button onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-2 w-full rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button>
                   </div>
                 ) : null}
@@ -247,7 +272,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {mobileSearchOpen ? (
+        {showMarketplaceControls && mobileSearchOpen ? (
           <div className={`border-t px-4 py-3 md:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
             <div className={`flex items-center gap-2 rounded-full px-3 py-2 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-950/70' : 'border border-slate-200 bg-slate-100'}`}>
               <Search className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
@@ -256,7 +281,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        <nav className={`border-t px-4 py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
+        {showMarketplaceControls ? <nav className={`border-t px-4 py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
           <div className="mx-auto flex flex-col items-start gap-2 sm:flex-row">
             <Link to="/auctions" className={`inline-flex min-h-[42px] items-center justify-center rounded-full border px-5 py-2 text-sm font-semibold transition ${isLiveAuctionsPage
               ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
@@ -273,12 +298,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
               Direct Buy
             </Link>
           </div>
-        </nav>
+        </nav> : null}
 
       </header>
 
       <AnimatePresence>
-        {mobileMenuOpen ? (
+        {showMarketplaceControls && mobileMenuOpen ? (
           <>
             <motion.button
               type="button"
@@ -332,7 +357,7 @@ function AuthActions() {
   const menuRef = useRef<HTMLDivElement>(null);
   const displayName = user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || 'User';
   const initials = user ? displayName.split(/\s+/).map((s) => s[0]).slice(0, 2).join('').toUpperCase() : '';
-  const isAdmin = user?.type === 'admin' || ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user?.role || '');
+  const isAdmin = isAdminUser(user);
   const isCustomer = user?.type === 'customer' || user?.role === 'CUSTOMER';
 
   useEffect(() => {
@@ -442,7 +467,7 @@ function AuthActions() {
         </div>
       )}
 
-      <Link to={user && ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user.role || '') ? '/admin/super-dashboard' : '/admin/login'} className="rounded-full border border-blue-400/30 bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-600/20">ERP Admin</Link>
+      {isAdmin ? <Link to="/admin/super-dashboard" className="rounded-full border border-blue-400/30 bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-600/20">ERP Admin</Link> : null}
     </div>
   );
 }

@@ -28,6 +28,7 @@ interface ProductCardProps {
   location?: string;
   actionLabel?: string;
   actionLink?: string;
+  createdAt?: string | null;
   showSellerMeta?: boolean;
   wishlistItemType?: 'PRODUCT' | 'AUCTION';
   wishlistProductId?: number;
@@ -82,6 +83,7 @@ export const ProductCard = memo(function ProductCard({
   location,
   actionLabel,
   actionLink,
+  createdAt,
   showSellerMeta = true,
   wishlistItemType,
   wishlistProductId,
@@ -193,7 +195,8 @@ export const ProductCard = memo(function ProductCard({
 
   const { formatCurrency, translate } = useLocaleContext();
   const priceLabel = translate(isAuction ? 'currentBid' : 'price');
-  const priceValue = formatCurrency(isAuction ? (currentBid || price).replace(/,/g, '') : price.replace(/,/g, ''));
+  const rawPrice = (isAuction ? (currentBid || price) : price).replace(/,/g, '');
+  const priceValue = Number.isFinite(Number(rawPrice)) && rawPrice !== '' ? formatCurrency(rawPrice) : 'Price unavailable';
 
   useEffect(() => {
     if (!quickOpen) return;
@@ -266,6 +269,7 @@ export const ProductCard = memo(function ProductCard({
               {oldPrice ? <p className="text-sm text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
             </div>
             <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{priceLabel}</p>
+            {createdAt ? <p className="mt-1 text-xs text-slate-500">Added {new Date(createdAt).toLocaleDateString('en-IN')}</p> : null}
             {discount ? <p className="mt-1 text-xs uppercase tracking-[0.18em] text-emerald-300">{discount}</p> : null}
           </div>
           {isAuction ? (

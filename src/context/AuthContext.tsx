@@ -6,6 +6,20 @@ import { getStoredAuthToken, handleUnauthorized, isJwtExpired, resetAuthExpirati
 
 export type UserType = 'customer' | 'vendor' | 'admin' | 'delivery' | 'support';
 
+export const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'] as const;
+
+export function isAdminUser(user: Pick<User, 'role' | 'type'> | null | undefined): boolean {
+  return user?.type === 'admin' || ADMIN_ROLES.includes((user?.role || '') as typeof ADMIN_ROLES[number]);
+}
+
+export function getPortalHome(user: Pick<User, 'role' | 'type'> | null | undefined): string {
+  if (isAdminUser(user)) return '/admin/super-dashboard';
+  if (user?.type === 'vendor') return '/dashboards/vendor';
+  if (user?.type === 'delivery') return '/delivery';
+  if (user?.type === 'support') return '/support-tickets';
+  return '/dashboards/customer';
+}
+
 type AuthContextType = {
   user: User | null;
   authReady: boolean;
@@ -93,12 +107,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const me = await authMe(loginResponse.token);
     const role = me.role || loginResponse.role || 'CUSTOMER';
-    const type: UserType = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'FRANCHISE_ADMIN'
+    const type: UserType = ADMIN_ROLES.includes(role as typeof ADMIN_ROLES[number])
       ? 'admin'
       : role === 'VENDOR'
         ? 'vendor'
-        : role === 'SUPER_ADMIN' || role === 'FRANCHISE_ADMIN'
-        ? 'admin'
         : role === 'DELIVERY_PARTNER'
           ? 'delivery'
           : role === 'SUPPORT'
@@ -151,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const logout = () => {
-    const destination = user && ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user.role || '') ? '/admin/login' : '/login';
+    const destination = isAdminUser(user) ? '/admin/login' : '/login';
     clearSession();
     navigate(destination, { replace: true });
   };

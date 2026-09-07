@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
-import { getMarketplaceCategories, searchMarketplace, type MarketplaceCategory, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
+import { categoryLabel, getCategories, type CategoryRecord } from '../../api/categoryApi';
+import { searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../../api/apiClient';
 import { products, categories } from '../../data/mockData';
 
@@ -34,20 +35,28 @@ export function SubCategoriesPage() {
 export function SearchResultsPage() {
   const [params, setParams] = useSearchParams();
   const query = params.get('q') || '';
-  const category = params.get('category') || 'All Categories';
+  const categoryId = params.get('categoryId') || '';
+  const categoryName = params.get('category') || '';
   const page = Math.max(0, Number(params.get('page') || 0));
-  const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [results, setResults] = useState<MarketplaceSearchPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getMarketplaceCategories().then(setCategories).catch(() => setCategories([]));
+    getCategories().then(setCategories).catch((error: unknown) => {
+      setCategories([]);
+      setCategoriesError(error instanceof Error ? error.message : 'Unable to load categories.');
+    }).finally(() => setCategoriesLoading(false));
   }, []);
 
   useEffect(() => {
     let active = true;
-    if (!query.trim() && category === 'All Categories') {
+    const selectedCategory = categories.find((item) => String(item.id) === categoryId) || categories.find((item) => item.name === categoryName);
+    const category = selectedCategory?.name || '';
+    if (!query.trim() && !category) {
       setResults(null);
       setLoading(false);
       return () => { active = false; };
@@ -55,28 +64,31 @@ export function SearchResultsPage() {
     setLoading(true);
     setError(null);
     searchMarketplace({ query, category, page, size: 20 }).then((data) => {
-      if (active) setResults(data);
+      if (active) {
+        const content = category ? data.content.filter((item) => item.type !== 'VENDOR') : data.content;
+        setResults({ ...data, content, totalElements: category ? content.length : data.totalElements, totalPages: category ? (content.length ? 1 : 0) : data.totalPages });
+      }
     }).catch((reason) => {
-      if (active) setError(reason instanceof Error ? reason.message : 'Marketplace search failed');
+      if (active) setError(category ? 'Unable to load products for this category.' : (reason instanceof Error ? reason.message : 'Marketplace search failed'));
     }).finally(() => {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [category, page, query]);
+  }, [categoryId, categoryName, categories, page, query]);
 
-  const updateParams = (nextQuery: string, nextCategory: string) => {
+  const updateParams = (nextQuery: string, nextCategoryId: string) => {
     const next = new URLSearchParams();
     if (nextQuery.trim()) next.set('q', nextQuery.trim());
-    if (nextCategory !== 'All Categories') next.set('category', nextCategory);
+    if (nextCategoryId) next.set('categoryId', nextCategoryId);
     next.set('page', '0');
     setParams(next);
   };
 
   return <SectionShell title="Search results" subtitle="Products, auctions, and sellers from the marketplace">
     <div className="mb-6 grid gap-3 rounded-[24px] border border-white/10 bg-slate-900/70 p-4 md:grid-cols-[1fr_240px_auto]">
-      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3"><Search className="h-4 w-4 text-slate-400" /><input aria-label="Search marketplace" defaultValue={query} onKeyDown={(event) => { if (event.key === 'Enter') updateParams(event.currentTarget.value, category); }} className="w-full bg-transparent text-sm text-white outline-none" placeholder="Search products, auctions, sellers..." /></div>
-      <select aria-label="Search category" value={category} onChange={(event) => updateParams(query, event.target.value)} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white"><option>All Categories</option>{categories.map((item) => <option key={item.id}>{item.name}</option>)}</select>
-      <button type="button" onClick={() => updateParams(query, category)} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white">Search</button>
+      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3"><Search className="h-4 w-4 text-slate-400" /><input aria-label="Search marketplace" defaultValue={query} onKeyDown={(event) => { if (event.key === 'Enter') updateParams(event.currentTarget.value, categoryId); }} className="w-full bg-transparent text-sm text-white outline-none" placeholder="Search products, auctions, sellers..." /></div>
+      <select aria-label="Search category" value={categoryId || (categories.find((item) => item.name === categoryName)?.id ?? '')} onChange={(event) => updateParams(query, event.target.value)} title={categoriesError ?? undefined} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white"><option value="">All Categories</option>{categoriesLoading ? <option disabled>Loading categories...</option> : categories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}</select>
+      <button type="button" onClick={() => updateParams(query, categoryId)} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white">Search</button>
     </div>
     {loading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div> : error ? <ErrorState title="Search failed" description={error} /> : results && results.content.length > 0 ? <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{results.content.map((item) => <MarketplaceResultCard key={`${item.type}-${item.id}`} item={item} />)}</div>

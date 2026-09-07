@@ -6,7 +6,7 @@ import { ArrowRight, Heart, ShieldCheck, Sparkles, Star, Users, Clock3, CheckCir
 import { useAuth } from '../context/AuthContext';
 import { createAuctionRazorpayPayment, getAuctionById, getAuctionImages, getAuctionWinner, getEffectiveAuctionStatus, getProductImages, verifyAuctionRazorpayPayment, type AuctionImageResponse, type AuctionResponse, type AuctionWinnerResponse } from '../api/auctionApi';
 import { getAuctionBids, placeBid, type BidResponse } from '../api/bidApi';
-import { getOrderById } from '../api/orderApi';
+import { getAuctionPaymentState, getOrderById, isPaidStatus } from '../api/orderApi';
 import { getPaymentsForOrder } from '../api/paymentApi';
 import { getAuctionRegistrationStatus, createAuctionRegistrationPayment, verifyAuctionRegistrationPayment } from '../api/auctionApi';
 import { isAuctionRegistered, markAuctionAsRegistered, markOrderConfirmed, readAuctionFlowState, writeAuctionFlowState } from '../utils/auctionFlowState';
@@ -88,6 +88,7 @@ export function AuctionDetailPage() {
   const [isPaymentReady, setIsPaymentReady] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [confirmedOrderId, setConfirmedOrderId] = useState<number | null>(null);
   const [paymentStatusLoading, setPaymentStatusLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
@@ -393,7 +394,7 @@ export function AuctionDetailPage() {
   };
 
   const getCompletedPaymentStatus = (payments: PaymentResponseDto[]) => {
-    return payments.some((payment) => String(payment.status).toUpperCase() === 'SUCCESS');
+    return payments.some((payment) => isPaidStatus(payment.status));
   };
 
   const loadOrderPaymentState = async (orderId: number) => {
@@ -416,11 +417,18 @@ export function AuctionDetailPage() {
     if (storedOrderId) {
       try {
         const existingOrder = await getOrderById(storedOrderId);
+        setConfirmedOrderId(existingOrder.id);
         await loadOrderPaymentState(existingOrder.id);
-        return;
       } catch {
-        // Ignore stale local order references; payment remains available for retry.
+        // Fall through to the backend order list; local storage is only an optimization.
       }
+    }
+    try {
+      const state = await getAuctionPaymentState(auctionId, storedOrderId);
+      setConfirmedOrderId(state.order?.id ?? null);
+      setPaymentCompleted(state.paid);
+    } catch {
+      // Keep payment available when the status endpoint is temporarily unavailable.
     }
     setPaymentStatusLoading(false);
   };
@@ -458,7 +466,12 @@ export function AuctionDetailPage() {
         throw new Error('Payment was successful but the backend did not return a valid order ID.');
       }
 
+      const persistedState = await getAuctionPaymentState(auctionId, extractedOrderId);
+      if (!persistedState.paid) {
+        throw new Error('Payment verification completed, but the backend has not confirmed the payment yet.');
+      }
       setPaymentCompleted(true);
+      setConfirmedOrderId(persistedState.order?.id ?? extractedOrderId);
       saveStoredAuctionOrderId(auctionId, extractedOrderId);
       window.localStorage.setItem(`bidzo_paid_auction_${auctionId}`, '1');
       await loadOrderPaymentState(extractedOrderId);
@@ -573,6 +586,22 @@ export function AuctionDetailPage() {
 
   const handlePayNow = async () => {
     if (!auction || paymentCompleted) return;
+    setPaymentStatusLoading(true);
+    try {
+      const currentState = await getAuctionPaymentState(auctionId, readStoredAuctionOrderId(auctionId));
+      if (currentState.paid) {
+        setPaymentCompleted(true);
+        setConfirmedOrderId(currentState.order?.id ?? null);
+        if (currentState.order?.id) {
+          navigate(`/customer/orders/${currentState.order.id}`, { replace: true });
+        }
+        return;
+      }
+    } catch {
+      // Continue to the existing payment flow if the status lookup is unavailable.
+    } finally {
+      setPaymentStatusLoading(false);
+    }
     const checkoutAddressId = selectedAddress?.id || readAuctionFlowState().addressId;
     if (!checkoutAddressId) {
       setShowAddressSelector(true);
@@ -722,9 +751,7 @@ export function AuctionDetailPage() {
                             Checking payment status...
                           </div>
                         ) : paymentCompleted ? (
-                          <div className="mt-3 inline-flex items-center justify-between rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300">
-                            Payment Completed
-                          </div>
+                          <div className="mt-3 space-y-2"><div className="inline-flex items-center justify-between rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300">Payment Completed</div>{confirmedOrderId ? <button type="button" onClick={() => navigate(`/customer/orders/${confirmedOrderId}`)} className="block w-full rounded-full border border-emerald-500/30 px-4 py-2 text-sm font-semibold text-emerald-200">View Order</button> : null}</div>
                         ) : (
                           showAddressSelector ? <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
                             <DeliveryAddressSelector

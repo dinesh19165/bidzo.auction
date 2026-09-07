@@ -32,6 +32,7 @@ export interface ApprovalRequest extends AdminRecord {
   ifsc?: string;
   branch?: string;
   gstNumber?: string;
+  gstVerificationStatus?: string;
   bankVerificationStatus?: string;
   submittedAt?: string;
   updatedAt?: string;
@@ -223,6 +224,17 @@ export async function getPendingVendorApprovals(): Promise<ApprovalRequest[]> {
         ?? pickString(detail.gst_number)
         ?? pickString(vendor.gstNumber)
         ?? pickString(vendor.gst_number)
+        ?? undefined,
+      gstVerificationStatus: pickString(detail.gstVerificationStatus)
+        ?? pickString(detail.gst_verification_status)
+        ?? pickString(detail.gstStatus)
+        ?? pickString(detail.gst_status)
+        ?? pickString(vendor.gstVerificationStatus)
+        ?? pickString(vendor.gst_verification_status)
+        ?? pickString(vendor.gstStatus)
+        ?? pickString(vendor.gst_status)
+        ?? pickString(detail.verificationStatus)
+        ?? pickString(vendor.verificationStatus)
         ?? undefined,
       bankVerificationStatus: pickString(detail.bankVerificationStatus)
         ?? pickString(detail.bank_verification_status)

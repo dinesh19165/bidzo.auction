@@ -1,6 +1,6 @@
 import { Input, Select, Checkbox } from '../forms/FormComponents';
 import { Monitor, Search, User, Star, ShieldCheck, Gavel, ShoppingBag, Tag, Funnel, RefreshCw, Check } from 'lucide-react';
-import type { MarketplaceCategory } from '../../api/marketplaceSearchApi';
+import { categoryLabel, type CategoryRecord } from '../../api/categoryApi';
 import { useLocaleContext } from '../../context/LocaleContext';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -31,6 +31,8 @@ export default function FilterSidebar({
   sort,
   setSort,
   categories,
+  categoriesLoading = false,
+  categoriesError,
   applyFilters,
   resetFilters,
 }: {
@@ -58,7 +60,9 @@ export default function FilterSidebar({
   setLocation: (v: string) => void;
   sort: string;
   setSort: (v: string) => void;
-  categories: MarketplaceCategory[];
+  categories: CategoryRecord[];
+  categoriesLoading?: boolean;
+  categoriesError?: string | null;
   applyFilters: () => void;
   resetFilters: () => void;
 }) {
@@ -150,7 +154,8 @@ export default function FilterSidebar({
 
       <div className="mt-2 space-y-3">
         <Input ariaLabel="Search products" icon={<Search className="h-4 w-4 text-slate-400" />} placeholder={translate('searchPlaceholder')} value={query} onChange={(e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)} />
-            <Dropdown label={translate('category')} options={[{ label: translate('allCategories'), value: '' }, ...categories.map((c) => ({ label: c.name, value: c.name }))]} value={category} onChange={(v) => { setCategory(v); }} icon={<Monitor className="h-4 w-4 text-slate-400" />} />
+            <Dropdown label={translate('category')} options={[{ label: translate('allCategories'), value: '' }, ...(categoriesLoading ? [{ label: 'Loading categories...', value: '__loading__' }] : categories.map((c) => ({ label: categoryLabel(c), value: String(c.id) })))]} value={category} onChange={(v) => { if (v !== '__loading__') setCategory(v); }} icon={<Monitor className="h-4 w-4 text-slate-400" />} />
+            {categoriesError ? <p className="mt-1 text-xs text-rose-300">Unable to load categories.</p> : null}
 
         <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
           <Input ariaLabel="Minimum price" placeholder={translate('minPrice')} value={minPrice} onChange={(e: ChangeEvent<HTMLInputElement>) => setMinPrice(e.target.value)} icon={<span className="text-slate-400">{currencySymbol}</span>} />

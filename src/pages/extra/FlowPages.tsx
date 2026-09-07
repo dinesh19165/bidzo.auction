@@ -4,16 +4,17 @@ import { motion } from 'framer-motion';
 import { ArrowRight, BadgeCheck, CheckCircle2, Clock3, CreditCard, Gavel, Heart, Loader2, MapPin, PackageCheck, Search, Share2, ShieldCheck, ShoppingBag, Sparkles, Truck, Wallet, Zap, CircleDollarSign, QrCode, Printer, Download, BadgeAlert, Radio, ChevronRight } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { products, sellers, wishlistItems, reviews, transactions, categories } from '../../data/mockData';
+import { categoryLabel, getCategories, getCategoryFields, type CategoryFieldDefinition, type CategoryRecord } from '../../api/categoryApi';
 import ProductForm from '../../components/ProductForm';
 import Wizard from '../../components/Wizard';
 import AuctionForm from '../../components/AuctionForm';
 import UploadField from '../../components/forms/UploadField';
 import { useAuth } from '../../context/AuthContext';
-import { createAuctionOrder, getOrderById } from '../../api/orderApi';
+import { createAuctionOrder, getAuctionPaymentState, getOrderById, isPaidStatus } from '../../api/orderApi';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
 import type { AddressResponse } from '../../api/addressApi';
 import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } from '../../api/paymentApi';
-import { createVendorProduct, getVendorProducts, type SellingType } from '../../api/vendorProductApi';
+import { createVendorProduct, getVendorProducts, updateVendorProduct, type SellingType } from '../../api/vendorProductApi';
 import { createProductImage, createBuyNowOrder, getProducts, type ProductListItem } from '../../api/productApi';
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
 import { getWishlist, notifyWishlistChanged, removeFromWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
@@ -1466,7 +1467,20 @@ export function CustomerPaymentPage() {
         let currentOrder: OrderResponseDto | null = null;
         const storedOrderId = readStoredAuctionOrderId(flowState.auctionId);
 
-        if (storedOrderId) {
+        const existingPaymentState = await getAuctionPaymentState(flowState.auctionId, storedOrderId);
+        if (existingPaymentState.order) {
+          currentOrder = existingPaymentState.order;
+        }
+        if (existingPaymentState.paid) {
+          if (!cancelled) {
+            setOrder(existingPaymentState.order);
+            setIsPaymentSuccessful(true);
+            navigate(`/customer/orders/${existingPaymentState.order?.id}`, { replace: true });
+          }
+          return;
+        }
+
+        if (!currentOrder && storedOrderId) {
           try {
             currentOrder = await getOrderById(storedOrderId);
           } catch {
@@ -1491,6 +1505,16 @@ export function CustomerPaymentPage() {
 
         if (!currentOrder) {
           throw new Error('Unable to prepare your order');
+        }
+
+        const persistedPaymentState = await getAuctionPaymentState(flowState.auctionId, currentOrder.id);
+        if (persistedPaymentState.paid) {
+          if (!cancelled) {
+            setOrder(persistedPaymentState.order ?? currentOrder);
+            setIsPaymentSuccessful(true);
+            navigate(`/customer/orders/${persistedPaymentState.order?.id ?? currentOrder.id}`, { replace: true });
+          }
+          return;
         }
 
         if (!cancelled) {
@@ -1540,7 +1564,7 @@ export function CustomerPaymentPage() {
         getPaymentsForOrder(order.id),
       ]);
 
-      if (verifiedPayment?.status === 'SUCCESS' || payments.some((payment) => String(payment.status).toUpperCase() === 'SUCCESS')) {
+      if (isPaidStatus(verifiedPayment?.status) || payments.some((payment) => isPaidStatus(payment.status)) || isPaidStatus(confirmedOrder.orderStatus)) {
         const nextState = markOrderConfirmed();
         setFlowState(nextState);
         setIsPaymentSuccessful(true);
@@ -1973,31 +1997,15 @@ export function CustomerReviewPage() {
 
 export function VendorCreateProductWizardPage() {
   const navigate = useNavigate();
-  const categoryFields: Record<string, string[]> = {
-    Electronics: ['Brand', 'Model', 'RAM', 'Storage', 'Warranty'],
-    Vehicles: ['Brand', 'Fuel', 'Mileage', 'Transmission', 'RC'],
-    Pets: ['Breed', 'Age', 'Gender', 'Vaccination', 'Health'],
-    Fish: ['Species', 'Size', 'Quantity', 'Water Type'],
-    Agriculture: ['Crop', 'Harvest Date', 'Quantity', 'Organic'],
-    Furniture: ['Material', 'Dimensions', 'Weight'],
-    Fashion: ['Brand', 'Size', 'Color'],
-    RealEstate: ['Property Type', 'Area', 'Bedrooms', 'Bathrooms'],
-    Services: ['Experience', 'Availability', 'Location'],
-  };
-
-  const requiredFields: Record<string, string[]> = {
-    Electronics: ['Brand', 'Model'],
-    Vehicles: ['Brand', 'Fuel'],
-    Pets: ['Breed', 'Age', 'Vaccination'],
-    Agriculture: ['Crop', 'Quantity'],
-    Furniture: ['Material'],
-    RealEstate: ['Property Type', 'Area'],
-    Services: ['Experience'],
-  };
-
   const steps = ['Category', 'Basic info', 'Category fields', 'Images', 'Pricing', 'Shipping', 'Auction', 'Preview', 'Publish'];
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<any>({ title: '', category: 'Electronics', price: '', quantity: '', fields: {}, description: '', sellingType: 'DIRECT_BUY', categoryId: 2, status: 'PUBLISHED' });
+  const [formData, setFormData] = useState<any>({ title: '', category: '', price: '', quantity: '', fields: {}, description: '', sellingType: 'DIRECT_BUY', categoryId: null, status: 'PUBLISHED' });
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [categoryFields, setCategoryFields] = useState<CategoryFieldDefinition[]>([]);
+  const [categoryFieldsLoading, setCategoryFieldsLoading] = useState(false);
+  const [categoryFieldsError, setCategoryFieldsError] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
   const [productFormValid, setProductFormValid] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<File[] | undefined>(undefined);
@@ -2005,6 +2013,33 @@ export function VendorCreateProductWizardPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getCategories().then((items) => {
+      setCategories(items);
+      setFormData((current: any) => current.categoryId ? current : { ...current, category: items[0]?.name ?? '', categoryId: items[0]?.id ?? null });
+    }).catch((error: unknown) => setCategoriesError(error instanceof Error ? error.message : 'Unable to load categories.')).finally(() => setCategoriesLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const categoryId = formData.categoryId;
+    if (categoryId === null || categoryId === undefined || categoryId === '') {
+      setCategoryFields([]);
+      return;
+    }
+    let active = true;
+    setCategoryFieldsLoading(true);
+    setCategoryFieldsError(null);
+    getCategoryFields(categoryId).then((fields) => {
+      if (active) setCategoryFields(fields);
+    }).catch((error: unknown) => {
+      if (active) {
+        setCategoryFields([]);
+        setCategoryFieldsError(error instanceof Error ? error.message : 'Unable to load category fields.');
+      }
+    }).finally(() => { if (active) setCategoryFieldsLoading(false); });
+    return () => { active = false; };
+  }, [formData.categoryId]);
 
   const buildProductPayload = (draft: any) => {
     const safeName = String(draft.title || '').trim();
@@ -2028,7 +2063,7 @@ export function VendorCreateProductWizardPage() {
       quantity: normalizedQuantity,
       sku,
       status: String(draft.status || 'PUBLISHED').toUpperCase(),
-      categoryId: Number(draft.categoryId ?? 2),
+      categoryId: draft.categoryId === null || draft.categoryId === undefined || draft.categoryId === '' ? null : Number(draft.categoryId),
       sellingType: (normalizedSellingType === 'AUCTION' || normalizedSellingType === 'DIRECT_BUY' ? normalizedSellingType : 'DIRECT_BUY') as SellingType,
       fields: normalizedFields,
     };
@@ -2058,7 +2093,7 @@ export function VendorCreateProductWizardPage() {
           return;
         }
 
-        const productPayload = buildProductPayload(formData);
+            const productPayload = buildProductPayload(formData);
         console.log('PRODUCT PAYLOAD BEFORE API:', productPayload);
         console.log('PRODUCT FIELDS BEFORE API:', productPayload.fields);
         const createdProduct = await createVendorProduct(productPayload);
@@ -2132,8 +2167,8 @@ export function VendorCreateProductWizardPage() {
             <div className="space-y-4">
               <p className="text-sm text-slate-400">Choose the category for the product.</p>
               <div className="grid gap-3 md:grid-cols-2">
-                {Object.keys(categoryFields).map((c) => (
-                  <button key={c} onClick={() => setFormData((prev: any) => ({ ...prev, category: c }))} className={`rounded-2xl border px-4 py-3 text-left text-sm ${formData.category === c ? 'border-blue-500/40 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}>{c}</button>
+                {categoriesLoading ? <p className="text-sm text-slate-400">Loading categories...</p> : categoriesError ? <p className="text-sm text-rose-300">Unable to load categories.</p> : categories.map((item) => (
+                  <button key={String(item.id)} onClick={() => setFormData((prev: any) => ({ ...prev, category: item.name, categoryId: item.id }))} className={`rounded-2xl border px-4 py-3 text-left text-sm ${formData.categoryId === item.id ? 'border-blue-500/40 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}>{categoryLabel(item)}</button>
                 ))}
               </div>
             </div>
@@ -2148,7 +2183,7 @@ export function VendorCreateProductWizardPage() {
 
           {step === 3 && (
             <div>
-              <ProductForm initial={formData} categoryFields={categoryFields} requiredFields={requiredFields} onValidate={(v) => setProductFormValid(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />
+                {categoryFieldsLoading ? <p className="text-sm text-slate-400">Loading category fields...</p> : categoryFieldsError ? <p className="text-sm text-rose-300">Unable to load category fields.</p> : <ProductForm initial={formData} categories={categories} categoryFields={categoryFields} onValidate={(v) => setProductFormValid(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />}
             </div>
           )}
 
@@ -2235,41 +2270,95 @@ export function VendorCreateProductWizardPage() {
 export function VendorEditProductWizardPage() {
   const { id } = useParams();
   const product = products.find((p) => p.id === Number(id)) || products[0];
-
-  const categoryFields: Record<string, string[]> = {
-    Electronics: ['Brand', 'Model', 'RAM', 'Storage', 'Warranty'],
-    Vehicles: ['Brand', 'Fuel', 'Mileage', 'Transmission', 'RC'],
-    Pets: ['Breed', 'Age', 'Gender', 'Vaccination', 'Health'],
-    Fish: ['Species', 'Size', 'Quantity', 'Water Type'],
-    Agriculture: ['Crop', 'Harvest Date', 'Quantity', 'Organic'],
-    Furniture: ['Material', 'Dimensions', 'Weight'],
-    Fashion: ['Brand', 'Size', 'Color'],
-    RealEstate: ['Property Type', 'Area', 'Bedrooms', 'Bathrooms'],
-    Services: ['Experience', 'Availability', 'Location'],
-  };
-
-  const requiredFieldsEdit: Record<string, string[]> = {
-    Electronics: ['Brand', 'Model'],
-    Vehicles: ['Brand', 'Fuel'],
-    Pets: ['Breed', 'Age', 'Vaccination'],
-    Agriculture: ['Crop', 'Quantity'],
-    Furniture: ['Material'],
-    RealEstate: ['Property Type', 'Area'],
-    Services: ['Experience'],
-  };
-
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [categoryFields, setCategoryFields] = useState<CategoryFieldDefinition[]>([]);
+  const [categoryFieldsLoading, setCategoryFieldsLoading] = useState(false);
+  const [categoryFieldsError, setCategoryFieldsError] = useState<string | null>(null);
   const [productFormValidEdit, setProductFormValidEdit] = useState(false);
+  const [existingSpecifications, setExistingSpecifications] = useState<Array<{ name: string; value: string }>>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const steps = ['Edit Info', 'Category fields', 'Images', 'Pricing', 'Shipping', 'Preview', 'Publish'];
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<any>({ title: product.title, category: product.category || 'Electronics', price: product.price, fields: {}, description: product.description });
+  const [formData, setFormData] = useState<any>({ title: product.title, category: product.category || 'Electronics', categoryId: null, price: product.price, fields: {}, description: product.description });
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([getCategories(), getVendorProducts()]).then(([items, vendorProducts]) => {
+      if (!active) return;
+      setCategories(items);
+      const current = vendorProducts.find((item) => item.id === Number(id));
+      const categoryId = current?.categoryId ?? items.find((item) => item.name === product.category)?.id ?? null;
+      setExistingSpecifications(current?.specifications ?? []);
+      setFormData((previous: any) => ({
+        ...previous,
+        title: current?.name ?? previous.title,
+        description: current?.description ?? previous.description,
+        price: current?.price ?? previous.price,
+        category: items.find((item) => String(item.id) === String(categoryId))?.name ?? previous.category,
+        categoryId,
+      }));
+    }).catch(() => { if (active) setCategories([]); });
+    return () => { active = false; };
+  }, [id, product.category]);
 
   useEffect(() => {
     setAutosaveStatus('Autosaving...');
     const t = setTimeout(() => setAutosaveStatus('Saved'), 700);
     return () => clearTimeout(t);
   }, [formData]);
+
+  useEffect(() => {
+    const categoryId = formData.categoryId;
+    if (categoryId === null || categoryId === undefined || categoryId === '') {
+      setCategoryFields([]);
+      return;
+    }
+    let active = true;
+    setCategoryFieldsLoading(true);
+    setCategoryFieldsError(null);
+    getCategoryFields(categoryId).then((fields) => { if (active) setCategoryFields(fields); }).catch((error: unknown) => {
+      if (active) {
+        setCategoryFields([]);
+        setCategoryFieldsError(error instanceof Error ? error.message : 'Unable to load category fields.');
+      }
+    }).finally(() => { if (active) setCategoryFieldsLoading(false); });
+    return () => { active = false; };
+  }, [formData.categoryId]);
+
+  useEffect(() => {
+    if (!categoryFields.length || !existingSpecifications.length || Object.keys(formData.fields || {}).length) return;
+    const values = Object.fromEntries(categoryFields.map((field) => {
+      const specification = existingSpecifications.find((item) => item.name.toLowerCase() === field.fieldName.toLowerCase() || item.name.toLowerCase() === field.fieldKey.toLowerCase());
+      return [field.fieldKey, specification?.value ?? ''];
+    }).filter((entry): entry is [string, string] => Boolean(entry[1])));
+    if (Object.keys(values).length) setFormData((previous: any) => ({ ...previous, fields: values }));
+  }, [categoryFields, existingSpecifications, formData.fields]);
+
+  const handleEditNext = async () => {
+    if (step !== 6) {
+      setStep(Math.min(steps.length, step + 1));
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await updateVendorProduct(Number(id) || product.id, {
+        name: String(formData.title || '').trim(),
+        description: String(formData.description || '').trim(),
+        price: formData.price,
+        categoryId: formData.categoryId,
+        fields: Object.fromEntries(Object.entries(formData.fields || {}).filter(([, value]) => String(value).trim() !== '').map(([key, value]) => [key, String(value)])),
+      });
+      setStep(7);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to update product');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // compute canContinue for edit wizard
   let canContinueEdit = true;
@@ -2291,10 +2380,10 @@ export function VendorEditProductWizardPage() {
           step={step}
           canContinue={canContinueEdit}
           onPrev={() => setStep(Math.max(1, step - 1))}
-          onNext={() => setStep(Math.min(steps.length, step + 1))}
+          onNext={handleEditNext}
           onSaveDraft={() => alert('Draft saved (UI only)')}
           onPreview={() => alert('Preview (UI only)')}
-          autosaveStatus={autosaveStatus}
+          autosaveStatus={submitting ? 'Saving...' : autosaveStatus}
         >
           {step === 1 && (
             <div className="space-y-4">
@@ -2303,9 +2392,7 @@ export function VendorEditProductWizardPage() {
             </div>
           )}
 
-          {step === 2 && (
-            <ProductForm initial={formData} categoryFields={categoryFields} requiredFields={requiredFieldsEdit} onValidate={(v) => setProductFormValidEdit(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />
-          )}
+          {step === 2 && (categoryFieldsLoading ? <p className="text-sm text-slate-400">Loading category fields...</p> : categoryFieldsError ? <p className="text-sm text-rose-300">Unable to load category fields.</p> : <ProductForm initial={formData} categories={categories} categoryFields={categoryFields} onValidate={(v) => setProductFormValidEdit(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />)}
 
           {step === 3 && (
             <div>
@@ -2330,13 +2417,14 @@ export function VendorEditProductWizardPage() {
               <p className="mt-2">{formData.title}</p>
               <p className="mt-2">Category: {formData.category}</p>
               <p className="mt-2">Price: {formData.price}</p>
+              {submitError && <p className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{submitError}</p>}
             </div>
           )}
 
           {step === 7 && (
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6 text-sm text-slate-300">
               <p className="text-lg font-semibold text-white">Product updated</p>
-              <p className="mt-2">Your changes are saved locally (UI only).</p>
+              <p className="mt-2">Your changes were saved successfully.</p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link to="/vendor/products" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Manage products</Link>
               </div>

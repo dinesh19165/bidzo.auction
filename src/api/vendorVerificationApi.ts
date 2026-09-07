@@ -1,7 +1,7 @@
 import { fetchJson } from './apiClient';
 import type { ApiResponse } from '../types';
 
-export type VendorVerificationStatus = 'COMPLETE' | 'PENDING';
+export type VendorVerificationStatus = string;
 
 export interface VendorVerificationDetail {
   status: VendorVerificationStatus;

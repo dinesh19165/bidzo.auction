@@ -355,7 +355,20 @@ export function AdminResourceDetailPage({ resource }: { resource: Resource }) {
 export function AdminDashboardApiPage() {
   const [data, setData] = useState<AdminRecord | null>(null); const [error, setError] = useState<string | null>(null); const [loading, setLoading] = useState(true);
   useEffect(() => { getAdminDashboard().then(setData).catch((err) => setError(err instanceof Error ? err.message : 'Unable to load dashboard.')).finally(() => setLoading(false)); }, []);
-  return <AdminShell title="Enterprise admin" subtitle="Admin dashboard" breadcrumbs={[{ label: 'Admin' }, { label: 'Dashboard' }]} activePath="/admin/dashboard"><Card className="p-6">{error ? <ErrorState title="Unable to load dashboard" description={error} /> : loading ? <SkeletonTable /> : data ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Object.entries(data).filter(([, item]) => typeof item !== 'object').map(([key, item]) => <div key={key} className="rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-sm text-slate-400">{titleCase(key)}</p><p className="mt-2 text-2xl font-semibold text-white">{String(item ?? '-')}</p></div>)}</div> : <EmptyState title="No dashboard data" description="The backend returned no dashboard metrics." />}</Card></AdminShell>;
+  const getMetricRoute = (key: string) => {
+    const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    if (normalized.includes('pendingapproval')) return '/admin/approvals';
+    if (normalized.includes('revenue')) return '/admin/reports/revenue';
+    if (normalized.includes('activeauction')) return '/admin/auctions/live';
+    if (normalized.includes('completedauction') || normalized.includes('endedauction')) return '/admin/auctions/completed';
+    if (normalized.includes('auction')) return '/admin/auctions';
+    if (normalized.includes('pendingorder')) return '/admin/orders';
+    if (normalized.includes('order')) return '/admin/orders';
+    if (normalized.includes('vendor')) return '/admin/vendors';
+    if (normalized.includes('customer') || normalized === 'users' || normalized.includes('user')) return '/admin/customers';
+    return null;
+  };
+  return <AdminShell title="Enterprise admin" subtitle="Admin dashboard" breadcrumbs={[{ label: 'Admin' }, { label: 'Dashboard' }]} activePath="/admin/dashboard"><Card className="p-6">{error ? <ErrorState title="Unable to load dashboard" description={error} /> : loading ? <SkeletonTable /> : data ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Object.entries(data).filter(([, item]) => typeof item !== 'object').map(([key, item]) => { const route = getMetricRoute(key); const content = <><p className="text-sm text-slate-400">{titleCase(key)}</p><p className="mt-2 text-2xl font-semibold text-white">{String(item ?? '-')}</p></>; return route ? <Link key={key} to={route} className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 cursor-pointer">{content}</Link> : <div key={key} className="rounded-2xl border border-white/10 bg-white/5 p-4">{content}</div>; })}</div> : <EmptyState title="No dashboard data" description="The backend returned no dashboard metrics." />}</Card></AdminShell>;
 }
 
 export function AdminReportApiPage({ report }: { report: 'revenue' | 'orders' | 'auctions' | 'users' | 'payments' }) {

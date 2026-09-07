@@ -350,3 +350,130 @@ html.theme-light .rounded-full.bg-slate-950\/90 {
   background-color: var(--surface-muted) !important;
   color: var(--pill-text) !important;
 }
+
+html.theme-light [class~="text-blue-100"],
+html.theme-light [class~="text-blue-200"],
+html.theme-light [class~="text-blue-300"],
+html.theme-light [class~="text-cyan-100"],
+html.theme-light [class~="text-cyan-200"],
+html.theme-light [class~="text-cyan-300"] {
+  color: #075985 !important;
+}
+
+html.theme-light [class~="text-emerald-100"],
+html.theme-light [class~="text-emerald-200"],
+html.theme-light [class~="text-emerald-300"],
+html.theme-light [class~="text-green-100"],
+html.theme-light [class~="text-green-200"],
+html.theme-light [class~="text-green-300"] {
+  color: #047857 !important;
+}
+
+html.theme-light [class~="text-rose-100"],
+html.theme-light [class~="text-rose-200"],
+html.theme-light [class~="text-rose-300"],
+html.theme-light [class~="text-red-100"],
+html.theme-light [class~="text-red-200"],
+html.theme-light [class~="text-red-300"] {
+  color: #b91c1c !important;
+}
+
+html.theme-light [class~="text-amber-100"],
+html.theme-light [class~="text-amber-200"],
+html.theme-light [class~="text-amber-300"],
+html.theme-light [class~="text-orange-100"],
+html.theme-light [class~="text-orange-200"],
+html.theme-light [class~="text-orange-300"],
+html.theme-light [class~="text-yellow-100"],
+html.theme-light [class~="text-yellow-200"],
+html.theme-light [class~="text-yellow-300"] {
+  color: #b45309 !important;
+}
+
+html.theme-light [class~="text-violet-100"],
+html.theme-light [class~="text-violet-200"],
+html.theme-light [class~="text-violet-300"],
+html.theme-light [class~="text-purple-100"],
+html.theme-light [class~="text-purple-200"],
+html.theme-light [class~="text-purple-300"],
+html.theme-light [class~="text-fuchsia-100"],
+html.theme-light [class~="text-fuchsia-200"],
+html.theme-light [class~="text-fuchsia-300"] {
+  color: #7e22ce !important;
+}
+
+html.theme-light [class~="bg-blue-500\/10"],
+html.theme-light [class~="bg-blue-500\/15"],
+html.theme-light [class~="bg-blue-500\/20"],
+html.theme-light [class~="bg-cyan-500\/10"],
+html.theme-light [class~="bg-cyan-500\/15"],
+html.theme-light [class~="bg-cyan-500\/20"] {
+  background-color: #eff6ff !important;
+}
+
+html.theme-light [class~="bg-emerald-500\/10"],
+html.theme-light [class~="bg-emerald-500\/15"],
+html.theme-light [class~="bg-emerald-500\/20"],
+html.theme-light [class~="bg-green-500\/10"],
+html.theme-light [class~="bg-green-500\/15"],
+html.theme-light [class~="bg-green-500\/20"] {
+  background-color: #ecfdf5 !important;
+}
+
+html.theme-light [class~="bg-rose-500\/10"],
+html.theme-light [class~="bg-rose-500\/15"],
+html.theme-light [class~="bg-rose-500\/20"],
+html.theme-light [class~="bg-red-500\/10"],
+html.theme-light [class~="bg-red-500\/15"],
+html.theme-light [class~="bg-red-500\/20"] {
+  background-color: #fef2f2 !important;
+}
+
+html.theme-light [class~="bg-amber-500\/10"],
+html.theme-light [class~="bg-amber-500\/15"],
+html.theme-light [class~="bg-amber-500\/20"],
+html.theme-light [class~="bg-orange-500\/10"],
+html.theme-light [class~="bg-orange-500\/15"],
+html.theme-light [class~="bg-orange-500\/20"],
+html.theme-light [class~="bg-yellow-500\/10"],
+html.theme-light [class~="bg-yellow-500\/15"],
+html.theme-light [class~="bg-yellow-500\/20"] {
+  background-color: #fffbeb !important;
+}
+
+html.theme-light [class~="bg-violet-500\/10"],
+html.theme-light [class~="bg-violet-500\/15"],
+html.theme-light [class~="bg-violet-500\/20"],
+html.theme-light [class~="bg-purple-500\/10"],
+html.theme-light [class~="bg-purple-500\/15"],
+html.theme-light [class~="bg-purple-500\/20"] {
+  background-color: #f5f3ff !important;
+}
+
+html.theme-light [class~="border-blue-400\/20"],
+html.theme-light [class~="border-blue-400\/30"],
+html.theme-light [class~="border-cyan-400\/20"],
+html.theme-light [class~="border-cyan-400\/30"],
+html.theme-light [class~="border-emerald-400\/20"],
+html.theme-light [class~="border-emerald-400\/30"],
+html.theme-light [class~="border-rose-400\/20"],
+html.theme-light [class~="border-rose-400\/30"],
+html.theme-light [class~="border-amber-400\/20"],
+html.theme-light [class~="border-amber-400\/30"] {
+  border-color: var(--border-color) !important;
+}
+
+html.theme-light [class~="bg-slate-500\/10"],
+html.theme-light [class~="bg-slate-500\/20"] {
+  background-color: var(--surface-muted) !important;
+}
+
+html.theme-light select option {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+html.theme-light button:disabled,
+html.theme-light a[aria-disabled="true"] {
+  color: var(--text-muted);
+}

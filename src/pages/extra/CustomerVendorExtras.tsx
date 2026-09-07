@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { BadgeCheck, BellRing, CreditCard, Heart, MapPin, MessageCircleMore, PackageCheck, ReceiptText, Search, Settings, ShieldCheck, Sparkles, Store, Wallet2, ChevronLeft, X, Check, Clock, Eye, MessageSquare } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { Card } from '../../components/common/Card';
@@ -8,10 +8,9 @@ import { Badge, PrimaryButton, SecondaryButton } from '../../components/common/B
 import { EmptyState, ErrorState, SkeletonCard, SkeletonTable } from '../../components/loading/LoadingComponents';
 import VendorSidebar from '../../components/layout/VendorSidebar';
 import { getCustomerProfile, saveCustomerProfile } from '../../api/customerApi';
-import { getOrderById, getOrders } from '../../api/orderApi';
+import { getAuctionPaymentState, getOrderById, getOrders, isConfirmedOrderStatus, isPaidStatus } from '../../api/orderApi';
 import { getAuctionById, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus } from '../../api/auctionApi';
 import { getAuctionBids, placeBid } from '../../api/bidApi';
-import { getPaymentsForOrder } from '../../api/paymentApi';
 import { buildAddressPayload, getAddresses, getAddressById, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
 import { useAuth } from '../../context/AuthContext';
 import type { OrderResponseDto } from '../../types';
@@ -804,6 +803,9 @@ export function CustomerWonAuctionsPage() {
       finalPrice: string;
       awardedAt: string;
       bidId: number;
+      paid: boolean;
+      orderConfirmed: boolean;
+      orderId: number | null;
     }>
   >([]);
 
@@ -843,12 +845,16 @@ export function CustomerWonAuctionsPage() {
 
               const auction = await getAuctionById(bid.auctionId);
 
+              const paymentState = await getAuctionPaymentState(auction.id);
               return {
                 auctionId: auction.id,
                 title: auction.title,
                 finalPrice: winner.finalPrice,
                 awardedAt: winner.awardedAt,
                 bidId: winner.bidId,
+                paid: paymentState.paid,
+                orderConfirmed: paymentState.orderConfirmed,
+                orderId: paymentState.order?.id ?? null,
               };
             } catch {
               return null;
@@ -985,6 +991,11 @@ export function CustomerWonAuctionsPage() {
                     {formatAmount(auction.finalPrice)}
                   </span>
                 </div>
+                <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                  <span className="text-sm text-slate-400">Payment</span>
+                  <span className={auction.paid ? 'text-sm font-medium text-emerald-300' : 'text-sm font-medium text-amber-300'}>{auction.paid ? 'Payment Completed' : 'Payment Pending'}</span>
+                </div>
+                {auction.orderConfirmed || auction.paid ? <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3"><span className="text-sm text-slate-400">Order</span><span className="text-sm font-medium text-emerald-300">Order Confirmed</span></div> : null}
 
                 <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
                   <span className="text-sm text-slate-400">
@@ -1007,13 +1018,14 @@ export function CustomerWonAuctionsPage() {
                 </div>
               </div>
 
-              <div className="mt-5 border-t border-white/10 pt-4">
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-white/10 pt-4">
                 <Link
                   to={`/customer/auctions/${auction.auctionId}`}
                   className="inline-flex rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
                 >
                   View Auction
                 </Link>
+                {auction.paid && auction.orderId ? <Link to={`/customer/orders/${auction.orderId}`} className="inline-flex rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500">View Order</Link> : <Link to={`/customer/auctions/${auction.auctionId}`} className="inline-flex rounded-full bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400">Pay Now</Link>}
               </div>
             </div>
           ))}
@@ -2052,6 +2064,7 @@ export function CustomerOrderDetailPage() {
 export function CustomerAuctionDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   // Core backend states
@@ -2060,6 +2073,8 @@ export function CustomerAuctionDetailPage() {
   const [registrationStatus, setRegistrationStatus] = useState<any>(null);
   const [winner, setWinner] = useState<any>(null);
   const [paymentStatus, setPaymentStatus] = useState<any>(null);
+  const [paymentOrderId, setPaymentOrderId] = useState<number | null>(null);
+  const [paymentStatusLoading, setPaymentStatusLoading] = useState(false);
 
   // UI states
   const [loading, setLoading] = useState(true);
@@ -2153,16 +2168,19 @@ export function CustomerAuctionDetailPage() {
   // Fetch payment status for auction winner
   const fetchPaymentStatus = async () => {
     if (!id || !winner) return;
+    if (!user || Number(user.id) !== Number(winner.winnerId)) return;
+    setPaymentStatusLoading(true);
     try {
-      const auctionId = Number(id);
-      // Try to fetch auction-specific payment or check through winner's order
-      // For now, we'll store the winner ID and check payment separately if needed
-      const payments = await getPaymentsForOrder(winner.auctionId);
-      if (payments && payments.length > 0) {
-        setPaymentStatus(payments[0]);
+      const state = await getAuctionPaymentState(Number(id));
+      setPaymentStatus(state.paid ? { status: 'PAID', orderConfirmed: state.orderConfirmed || state.paid } : null);
+      setPaymentOrderId(state.orderId);
+      if (location.pathname.endsWith('/pay') && state.paid && state.orderId) {
+        navigate(`/customer/orders/${state.orderId}`, { replace: true });
       }
     } catch (err: any) {
       console.warn('Failed to load payment status:', err?.message);
+    } finally {
+      setPaymentStatusLoading(false);
     }
   };
 
@@ -2189,7 +2207,7 @@ export function CustomerAuctionDetailPage() {
     if (winner && user && Number(user.id) === winner.winnerId) {
       fetchPaymentStatus();
     }
-  }, [winner, user]);
+  }, [winner, user, location.pathname, navigate]);
 
   // Timer: Update time remaining every second
   useEffect(() => {
@@ -2404,9 +2422,13 @@ export function CustomerAuctionDetailPage() {
             {isUserWinner && isAuctionEnded && (
               <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-6">
                 <p className="text-sm font-semibold text-blue-300">Winner Payment</p>
-                {paymentStatus?.status === 'COMPLETED' || paymentStatus?.status === 'SUCCESS' ? (
-                  <div className="mt-3 rounded-full bg-emerald-500/20 text-emerald-300 px-3 py-2 text-sm font-medium text-center">
-                    Payment Completed
+                {paymentStatusLoading ? (
+                  <div className="mt-3 rounded-full bg-white/10 text-slate-300 px-3 py-2 text-sm font-medium text-center">Checking payment status...</div>
+                ) : isPaidStatus(paymentStatus?.status) ? (
+                  <div className="mt-3 space-y-2 rounded-2xl bg-emerald-500/20 px-3 py-3 text-center text-sm font-medium text-emerald-300">
+                    <p>Payment Completed</p>
+                    {paymentStatus?.orderConfirmed ? <p>Order Confirmed</p> : null}
+                    {paymentOrderId ? <button type="button" onClick={() => navigate(`/customer/orders/${paymentOrderId}`)} className="underline">View Order</button> : null}
                   </div>
                 ) : (
                   <>

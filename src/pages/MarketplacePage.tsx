@@ -6,11 +6,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, LayoutGrid, List, Sparkles, X } from 'lucide-react';
 import { useLocaleContext } from '../context/LocaleContext';
 import { useThemeContext } from '../context/ThemeContext';
-import { getMarketplaceCategories, searchMarketplace, type MarketplaceCategory, type MarketplaceSearchOptions, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
+import { getCategories, type CategoryRecord } from '../api/categoryApi';
+import { searchMarketplace, type MarketplaceSearchOptions, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../api/apiClient';
 import { getWishlist, type WishlistItemResponse } from '../api/wishlistApi';
 import { useAuth } from '../context/AuthContext';
 import { EmptyState, SkeletonCard, ErrorState } from '../components/loading/LoadingComponents';
+import { useLocation } from 'react-router-dom';
 
 const ALL_CATEGORIES = '';
 const PAGE_SIZE = 20;
@@ -48,8 +50,10 @@ function toCardListing(item: MarketplaceSearchResult) {
 }
 
 export function MarketplacePage() {
+  const routeLocation = useLocation();
+  const initialParams = new URLSearchParams(routeLocation.search);
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState(ALL_CATEGORIES);
+  const [category, setCategory] = useState(initialParams.get('categoryId') || ALL_CATEGORIES);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [seller, setSeller] = useState('');
@@ -62,7 +66,9 @@ export function MarketplacePage() {
   const [sort, setSort] = useState('relevance');
   const [page, setPage] = useState(0);
   const [grid, setGrid] = useState(true);
-  const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [appliedFilters, setAppliedFilters] = useState<MarketplaceFilters>(DEFAULT_FILTERS);
   const [results, setResults] = useState<ReturnType<typeof toCardListing>[]>([]);
   const [totalElements, setTotalElements] = useState(0);
@@ -72,7 +78,29 @@ export function MarketplacePage() {
   const [wishlistByProductId, setWishlistByProductId] = useState<Record<number, WishlistItemResponse>>({});
   const { user } = useAuth();
 
-  useEffect(() => { getMarketplaceCategories().then(setCategories).catch(() => setCategories([])); }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(routeLocation.search);
+    const nextCategory = params.get('categoryId') || ALL_CATEGORIES;
+    const nextQuery = params.get('q') || '';
+    setCategory(nextCategory);
+    setQuery(nextQuery);
+    setPage(0);
+    setAppliedFilters((current) => ({ ...current, query: nextQuery, category: categories.find((item) => String(item.id) === nextCategory)?.name || '' }));
+  }, [routeLocation.search, categories]);
+
+  useEffect(() => {
+    let active = true;
+    getCategories().then((items) => {
+      if (active) setCategories(items);
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setCategories([]);
+      setCategoriesError(error instanceof Error ? error.message : 'Unable to load categories.');
+    }).finally(() => {
+      if (active) setCategoriesLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -80,10 +108,11 @@ export function MarketplacePage() {
     setError(null);
     searchMarketplace({ ...appliedFilters, page, size: PAGE_SIZE }).then((data) => {
       if (!active) return;
-      setResults(data.content.map(toCardListing));
-      setTotalElements(data.totalElements);
-      setTotalPages(data.totalPages);
-    }).catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : 'Unable to load marketplace listings'); })
+      const content = appliedFilters.category ? data.content.filter((item) => item.type !== 'VENDOR') : data.content;
+      setResults(content.map(toCardListing));
+      setTotalElements(appliedFilters.category ? content.length : data.totalElements);
+      setTotalPages(appliedFilters.category ? (content.length ? 1 : 0) : data.totalPages);
+    }).catch((err: unknown) => { if (active) setError(appliedFilters.category ? 'Unable to load products for this category.' : (err instanceof Error ? err.message : 'Unable to load marketplace listings')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [appliedFilters, page]);
@@ -115,7 +144,15 @@ export function MarketplacePage() {
 
   const applyFilters = () => {
     setPage(0);
-    setAppliedFilters({ query, category, minPrice, maxPrice, seller, rating, verifiedSellersOnly: verifiedOnly, auctionsOnly: auctionOnly, buyNowOnly, sort });
+    const selectedCategory = categories.find((item) => String(item.id) === category);
+    setAppliedFilters({ query, category: selectedCategory?.name || '', minPrice, maxPrice, seller, rating, verifiedSellersOnly: verifiedOnly, auctionsOnly: auctionOnly, buyNowOnly, sort });
+  };
+
+  const handleCategoryChange = (value: string) => {
+    setCategory(value);
+    setPage(0);
+    const selectedCategory = categories.find((item) => String(item.id) === value);
+    setAppliedFilters((current) => ({ ...current, category: selectedCategory?.name || '' }));
   };
 
   const activeFilters = useMemo(() => {
@@ -124,8 +161,9 @@ export function MarketplacePage() {
     if (query) {
       chips.push({ key: 'query', label: `“${query}”`, onRemove: () => setQuery('') });
     }
-    if (category) {
-      chips.push({ key: 'category', label: category, onRemove: () => setCategory(ALL_CATEGORIES) });
+    const selectedCategory = categories.find((item) => String(item.id) === category);
+    if (selectedCategory) {
+      chips.push({ key: 'category', label: selectedCategory.name, onRemove: () => handleCategoryChange(ALL_CATEGORIES) });
     }
     if (seller) {
       chips.push({ key: 'seller', label: seller, onRemove: () => setSeller('') });
@@ -154,7 +192,7 @@ export function MarketplacePage() {
     }
 
     return chips;
-  }, [auctionOnly, buyNowOnly, category, condition, location, maxPrice, minPrice, query, rating, seller, verifiedOnly]);
+  }, [auctionOnly, buyNowOnly, categories, category, condition, location, maxPrice, minPrice, query, rating, seller, verifiedOnly]);
 
   const visiblePages = useMemo(() => {
     if (totalPages <= 3) return Array.from({ length: totalPages }, (_, index) => index);
@@ -171,7 +209,7 @@ export function MarketplacePage() {
             query={query}
             setQuery={setQuery}
             category={category}
-            setCategory={setCategory}
+            setCategory={handleCategoryChange}
             minPrice={minPrice}
             setMinPrice={setMinPrice}
             maxPrice={maxPrice}
@@ -193,6 +231,8 @@ export function MarketplacePage() {
             sort={sort}
             setSort={setSort}
             categories={categories}
+            categoriesLoading={categoriesLoading}
+            categoriesError={categoriesError}
             applyFilters={applyFilters}
             resetFilters={resetFilters}
           />

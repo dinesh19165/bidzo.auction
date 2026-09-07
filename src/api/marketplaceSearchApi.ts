@@ -1,12 +1,9 @@
 import { fetchJson } from './apiClient';
 import type { ApiResponse } from '../types';
+import { getCategories, type CategoryRecord } from './categoryApi';
 
 export type MarketplaceResultType = 'PRODUCT' | 'AUCTION' | 'VENDOR';
-
-export interface MarketplaceCategory {
-  id: number;
-  name: string;
-}
+export type MarketplaceCategory = CategoryRecord;
 
 export interface MarketplaceVendor {
   id: number;
@@ -37,19 +34,7 @@ export interface MarketplaceSearchPage {
   empty: boolean;
 }
 
-let categoriesRequest: Promise<MarketplaceCategory[]> | null = null;
-
-export function getMarketplaceCategories(): Promise<MarketplaceCategory[]> {
-  if (categoriesRequest) return categoriesRequest;
-  categoriesRequest = fetchJson<ApiResponse<MarketplaceCategory[]>>('/api/categories/list', { method: 'GET' }, false).then((response) => {
-    if (!response?.data) throw new Error(response?.message || 'Failed to load categories');
-    return response.data;
-  }).catch((error) => {
-    categoriesRequest = null;
-    throw error;
-  });
-  return categoriesRequest;
-}
+export const getMarketplaceCategories = getCategories;
 
 export interface MarketplaceSearchOptions {
   query?: string;

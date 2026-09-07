@@ -9,12 +9,13 @@ import { ResponsiveContainer, BarChart, Bar, LineChart, Line, CartesianGrid, XAx
 import { adminStats, chartSeries, franchiseDashboardKpis, rolePermissions } from '../../data/mockData';
 import { Link } from 'react-router-dom';
 import Logo from '../../components/Logo';
-import { useAuth } from '../../context/AuthContext';
+import { isAdminUser, useAuth } from '../../context/AuthContext';
 import { approveVendor, getPendingVendorApprovals, rejectVendor, requestVendorChanges, type ApprovalRequest } from '../../api/approvalApi';
 import { approveVendorDocument } from '../../api/vendorApi';
 import { approveAdminWithdrawal, getAdminWalletSummary, getAdminWalletTransactions, getPendingAdminWithdrawals, rejectAdminWithdrawal, type AdminWalletSummary, type AdminWalletTransaction, type AdminWithdrawal } from '../../api/adminWalletApi';
 import { createAdminNotificationTemplate, deleteAdminNotificationTemplate, getAdminAuctionRules, getAdminCommissionRules, getAdminEmailSettings, getAdminGeneralSettings, getAdminLocalizationSettings, getAdminNotificationTemplates, getAdminPlatformCharges, getAdminRegistrationFeeSettings, getAdminSecuritySettings, getAdminShippingRules, getAdminSmsSettings, getAdminTaxSettings, updateAdminAuctionRules, updateAdminCommissionRules, updateAdminEmailSettings, updateAdminGeneralSettings, updateAdminLocalizationSettings, updateAdminPlatformCharges, updateAdminRegistrationFeeSettings, updateAdminSecuritySettings, updateAdminShippingRules, updateAdminSmsSettings, updateAdminTaxSettings, type NotificationTemplate } from '../../api/adminSettingsApi';
-import { createBanner, createBlog, createCategory, createFaq, createPage, createTestimonial, deleteBanner, deleteBlog, deleteCategory, deleteFaq, deletePage, deleteTestimonial, getBanners, getBlogs, getCategories, getFaq, getPages, getTestimonials, updateBanner, updateBannerStatus, updateBlog, updateBlogStatus, updateCategory, updateCategoryFeatured, updateCategoryStatus, updateFaq, updateFaqStatus, updatePage, updatePageStatus, updateTestimonial, updateTestimonialStatus } from '../../api/cmsApi';
+import { createBanner, createBlog, createFaq, createPage, createTestimonial, deleteBanner, deleteBlog, deleteFaq, deletePage, deleteTestimonial, getBanners, getBlogs, getFaq, getPages, getTestimonials, updateBanner, updateBannerStatus, updateBlog, updateBlogStatus, updateCategoryStatus, updateFaq, updateFaqStatus, updatePage, updatePageStatus, updateTestimonial, updateTestimonialStatus } from '../../api/cmsApi';
+import { createCategory, createCategoryField, deleteCategory, deleteCategoryField, getCategories, getCategoryFields, normalizeCategoryStatus, updateCategory, updateCategoryFeatured, updateCategoryField, type CategoryFieldDefinition, type CategoryFieldRequest, type CategoryFieldType, type CategoryRecord, type CategoryStatus } from '../../api/categoryApi';
 import { EmptyState, ErrorState, SkeletonTable } from '../../components/loading/LoadingComponents';
 import { showToast } from '../../components/ui/toast';
 
@@ -408,6 +409,18 @@ export function ApprovalCenterPage() {
     )
   );
 
+  const pendingStatuses = new Set(['PENDING', 'PENDING_APPROVAL', 'PENDING_REVIEW', 'PENDING_VERIFICATION', 'REQUIRES_CHANGES', 'CHANGES_REQUESTED', 'UNDER_REVIEW', 'MANUAL_REVIEW', 'REVIEW']);
+  const approvedStatuses = new Set(['APPROVED', 'VERIFIED', 'COMPLETE', 'COMPLETED']);
+  const isPendingStatus = (value: unknown) => pendingStatuses.has(String(value ?? 'PENDING').toUpperCase());
+  const isManualReviewStatus = (value: unknown) => ['MANUAL_REVIEW', 'REQUIRES_REVIEW', 'PENDING_REVIEW', 'UNDER_REVIEW', 'REVIEW'].includes(String(value ?? '').toUpperCase());
+  const kycPendingUsers = new Set(
+    approvals
+      .filter((row) => (row.documents ?? []).some((doc) => ['ID_PROOF', 'PAN', 'SELFIE'].includes(String(doc.type ?? '').toUpperCase()) && isPendingStatus(doc.status)))
+      .map((row) => String(row.userId ?? row.vendorProfileId))
+  ).size;
+  const gstPendingVendors = approvals.filter((row) => Boolean(row.gstNumber) && !approvedStatuses.has(String(row.gstVerificationStatus ?? '').toUpperCase()) && isPendingStatus(row.gstVerificationStatus)).length;
+  const manualReviewDocuments = approvals.reduce((count, row) => count + (row.documents ?? []).filter((doc) => isManualReviewStatus(doc.status)).length, 0);
+
   const maskAccountNumber = (value?: string) => {
     if (!value) return 'Not provided';
     const digits = value.replace(/\D/g, '');
@@ -576,9 +589,17 @@ export function ApprovalCenterPage() {
             <SecondaryButton icon={<FileText className="h-4 w-4" />}>Export queue</SecondaryButton>
           </div>
           <div className="mt-4 space-y-3 text-sm text-slate-300">
-            <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">KYC verification pending for 7 users.</div>
-            <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">GST verification pending for 4 vendors.</div>
-            <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">5 documents require manual review.</div>
+            {loading ? <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">Loading verification queue...</div> : error ? <ErrorState title="Unable to load verification queue" description={error} /> : <>
+              <Link to="/admin/approvals/kyc" className="block rounded-[18px] border border-white/10 bg-white/5 p-3 transition hover:border-blue-400/40 hover:bg-white/10">
+                {kycPendingUsers > 0 ? `KYC verification pending for ${kycPendingUsers} users.` : 'No KYC verification pending.'}
+              </Link>
+              <Link to="/admin/vendors" className="block rounded-[18px] border border-white/10 bg-white/5 p-3 transition hover:border-blue-400/40 hover:bg-white/10">
+                {gstPendingVendors > 0 ? `GST verification pending for ${gstPendingVendors} vendors.` : 'No GST verification pending.'}
+              </Link>
+              <Link to="/admin/approvals/kyc" className="block rounded-[18px] border border-white/10 bg-white/5 p-3 transition hover:border-blue-400/40 hover:bg-white/10">
+                {manualReviewDocuments > 0 ? `${manualReviewDocuments} documents require manual review.` : 'No documents require manual review.'}
+              </Link>
+            </>}
           </div>
         </Card>
       </div>
@@ -695,7 +716,7 @@ export function AdminLoginPage() {
     setError('');
     try {
       const user = await login(email, password);
-      if (!['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user.role || '')) {
+      if (!isAdminUser(user)) {
         clearSession();
         throw new Error('Admin access required');
       }
@@ -1338,11 +1359,18 @@ export function CMSBannersPage() {
 }
 
 export function CMSCategoriesPage() {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<CategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [draft, setDraft] = useState({ name: '', status: 'DRAFT', featured: false });
+  const [draft, setDraft] = useState<{ name: string; status: CategoryStatus; featured: boolean; parentId: string }>({ name: '', status: 'DRAFT', featured: false, parentId: '' });
+  const [editingId, setEditingId] = useState<number | string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'ALL' | CategoryStatus>('ALL');
+  const [categoryFields, setCategoryFields] = useState<CategoryFieldDefinition[]>([]);
+  const [fieldsLoading, setFieldsLoading] = useState(false);
+  const [fieldsError, setFieldsError] = useState<string | null>(null);
+  const [editingFieldId, setEditingFieldId] = useState<number | string | null>(null);
+  const [fieldDraft, setFieldDraft] = useState<CategoryFieldRequest>({ fieldName: '', fieldKey: '', fieldType: 'TEXT', required: false, displayOrder: 1, options: [] });
 
   const loadItems = async () => {
     try {
@@ -1359,13 +1387,39 @@ export function CMSCategoriesPage() {
 
   useEffect(() => { void loadItems(); }, []);
 
+  useEffect(() => {
+    if (editingId === null) {
+      setCategoryFields([]);
+      return;
+    }
+    let active = true;
+    setFieldsLoading(true);
+    setFieldsError(null);
+    getCategoryFields(editingId).then((fields) => { if (active) setCategoryFields(fields); }).catch((loadError: unknown) => {
+      if (active) {
+        setCategoryFields([]);
+        setFieldsError(loadError instanceof Error ? loadError.message : 'Unable to load category fields.');
+      }
+    }).finally(() => { if (active) setFieldsLoading(false); });
+    return () => { active = false; };
+  }, [editingId]);
+
+  const visibleItems = useMemo(() => statusFilter === 'ALL' ? items : items.filter((item) => normalizeCategoryStatus(item.status) === statusFilter), [items, statusFilter]);
+
   const handleCreate = async () => {
+    if (!draft.name.trim()) {
+      setError('Category name is required.');
+      return;
+    }
     try {
-      const created = await createCategory({ name: draft.name || 'New category', status: normalizeCmsStatus(draft.status), featured: draft.featured });
-      setItems((prev) => [created, ...prev]);
-      setDraft({ name: '', status: 'DRAFT', featured: false });
+      const created = await createCategory({ name: draft.name.trim(), status: draft.status, featured: draft.featured, parentId: draft.parentId ? Number(draft.parentId) : null });
+      if (created.id === undefined || created.id === null || created.id === '') {
+        throw new Error('Category was created but the backend did not return a category ID.');
+      }
+      await loadItems();
+      setDraft({ name: '', status: 'DRAFT', featured: false, parentId: '' });
       setIsCreating(false);
-      showToast('Category created', 'The CMS category was saved successfully.', 'success');
+      showToast('Category created successfully', 'The category was saved successfully.', 'success');
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Failed to create category';
       setError(message);
@@ -1374,13 +1428,34 @@ export function CMSCategoriesPage() {
   };
 
   const handleDelete = async (id: number | string) => {
+    if (id === undefined || id === null || id === '') {
+      setError('Category ID is missing. The category cannot be deleted.');
+      return;
+    }
+    if (import.meta.env.DEV) console.debug('[Bidzo categories] delete category', { categoryId: id });
     try {
       await deleteCategory(id);
-      setItems((prev) => prev.filter((item) => item.id !== id));
+      await loadItems();
       showToast('Category deleted', 'The item was removed from the CMS list.', 'success');
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Failed to delete category';
       showToast('Delete failed', message, 'warning');
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (editingId === null) return;
+    if (import.meta.env.DEV) console.debug('[Bidzo categories] update category', { categoryId: editingId, name: draft.name, parentId: draft.parentId || null });
+    try {
+      await updateCategory(editingId, { name: draft.name.trim(), status: draft.status, featured: draft.featured, parentId: draft.parentId ? Number(draft.parentId) : null });
+      await loadItems();
+      setEditingId(null);
+      setDraft({ name: '', status: 'DRAFT', featured: false, parentId: '' });
+      showToast('Category updated successfully', 'The category was updated successfully.', 'success');
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to update category';
+      setError(message);
+      showToast('Category update failed', message, 'warning');
     }
   };
 
@@ -1396,17 +1471,64 @@ export function CMSCategoriesPage() {
     }
   };
 
+  const resetFieldDraft = () => {
+    setEditingFieldId(null);
+    setFieldDraft({ fieldName: '', fieldKey: '', fieldType: 'TEXT', required: false, displayOrder: categoryFields.length + 1, options: [] });
+  };
+
+  const loadFields = async () => {
+    if (editingId === null) return;
+    setCategoryFields(await getCategoryFields(editingId));
+  };
+
+  const handleFieldSave = async () => {
+    if (editingId === null || !fieldDraft.fieldName.trim()) return;
+    const payload: CategoryFieldRequest = {
+      ...fieldDraft,
+      fieldName: fieldDraft.fieldName.trim(),
+      fieldKey: fieldDraft.fieldKey.trim() || fieldDraft.fieldName.trim().toLowerCase().replace(/[^a-z0-9]+(.)/g, (_match, character: string) => character.toUpperCase()),
+      options: fieldDraft.fieldType === 'SELECT' ? (fieldDraft.options ?? []).filter((option) => option.trim()) : [],
+    };
+    try {
+      if (editingFieldId === null) await createCategoryField(editingId, payload);
+      else await updateCategoryField(editingId, editingFieldId, payload);
+      await loadFields();
+      resetFieldDraft();
+      showToast('Category field saved', 'The field definition was saved successfully.', 'success');
+    } catch (saveError) {
+      setFieldsError(saveError instanceof Error ? saveError.message : 'Failed to save category field');
+    }
+  };
+
+  const handleFieldDelete = async (field: CategoryFieldDefinition) => {
+    if (editingId === null || !window.confirm(`Delete ${field.fieldName}?`)) return;
+    try {
+      await deleteCategoryField(editingId, field.id);
+      await loadFields();
+      showToast('Category field deleted', 'The field definition was removed.', 'success');
+    } catch (deleteError) {
+      setFieldsError(deleteError instanceof Error ? deleteError.message : 'Failed to delete category field');
+    }
+  };
+
   return (
     <AdminShell title="Enterprise admin" subtitle="CMS categories" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Categories' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => setIsCreating((prev) => !prev)} icon={<Plus className="h-4 w-4" />}>Add category</PrimaryButton>}>
       <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
         <Card className="p-4">
-          {isCreating && (
+          {(isCreating || editingId !== null) && (
             <div className="mb-4 rounded-[18px] border border-white/10 bg-slate-900/80 p-4">
               <div className="grid gap-3 md:grid-cols-2">
                 <LabeledInput label="Name" value={draft.name} onChange={(value) => setDraft((prev) => ({ ...prev, name: value }))} />
                 <div className="space-y-2">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Parent category</span>
+                  <select value={draft.parentId} onChange={(event) => setDraft((prev) => ({ ...prev, parentId: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
+                    <option value="">Top level</option>
+                    {items.filter((item) => String(item.id) !== String(editingId)).map((item) => <option key={String(item.id)} value={String(item.id)}>{item.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</span>
-                  <select value={draft.status} onChange={(event) => setDraft((prev) => ({ ...prev, status: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
+                  <select value={draft.status} onChange={(event) => setDraft((prev) => ({ ...prev, status: normalizeCategoryStatus(event.target.value) }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
                     <option value="DRAFT">DRAFT</option>
                     <option value="PUBLISHED">PUBLISHED</option>
                   </select>
@@ -1416,20 +1538,49 @@ export function CMSCategoriesPage() {
                 <input type="checkbox" checked={draft.featured} onChange={(event) => setDraft((prev) => ({ ...prev, featured: event.target.checked }))} className="h-4 w-4 rounded border-white/20 bg-slate-900" />
                 Featured
               </div>
+                {editingId !== null && (
+                  <div className="mt-5 border-t border-white/10 pt-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold text-white">Category fields</h3>
+                        <p className="mt-1 text-xs text-slate-400">Manage the fields vendors see for this category.</p>
+                      </div>
+                      <SecondaryButton onClick={resetFieldDraft}>Add field</SecondaryButton>
+                    </div>
+                    {fieldsLoading ? <p className="mt-4 text-sm text-slate-400">Loading category fields...</p> : fieldsError ? <p className="mt-4 text-sm text-rose-300">{fieldsError}</p> : categoryFields.length === 0 ? <p className="mt-4 text-sm text-slate-400">No category-specific fields.</p> : <div className="mt-4 space-y-3">{categoryFields.map((field) => <div key={String(field.id)} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium text-white">{field.fieldName}</p><p className="mt-1 text-slate-400">Type: {field.fieldType} · Required: {field.required ? 'Yes' : 'No'} · Order: {field.displayOrder}</p>{field.fieldType === 'SELECT' && <p className="mt-1 text-slate-400">Options: {field.options.join(', ') || 'None'}</p>}</div><div className="flex gap-2"><button onClick={() => { setEditingFieldId(field.id); setFieldDraft({ fieldName: field.fieldName, fieldKey: field.fieldKey, fieldType: field.fieldType, required: field.required, displayOrder: field.displayOrder, options: field.options }); }} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">Edit</button><button onClick={() => handleFieldDelete(field)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button></div></div></div>)}</div>}
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <LabeledInput label="Field name" value={fieldDraft.fieldName} onChange={(value) => setFieldDraft((current) => ({ ...current, fieldName: value }))} />
+                      <div><label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Field type</label><select value={fieldDraft.fieldType} onChange={(event) => setFieldDraft((current) => ({ ...current, fieldType: event.target.value as CategoryFieldType }))} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none"><option value="TEXT">Text</option><option value="NUMBER">Number</option><option value="SELECT">Select</option><option value="BOOLEAN">Boolean</option><option value="DATE">Date</option><option value="TEXTAREA">Textarea</option></select></div>
+                      <div><label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Display order</label><input type="number" min="1" value={fieldDraft.displayOrder} onChange={(event) => setFieldDraft((current) => ({ ...current, displayOrder: Number(event.target.value) || 1 }))} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none" /></div>
+                      <label className="mt-7 flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={fieldDraft.required} onChange={(event) => setFieldDraft((current) => ({ ...current, required: event.target.checked }))} /> Required</label>
+                    </div>
+                    {fieldDraft.fieldType === 'SELECT' && <div className="mt-3"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Options</p><div className="mt-2 space-y-2">{(fieldDraft.options ?? []).map((option, index) => <div key={`${index}-${option}`} className="flex gap-2"><input value={option} onChange={(event) => setFieldDraft((current) => ({ ...current, options: (current.options ?? []).map((item, itemIndex) => itemIndex === index ? event.target.value : item) }))} className="w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white" /><button onClick={() => setFieldDraft((current) => ({ ...current, options: (current.options ?? []).filter((_item, itemIndex) => itemIndex !== index) }))} className="rounded-xl bg-rose-500/10 px-3 text-xs text-rose-200">Remove</button></div>)}<button onClick={() => setFieldDraft((current) => ({ ...current, options: [...(current.options ?? []), ''] }))} className="rounded-xl bg-white/5 px-3 py-2 text-xs text-slate-200">Add option</button></div></div>}
+                    <div className="mt-4 flex justify-end gap-2"><SecondaryButton onClick={resetFieldDraft}>Clear</SecondaryButton><PrimaryButton onClick={handleFieldSave}>{editingFieldId === null ? 'Save field' : 'Update field'}</PrimaryButton></div>
+                  </div>
+                )}
               <div className="mt-4 flex justify-end gap-3">
                 <SecondaryButton onClick={() => setIsCreating(false)}>Cancel</SecondaryButton>
-                <PrimaryButton onClick={handleCreate}>Save</PrimaryButton>
+                <PrimaryButton onClick={editingId !== null ? handleUpdate : handleCreate}>{editingId !== null ? 'Update' : 'Save'}</PrimaryButton>
               </div>
             </div>
           )}
           {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
+          <div className="mb-4 flex items-center justify-end gap-3 text-sm text-slate-300">
+            <label htmlFor="category-status-filter">Status</label>
+            <select id="category-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | CategoryStatus)} className="rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-white outline-none">
+              <option value="ALL">All</option>
+              <option value="DRAFT">Draft</option>
+              <option value="PUBLISHED">Published</option>
+            </select>
+          </div>
           {loading ? <div className="text-sm text-slate-400">Loading categories...</div> : (
             <Table columns={[
-              { key: 'name', label: 'Name' },
-              { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
-              { key: 'featured', label: 'Featured', render: (row: any) => <button onClick={() => handleFeaturedToggle(row)} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">{row.featured ? 'Featured' : 'Not featured'}</button> },
-              { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={() => handleDelete(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button> },
-            ]} data={items} className="p-0" />
+              { key: 'name', label: 'Name', render: (row: CategoryRecord) => <span>{row.parentId ? `- ${row.name}` : row.name}</span> },
+              { key: 'parentId', label: 'Parent', render: (row: CategoryRecord) => row.parentId ? items.find((parent) => String(parent.id) === String(row.parentId))?.name ?? String(row.parentId) : 'Top level' },
+              { key: 'status', label: 'Status', render: (row: CategoryRecord) => { const status = normalizeCategoryStatus(row.status); return <Badge className={status === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-slate-500/10 text-slate-300'}>{status === 'PUBLISHED' ? 'Published' : 'Draft'}</Badge>; } },
+              { key: 'featured', label: 'Featured', render: (row: CategoryRecord) => <button onClick={() => handleFeaturedToggle(row)} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">{row.featured ? 'Featured' : 'Not featured'}</button> },
+              { key: 'actions', label: 'Actions', render: (row: CategoryRecord) => <div className="flex gap-2"><button onClick={() => { setEditingId(row.id); setIsCreating(false); setDraft({ name: row.name, status: normalizeCategoryStatus(row.status), featured: Boolean(row.featured), parentId: row.parentId ? String(row.parentId) : '' }); }} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">Edit</button><button onClick={() => handleDelete(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button></div> },
+            ]} data={visibleItems} className="p-0" />
           )}
         </Card>
         <FakeTable title="Taxonomy" items={[{ label: 'Top categories', value: String(items.length), tone: 'blue' }, { label: 'Featured', value: String(items.filter((item) => Boolean(item.featured)).length), tone: 'emerald' }]} />

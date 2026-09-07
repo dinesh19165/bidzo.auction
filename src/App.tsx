@@ -1,8 +1,8 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Layout } from './components/Layout';
-import { AuthProvider, useAuth, type UserType } from './context/AuthContext';
+import { AuthProvider, getPortalHome, isAdminUser, useAuth, type UserType } from './context/AuthContext';
 import { UserProvider, CartProvider, WalletProvider, NotificationProvider, ThemeProvider, LocaleProvider } from './context';
 import { HomePage } from './pages/HomePage';
 import { AboutPage } from './pages/AboutPage';
@@ -67,6 +67,7 @@ import { BuyNowConfirmPage, BuyNowPaymentPage, BuyNowOrderSuccessPage, BuyNowInv
 import { AdminDashboardApiPage, AdminReportApiPage, AdminResourceDetailPage, AdminResourcePage } from './pages/admin/AdminApiPages';
 import { CustomerCartPage } from './pages/CustomerCartPage';
 import { getStoredAuthToken, handleUnauthorized, isJwtExpired } from './api/apiClient';
+import { getVendorVerificationStatus } from './api/vendorVerificationApi';
 
 function AppRouteGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -74,11 +75,37 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
   const pathname = location.pathname;
   const isCustomerRoute = pathname === '/dashboards/customer' || pathname.startsWith('/customer');
   const isVendorRoute = pathname === '/dashboards/vendor' || pathname.startsWith('/vendor');
+  const isVendorDashboardRoute = pathname === '/dashboards/vendor' || pathname === '/vendor/dashboard';
   const isAdminRoute = pathname === '/dashboards/admin' || pathname.startsWith('/admin');
   const isAdminLoginRoute = pathname === '/admin/login';
+  const isKycRoute = pathname === '/kyc';
 
   const storedToken = user ? getStoredAuthToken() : null;
   const expiredSession = Boolean(storedToken && isJwtExpired(storedToken));
+  const [vendorKycCheck, setVendorKycCheck] = useState<'idle' | 'checking' | 'complete' | 'incomplete' | 'error'>('idle');
+
+  useEffect(() => {
+    if (!isVendorDashboardRoute || user?.type !== 'vendor') {
+      setVendorKycCheck('idle');
+      return;
+    }
+
+    let active = true;
+    setVendorKycCheck('checking');
+    getVendorVerificationStatus()
+      .then((verification) => {
+        if (!active) return;
+        const status = String(verification.identityVerification?.status ?? '').toUpperCase();
+        setVendorKycCheck(['COMPLETE', 'COMPLETED', 'VERIFIED', 'APPROVED'].includes(status) ? 'complete' : 'incomplete');
+      })
+      .catch(() => {
+        if (active) setVendorKycCheck('error');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isVendorDashboardRoute, user?.token, user?.type]);
 
   useEffect(() => {
     if (!expiredSession) return;
@@ -91,12 +118,16 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
 
   if (expiredSession) return null;
 
+  if (isAdminLoginRoute && user) {
+    return <Navigate to={getPortalHome(user)} replace />;
+  }
+
   if (isAdminRoute && !isAdminLoginRoute) {
     if (!user) {
       return <Navigate to="/admin/login" replace />;
     }
-    if (!['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(user.role || '')) {
-      return <Navigate to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} replace />;
+    if (!isAdminUser(user)) {
+      return <Navigate to={getPortalHome(user)} replace />;
     }
   }
   const isAuthEntryRoute = ['/login', '/register', '/register/customer', '/register/vendor', '/onboarding'].includes(pathname);
@@ -111,7 +142,7 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (user.type !== 'customer') {
-      return <Navigate to={user.type === 'vendor' ? '/dashboards/vendor' : '/login'} replace />;
+      return <Navigate to={getPortalHome(user)} replace />;
     }
   }
 
@@ -121,8 +152,25 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (user.type !== 'vendor') {
-      return <Navigate to={user.type === 'customer' ? '/dashboards/customer' : '/login'} replace />;
+      return <Navigate to={getPortalHome(user)} replace />;
     }
+
+    if (isVendorDashboardRoute && vendorKycCheck === 'checking') {
+      return <div className="flex min-h-screen items-center justify-center bg-[var(--app-bg)] px-4 text-center text-[var(--text-secondary)]">Checking vendor verification status...</div>;
+    }
+
+    if (isVendorDashboardRoute && vendorKycCheck === 'incomplete') {
+      return <Navigate to="/kyc" replace state={{ from: location.pathname }} />;
+    }
+
+    if (isVendorDashboardRoute && vendorKycCheck === 'error') {
+      return <div className="flex min-h-screen items-center justify-center bg-[var(--app-bg)] px-4 text-center text-[var(--text-secondary)]">Unable to verify vendor KYC status. Please try again.</div>;
+    }
+  }
+
+  if (isKycRoute) {
+    if (!user) return <Navigate to="/login" replace state={{ role: 'vendor' }} />;
+    if (user.type !== 'vendor') return <Navigate to={getPortalHome(user)} replace />;
   }
 
   return <>{children}</>;
@@ -182,6 +230,7 @@ function App() {
             <Route path="/customer/auctions/live" element={<CustomerAuctionsPage />} />
             <Route path="/customer/auctions/upcoming" element={<CustomerAuctionsPage />} />
             <Route path="/customer/auctions/won" element={<CustomerWonAuctionsPage />} />
+            <Route path="/customer/auctions/:id/pay" element={<CustomerAuctionDetailPage />} />
             <Route path="/customer/auctions" element={<CustomerAuctionsPage />} />
             <Route path="/customer/auctions/:id" element={<CustomerAuctionDetailPage />} />
             <Route path="/customer/wallet" element={<WalletPage />} />
