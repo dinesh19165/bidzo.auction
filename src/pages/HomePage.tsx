@@ -135,7 +135,7 @@ function AuctionTile({ auction, status }: { auction: AuctionResponse; status: Ho
     return () => window.clearInterval(timer);
   }, [auction.endAt]);
   return (
-    <Link to={`/auctions/${auction.id}`} className="block rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:border-blue-400/40">
+    <Link to={`/auctions/${auction.id}`} aria-label={`View ${status === 'RUNNING' ? 'live' : 'scheduled'} auction: ${title}`} className="home-auction-card group block rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:border-blue-400/40">
       <div className="relative h-44 overflow-hidden rounded-[20px] bg-slate-950/60">
         <img src={imageUrl(auction.imageUrl || auction.image)} alt={title} className="h-full w-full object-cover" loading="lazy" />
         <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${status === 'RUNNING' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-amber-500/15 text-amber-200'}`}>{status === 'RUNNING' ? 'Live' : 'Scheduled'}</span>
@@ -148,6 +148,7 @@ function AuctionTile({ auction, status }: { auction: AuctionResponse; status: Ho
         <p className="inline-flex items-center gap-2"><Gavel className="h-4 w-4" /> {auction.bidCount == null ? 'Bid count unavailable' : `${auction.bidCount} bids`}</p>
         <p>{sellerName(auction)}</p>
       </div>
+      <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 transition group-hover:text-cyan-200">View auction <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" /></span>
     </Link>
   );
 }
@@ -182,7 +183,12 @@ export function HomePage() {
     try {
       const [data, categoryData, auctionItems] = await Promise.all([getHomeData(), getCategories(), getAuctions()]);
       const homeAuctions = auctionItems.map(toHomeAuction);
-      setHomeData({ ...data, liveAuctions: homeAuctions, upcomingAuctions: homeAuctions, endingSoonAuctions: homeAuctions });
+      setHomeData({
+        ...data,
+        liveAuctions: data.liveAuctions?.length ? data.liveAuctions : homeAuctions,
+        upcomingAuctions: data.upcomingAuctions?.length ? data.upcomingAuctions : homeAuctions,
+        endingSoonAuctions: data.endingSoonAuctions?.length ? data.endingSoonAuctions : homeAuctions,
+      });
       setCategories(categoryData);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load marketplace data.');

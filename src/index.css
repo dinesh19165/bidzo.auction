@@ -657,3 +657,11 @@ html.theme-light .featured-products-section article.group:hover {
   margin-top: 1.25rem;
 }
 
+.home-auction-card {
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.home-auction-card:hover {
+  box-shadow: 0 20px 42px rgba(23, 105, 255, 0.16);
+}
+
