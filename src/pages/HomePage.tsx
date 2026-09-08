@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Gavel, Search, Sparkles } from 'lucide-react';
 import { getPortalHome, useAuth } from '../context/AuthContext';
@@ -106,20 +106,16 @@ function HomeBanner({ banners, children }: { banners: HomeBannerResponse[]; chil
     return () => window.cancelAnimationFrame(frame);
   }, [banner?.id]);
 
-  const heroStyle = {
-    '--hero-banner-image': !imageFailed && desktopImage ? `url("${desktopImage}")` : 'none',
-    '--hero-banner-mobile-image': !imageFailed && mobileImage ? `url("${mobileImage}")` : 'none',
-  } as CSSProperties;
+  const hasBannerImage = Boolean(!imageFailed && desktopImage);
 
   return (
-    <section className={`home-hero relative min-h-[520px] overflow-hidden rounded-[28px] text-white transition-opacity duration-500 sm:min-h-[560px] lg:min-h-[600px] ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-      <div aria-hidden="true" className="home-hero-background absolute inset-0 z-0" style={heroStyle} />
+    <section className={`home-hero relative overflow-hidden rounded-[28px] text-white transition-opacity duration-500 ${hasBannerImage ? 'home-hero-has-banner' : 'bg-[var(--app-bg)]'} ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      {hasBannerImage ? <picture aria-hidden="true" className="home-hero-background absolute inset-0 z-0 block"><source media="(max-width: 767px)" srcSet={mobileImage || desktopImage || undefined} /><img src={desktopImage || undefined} alt="" onError={() => setImageFailed(true)} className="h-full w-full object-contain object-center" /></picture> : null}
       <div aria-hidden="true" className="home-hero-overlay pointer-events-none absolute inset-0 z-10" />
-      <div className="relative z-20 flex min-h-[520px] items-center py-10 sm:min-h-[560px] sm:py-12 lg:min-h-[600px] lg:py-16 [&>section]:!bg-transparent">{children}</div>
+      <div className="relative z-20 flex items-center py-8 sm:py-10 lg:py-12 [&>section]:!bg-transparent">{children}</div>
       {visibleBanners.length > 1 ? <>
         <button type="button" aria-label="Previous banner" onClick={() => setActiveIndex((current) => (current - 1 + visibleBanners.length) % visibleBanners.length)} className="absolute left-4 top-1/2 z-30 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/60 text-white transition hover:bg-slate-950/85"><ChevronLeft className="h-4 w-4" /></button>
         <button type="button" aria-label="Next banner" onClick={() => setActiveIndex((current) => (current + 1) % visibleBanners.length)} className="absolute right-4 top-1/2 z-30 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/60 text-white transition hover:bg-slate-950/85"><ChevronRight className="h-4 w-4" /></button>
-        <div className="absolute right-6 top-6 z-30 flex gap-1.5" role="tablist" aria-label="Banners">{visibleBanners.map((item, index) => <button key={item.id} type="button" role="tab" aria-label={`Show banner ${index + 1}`} aria-selected={index === activeIndex} onClick={() => setActiveIndex(index)} className={`h-1.5 rounded-full transition-all ${index === activeIndex ? 'w-6 bg-cyan-300' : 'w-1.5 bg-white/60'}`} />)}</div>
       </> : null}
     </section>
   );

@@ -483,10 +483,8 @@ html.theme-light a[aria-disabled="true"] {
 }
 
 .home-hero-background {
-  background-image: var(--hero-banner-image);
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
+  height: 100%;
+  width: 100%;
 }
 
 .home-hero > section[class~="relative"][class~="overflow-hidden"] {
@@ -496,13 +494,6 @@ html.theme-light a[aria-disabled="true"] {
 
 .home-hero-overlay {
   background: linear-gradient(90deg, rgba(2, 6, 23, 0.78) 0%, rgba(2, 6, 23, 0.42) 48%, rgba(2, 6, 23, 0.08) 78%, transparent 100%);
-}
-
-@media (min-width: 1024px) {
-  .home-hero,
-  .home-hero > .relative {
-    min-height: clamp(460px, calc(100svh - 120px), 600px);
-  }
 }
 
 html.theme-light .home-hero-overlay {
@@ -644,16 +635,18 @@ html.theme-light .featured-products-section article.group:hover {
 }
 
 @media (max-width: 767px) {
-  .home-hero-background {
-    background-image: var(--hero-banner-mobile-image);
-  }
-
   .home-hero-overlay {
     background: linear-gradient(180deg, rgba(2, 6, 23, 0.68) 0%, rgba(2, 6, 23, 0.38) 55%, rgba(2, 6, 23, 0.72) 100%);
   }
 
   html.theme-light .home-hero-overlay {
     background: linear-gradient(180deg, rgba(2, 6, 23, 0.7) 0%, rgba(2, 6, 23, 0.42) 58%, rgba(2, 6, 23, 0.78) 100%);
+  }
+}
+
+@media (min-width: 768px) {
+  .home-hero-has-banner {
+    aspect-ratio: 16 / 9;
   }
 }
 
