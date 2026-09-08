@@ -4,6 +4,7 @@ import { CheckCircle2, Clock3, Gavel, Search, Sparkles } from 'lucide-react';
 import { getPortalHome, useAuth } from '../context/AuthContext';
 import { useLocaleContext } from '../context/LocaleContext';
 import { getHomeData, type AuctionResponse, type HomeDataResponse, type ProductResponse } from '../api/homeApi';
+import { getAuctions, type AuctionListItem } from '../api/auctionApi';
 import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
 import { API_BASE_URL } from '../api/apiClient';
 import { ProductCard } from '../components/cards/MarketplaceCards';
@@ -46,6 +47,23 @@ function productCategory(product: ProductResponse, categories: CategoryRecord[])
 
 function sellerName(value: ProductResponse | AuctionResponse): string {
   return text(value.vendorName || value.seller, 'Seller unavailable');
+}
+
+function toHomeAuction(item: AuctionListItem): AuctionResponse {
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    startAt: item.startAt,
+    endAt: item.endAt,
+    startingPrice: item.startingPrice,
+    currentBid: item.currentBid,
+    bidCount: item.participants,
+    status: item.backendStatus,
+    productId: item.productId,
+    seller: item.seller,
+    image: item.image,
+  };
 }
 
 function HomeSkeleton() {
@@ -107,8 +125,10 @@ export function HomePage() {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      const [data, categoryData] = await Promise.all([getHomeData(), getCategories()]);
-      setHomeData(data); setCategories(categoryData);
+      const [data, categoryData, auctionItems] = await Promise.all([getHomeData(), getCategories(), getAuctions()]);
+      const homeAuctions = auctionItems.map(toHomeAuction);
+      setHomeData({ ...data, liveAuctions: homeAuctions, upcomingAuctions: homeAuctions, endingSoonAuctions: homeAuctions });
+      setCategories(categoryData);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load marketplace data.');
     } finally { setLoading(false); }
@@ -133,11 +153,11 @@ export function HomePage() {
   if (loading) return <HomeSkeleton />;
   if (error || !homeData) return <div className="mx-auto max-w-2xl px-4 py-24"><ErrorState title="Unable to load marketplace data." description={error || 'No marketplace data is available.'} /><button type="button" onClick={load} className="mt-4 rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white">Retry</button></div>;
 
-  const stats = homeData.stats;
   const featured = (homeData.featuredProducts ?? []).filter((product) => product.sellingType !== 'AUCTION');
   const liveAuctions = filterHomeAuctions(homeData.liveAuctions ?? [], 'RUNNING', currentTime);
   const scheduledAuctions = filterHomeAuctions(homeData.upcomingAuctions ?? [], 'SCHEDULED', currentTime);
   const endingSoon = filterEndingSoonHomeAuctions(homeData.endingSoonAuctions ?? [], currentTime);
+  const stats = { ...homeData.stats, liveAuctions: liveAuctions.length };
   const recent = homeData.recentProducts ?? [];
   const popular = homeData.popularProducts ?? [];
   const sellers = homeData.verifiedSellers ?? [];

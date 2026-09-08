@@ -4,7 +4,7 @@ import { Search } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
 import { categoryLabel, getCategories, type CategoryRecord } from '../../api/categoryApi';
-import { searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
+import { deduplicateMarketplaceResults, searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../../api/apiClient';
 import { products, categories } from '../../data/mockData';
 
@@ -63,9 +63,10 @@ export function SearchResultsPage() {
     }
     setLoading(true);
     setError(null);
-    searchMarketplace({ query, category, page, size: 20 }).then((data) => {
+    searchMarketplace({ query, category, page, size: 20 }).then(async (data) => {
       if (active) {
-        const content = category ? data.content.filter((item) => item.type !== 'VENDOR') : data.content;
+        const filteredContent = category ? data.content.filter((item) => item.type !== 'VENDOR') : data.content;
+        const content = await deduplicateMarketplaceResults(filteredContent);
         setResults({ ...data, content, totalElements: category ? content.length : data.totalElements, totalPages: category ? (content.length ? 1 : 0) : data.totalPages });
       }
     }).catch((reason) => {
@@ -98,10 +99,11 @@ export function SearchResultsPage() {
 }
 
 function MarketplaceResultCard({ item }: { item: MarketplaceSearchResult }) {
-  const image = item.image && !item.image.includes('placeholder.com') ? item.image : '/logo.png';
+  const image = item.image && !item.image.includes('placeholder.com') ? item.image : null;
+  const imageUrl = image ? (image.startsWith('/') ? `${API_BASE_URL}${image}` : image) : null;
   const href = item.type === 'AUCTION' ? `/auctions/${item.id}` : item.type === 'VENDOR' ? `/seller/${item.id}` : `/product/${item.id}`;
   const value = item.type === 'AUCTION' ? item.currentBid : item.price;
-  return <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-slate-300"><img src={image.startsWith('/') && !image.startsWith('/logo') ? `${API_BASE_URL}${image}` : image} alt={item.title} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/logo.png'; }} className="h-44 w-full rounded-2xl object-cover" /><p className="mt-4 text-xs uppercase tracking-[0.2em] text-blue-300">{item.type}</p><h3 className="mt-2 text-lg font-semibold text-white">{item.title}</h3><p className="mt-2 text-sm">{item.category?.name || item.vendor?.name || 'Marketplace result'}</p>{value !== null ? <p className="mt-4 text-lg font-semibold text-white">₹{Number(value).toLocaleString()}</p> : null}<Link to={href} className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">View details</Link></div>;
+  return <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-slate-300"><div className="h-44 overflow-hidden rounded-2xl bg-slate-800">{imageUrl ? <img src={imageUrl} alt={item.title} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" /> : null}</div><p className="mt-4 text-xs uppercase tracking-[0.2em] text-blue-300">{item.type}</p><h3 className="mt-2 text-lg font-semibold text-white">{item.title}</h3><p className="mt-2 text-sm">{item.category?.name || item.vendor?.name || 'Marketplace result'}</p>{value !== null ? <p className="mt-4 text-lg font-semibold text-white">₹{Number(value).toLocaleString()}</p> : null}<Link to={href} className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">View details</Link></div>;
 }
 
 export function RecommendedPage() {

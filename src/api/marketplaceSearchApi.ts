@@ -1,6 +1,7 @@
 import { fetchJson } from './apiClient';
 import type { ApiResponse } from '../types';
 import { getCategories, type CategoryRecord } from './categoryApi';
+import { getAuctionById, getAuctionImages, getEffectiveAuctionStatus, getProductImages, type AuctionResponse } from './auctionApi';
 
 export type MarketplaceResultType = 'PRODUCT' | 'AUCTION' | 'VENDOR';
 export type MarketplaceCategory = CategoryRecord;
@@ -49,6 +50,66 @@ export interface MarketplaceSearchOptions {
   sort?: string;
   page?: number;
   size?: number;
+}
+
+function isCurrentAuction(auction: AuctionResponse, now: number): boolean {
+  const end = new Date(auction.endAt).getTime();
+  if (!Number.isFinite(end) || end <= now) return false;
+
+  const effectiveStatus = getEffectiveAuctionStatus(auction.status, auction.startAt, auction.endAt);
+  return effectiveStatus === 'RUNNING' || effectiveStatus === 'SCHEDULED';
+}
+
+function hasSearchImage(image: string | null): boolean {
+  return Boolean(image?.trim()) && !image?.includes('placeholder.com');
+}
+
+export async function deduplicateMarketplaceResults(results: MarketplaceSearchResult[], now = Date.now()): Promise<MarketplaceSearchResult[]> {
+  const auctionDetails = new Map<number, AuctionResponse>();
+  const enrichedResults = await Promise.all(results.map(async (result) => {
+    if (result.type !== 'AUCTION') return result;
+
+    try {
+      const auction = await getAuctionById(result.id);
+      auctionDetails.set(result.id, auction);
+
+      if (hasSearchImage(result.image)) return result;
+
+      const auctionImages = await getAuctionImages(result.id);
+      const auctionImage = auctionImages[0]?.url || null;
+      if (auctionImage) return { ...result, image: auctionImage };
+
+      if (auction.productId) {
+        const productImages = await getProductImages(auction.productId);
+        return { ...result, image: productImages[0]?.url || null };
+      }
+    } catch {
+      return result;
+    }
+
+    return result;
+  }));
+
+  const groups = new Map<string, MarketplaceSearchResult[]>();
+  const order: string[] = [];
+  enrichedResults.forEach((result) => {
+    const auction = result.type === 'AUCTION' ? auctionDetails.get(result.id) : undefined;
+    const productId = result.type === 'PRODUCT' ? result.id : auction?.productId;
+    const key = productId == null ? `result:${result.type}:${result.id}` : `product:${productId}`;
+    if (!groups.has(key)) order.push(key);
+    groups.set(key, [...(groups.get(key) || []), result]);
+  });
+
+  return order.map((key) => {
+    const group = groups.get(key) || [];
+    const preferredAuction = group.find((result) => {
+      const auction = result.type === 'AUCTION' ? auctionDetails.get(result.id) : undefined;
+      return auction ? isCurrentAuction(auction, now) : false;
+    });
+    if (preferredAuction) return preferredAuction;
+
+    return group.find((result) => result.type === 'PRODUCT') || group[0];
+  });
 }
 
 export async function searchMarketplace(options: MarketplaceSearchOptions = {}): Promise<MarketplaceSearchPage> {

@@ -88,6 +88,7 @@ export interface AuctionListItem {
   description: string;
   image: string;
   status: string;
+  backendStatus: string;
   currentBid: string;
   endsIn: string;
   seller: string;
@@ -303,6 +304,8 @@ function mapAuction(
     image: image || '/logo.png',
 
     status: statusLabel,
+
+    backendStatus: auction.status,
 
     currentBid: stats.currentBid,
 
