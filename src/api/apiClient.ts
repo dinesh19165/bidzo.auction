@@ -167,6 +167,18 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth
   return body as T;
 }
 
+export async function uploadFormData<T>(path: string, formData: FormData): Promise<T> {
+  const token = getStoredAuthToken();
+  const headers = new Headers();
+  applyAuthHeaders(headers, token);
+  const response = await fetch(getApiUrl(path), { method: 'POST', headers, body: formData });
+  const body = (await response.json().catch(() => null)) as any;
+  if (!response.ok) {
+    throw new ApiError(response.status, body?.message || response.statusText || 'Upload failed');
+  }
+  return body as T;
+}
+
 export async function fetchJsonWithToken<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   if (sessionExpirationHandled) {
     throw new Error('Unauthorized');

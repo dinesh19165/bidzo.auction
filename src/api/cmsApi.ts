@@ -1,4 +1,4 @@
-import { fetchBlob, fetchJson } from './apiClient';
+import { fetchBlob, fetchJson, uploadFormData } from './apiClient';
 
 export interface CmsRecord { id: number | string; status: string; [key: string]: unknown; }
 export interface CmsCounts { [key: string]: number; }
@@ -37,6 +37,14 @@ const resource = (path: string) => ({
 });
 
 export const getBanners = (query?: string) => resource('/api/admin/cms/banners').list(query); export const getBanner = (id: number | string) => resource('/api/admin/cms/banners').get(id); export const createBanner = (data: Record<string, unknown>) => resource('/api/admin/cms/banners').create(data); export const updateBanner = (id: number | string, data: Record<string, unknown>) => resource('/api/admin/cms/banners').update(id, data); export const deleteBanner = (id: number | string) => resource('/api/admin/cms/banners').delete(id); export const updateBannerStatus = (id: number | string, status: string) => resource('/api/admin/cms/banners').status(id, status);
+export async function uploadBannerImage(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await uploadFormData<{ success?: boolean; url?: string; data?: { url?: string } | string; message?: string }>('/api/admin/cms/banners/upload-image', formData);
+  const url = typeof response === 'string' ? response : response?.url || (typeof response?.data === 'string' ? response.data : response?.data?.url);
+  if (!url) throw new Error(response?.message || 'Image upload failed');
+  return url;
+}
 export const getBannerCounts = async () => unwrap(await fetchJson<unknown>('/api/admin/cms/banners/counts'), 'Failed to load banner counts') as CmsCounts;
 export const getCategories = (query?: string) => resource('/api/admin/cms/categories').list(query); export const getCategory = (id: number | string) => resource('/api/admin/cms/categories').get(id); export const createCategory = (data: Record<string, unknown>) => resource('/api/admin/cms/categories').create(data); export const updateCategory = (id: number | string, data: Record<string, unknown>) => resource('/api/admin/cms/categories').update(id, data); export const deleteCategory = (id: number | string) => resource('/api/admin/cms/categories').delete(id); export const updateCategoryStatus = (id: number | string, status: string) => resource('/api/admin/cms/categories').status(id, status); export const updateCategoryFeatured = (id: number | string, featured: boolean) => one<CmsRecord>(`/api/admin/cms/categories/${encodeURIComponent(id)}/featured`, 'PATCH', { featured });
 export const getCategoryCounts = async () => unwrap(await fetchJson<unknown>('/api/admin/cms/categories/counts'), 'Failed to load category counts') as CmsCounts;

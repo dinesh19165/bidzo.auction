@@ -266,9 +266,9 @@ export function LoginPage() {
   };
 
   return (
-    <SectionShell title="Authentication" subtitle="Welcome back to Bidzo" compact>
-      <div className="mx-auto flex w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.22),_transparent_40%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(2,8,23,0.98))] shadow-[0_30px_90px_rgba(2,6,23,0.55)]">
-        <div className={`flex items-center justify-between px-4 py-3 sm:px-8 transition duration-300 ${theme === 'dark' ? 'border-b border-white/10' : 'border-b border-slate-200 bg-slate-50'}`}>
+    <section className={`mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
+      <div className={`mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border shadow-[0_30px_90px_rgba(2,6,23,0.18)] transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.22),_transparent_40%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(2,8,23,0.98))] shadow-[0_30px_90px_rgba(2,6,23,0.55)]' : 'border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.12)]'}`}>
+        <div className={`flex items-center justify-between px-4 py-2.5 sm:px-6 transition duration-300 ${theme === 'dark' ? 'border-b border-white/10' : 'border-b border-slate-200 bg-slate-50'}`}>
           <div className="flex items-center gap-3">
             <div className={`flex h-10 w-10 items-center justify-center rounded-2xl shadow-lg ${theme === 'dark' ? 'bg-gradient-to-br from-blue-500 to-cyan-400 shadow-cyan-500/20' : 'bg-blue-100 shadow-slate-200'}`}>
               <Sparkles className={`h-5 w-5 ${theme === 'dark' ? 'text-white' : 'text-blue-700'}`} />
@@ -285,21 +285,21 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className={`rounded-[28px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-6 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-white/90 shadow-[inset_0_1px_0_rgba(15,23,42,0.04)]'}`}>
+        <div className="grid gap-5 p-3 sm:p-5 lg:grid-cols-[1.08fr_0.92fr]">
+          <div className={`rounded-[24px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-white/90 shadow-[inset_0_1px_0_rgba(15,23,42,0.04)]'}`}>
             <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${theme === 'dark' ? 'border border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
               <ShieldCheck className="h-4 w-4" />
               Secure marketplace access
             </div>
 
-            <h3 className={`mt-4 text-3xl font-semibold sm:text-4xl ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
+            <h3 className={`mt-3 text-2xl font-semibold sm:text-3xl ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
               Welcome back to Bidzo
             </h3>
             <p className={`mt-2 text-sm sm:text-base ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
               Sign in to continue to your account
             </p>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
               {roleOptions.map((option) => {
                 const isActive = selectedRole === option.value;
                 return (
@@ -307,7 +307,7 @@ export function LoginPage() {
                     key={option.value}
                     type="button"
                     onClick={() => setSelectedRole(option.value)}
-                    className={`rounded-[24px] border p-4 text-left transition-all duration-300 ${isActive ? (theme === 'dark' ? 'border-cyan-400/40 bg-gradient-to-br from-blue-500/20 to-cyan-500/10 text-white shadow-[0_0_0_1px_rgba(34,211,238,0.25),0_18px_45px_rgba(14,165,233,0.16)]' : 'border-blue-200 bg-blue-100 text-slate-950 shadow-[0_0_0_1px_rgba(59,130,246,0.2),0_18px_45px_rgba(59,130,246,0.16)]') : (theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300 hover:border-white/20 hover:bg-slate-900/80' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50')}`}
+                    className={`rounded-[20px] border p-3 text-left transition-all duration-300 hover:-translate-y-0.5 ${isActive ? (theme === 'dark' ? 'border-cyan-400/40 bg-gradient-to-br from-blue-500/20 to-cyan-500/10 text-white shadow-[0_0_0_1px_rgba(34,211,238,0.25),0_14px_32px_rgba(14,165,233,0.16)]' : 'border-blue-400 bg-blue-50 text-slate-950 shadow-[0_0_0_1px_rgba(59,130,246,0.2),0_14px_32px_rgba(59,130,246,0.16)]') : (theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300 hover:border-cyan-400/30 hover:bg-slate-900/80' : 'border-slate-300 bg-white text-slate-900 hover:border-blue-300 hover:bg-blue-50')}`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-semibold">{option.label}</span>
@@ -317,10 +317,10 @@ export function LoginPage() {
                         <ShieldCheck className={theme === 'dark' ? 'h-4 w-4 text-slate-500' : 'h-4 w-4 text-slate-500'} />
                       )}
                     </div>
-                    <p className={`mt-2 text-xs ${isActive ? (theme === 'dark' ? 'text-slate-100' : 'text-slate-700') : (theme === 'dark' ? 'text-slate-400' : 'text-slate-500')}`}>{option.description}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <p className={`mt-1.5 text-xs leading-5 ${isActive ? (theme === 'dark' ? 'text-slate-100' : 'text-slate-700') : (theme === 'dark' ? 'text-slate-400' : 'text-slate-600')}`}>{option.description}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       {option.features.map((feature) => (
-                        <span key={feature} className={`rounded-full px-2.5 py-1 text-[11px] ${isActive ? (theme === 'dark' ? 'bg-slate-950/60 text-slate-50' : 'bg-slate-100 text-slate-900') : (theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-700')}`}>
+                        <span key={feature} className={`rounded-full px-2 py-0.5 text-[10px] ${isActive ? (theme === 'dark' ? 'bg-slate-950/60 text-slate-50' : 'bg-blue-100 text-blue-900') : (theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-700')}`}>
                           {feature}
                         </span>
                       ))}
@@ -330,8 +330,8 @@ export function LoginPage() {
               })}
             </div>
 
-            <div className="mt-6 space-y-4">
-              <div className={`rounded-2xl border p-4 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
+            <div className="mt-4 space-y-3.5">
+              <div className={`rounded-2xl border p-3.5 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
                 <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>{roleCopy.heading}</p>
                 <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{roleCopy.description}</p>
               </div>
@@ -441,7 +441,7 @@ export function LoginPage() {
           </div>
         </div>
       </div>
-    </SectionShell>
+    </section>
   );
 }
 

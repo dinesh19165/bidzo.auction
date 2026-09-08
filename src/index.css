@@ -477,3 +477,183 @@ html.theme-light button:disabled,
 html.theme-light a[aria-disabled="true"] {
   color: var(--text-muted);
 }
+
+.home-hero {
+  isolation: isolate;
+}
+
+.home-hero-background {
+  background-image: var(--hero-banner-image);
+  background-position: center;
+  background-size: cover;
+}
+
+.home-hero > section[class~="relative"][class~="overflow-hidden"] {
+  background-color: transparent !important;
+  padding-block: 0 !important;
+}
+
+.home-hero-overlay {
+  background: linear-gradient(90deg, rgba(2, 6, 23, 0.78) 0%, rgba(2, 6, 23, 0.42) 48%, rgba(2, 6, 23, 0.08) 78%, transparent 100%);
+}
+
+html.theme-light .home-hero-overlay {
+  background: linear-gradient(90deg, rgba(2, 6, 23, 0.76) 0%, rgba(2, 6, 23, 0.48) 46%, rgba(2, 6, 23, 0.12) 78%, transparent 100%);
+}
+
+html.theme-light .home-hero h1,
+html.theme-light .home-hero .text-slate-200,
+html.theme-light .home-hero .text-slate-300 {
+  color: #f8fafc !important;
+}
+
+html.theme-light .home-hero .rounded-full.bg-slate-900\/70 {
+  background-color: rgba(2, 6, 23, 0.58) !important;
+  color: #f8fafc !important;
+}
+
+html.theme-light .home-hero a.bg-white\/5 {
+  color: #f8fafc !important;
+  background-color: rgba(2, 6, 23, 0.42) !important;
+}
+
+html.theme-light .home-hero [class~="rounded-[24px]"][class~="bg-slate-900\/70"] {
+  background: #ffffff !important;
+  border-color: rgba(23, 105, 255, 0.22) !important;
+  box-shadow: 0 12px 28px rgba(23, 105, 255, 0.12);
+  transition: background 240ms ease, color 240ms ease, transform 240ms ease, box-shadow 240ms ease, border-color 240ms ease;
+}
+
+html.theme-light .home-hero [class~="rounded-[24px]"][class~="bg-slate-900\/70"]:hover {
+  background: linear-gradient(135deg, #1769ff 0%, #06b6d4 100%) !important;
+  transform: translateY(-2px);
+  border-color: #06b6d4 !important;
+  box-shadow: 0 16px 34px rgba(23, 105, 255, 0.18);
+}
+
+html.theme-light .home-hero [class~="rounded-[24px]"][class~="bg-slate-900\/70"] .text-slate-400 {
+  color: #173b73 !important;
+  transition: color 240ms ease;
+}
+
+html.theme-light .home-hero [class~="rounded-[24px]"][class~="bg-slate-900\/70"] .text-white {
+  color: #0f172a !important;
+  font-size: 1.75rem;
+  font-weight: 700;
+  transition: color 240ms ease;
+}
+
+html.theme-light .home-hero [class~="rounded-[24px]"][class~="bg-slate-900\/70"]:hover .text-slate-400,
+html.theme-light .home-hero [class~="rounded-[24px]"][class~="bg-slate-900\/70"]:hover .text-white {
+  color: #ffffff !important;
+}
+
+html.theme-light .home-hero a.bg-cyan-400,
+html.theme-light .home-hero a.bg-white\/5 {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+html.theme-light .home-hero a.bg-cyan-400:hover,
+html.theme-light .home-hero a.bg-white\/5:hover {
+  background-color: #06b6d4 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(23, 105, 255, 0.2);
+}
+
+html.theme-light .home-hero a.bg-white\/5 {
+  border-color: rgba(23, 105, 255, 0.55) !important;
+  color: #1769ff !important;
+  background-color: rgba(241, 246, 255, 0.88) !important;
+}
+
+html.theme-light .home-hero a.bg-white\/5:hover {
+  border-color: #1769ff !important;
+  background-color: #ffffff !important;
+}
+
+html.theme-light .home-hero a[href="/marketplace"] {
+  position: relative;
+  z-index: 30;
+  border-color: transparent !important;
+  background: #22d3ee !important;
+  color: #0f172a !important;
+  box-shadow: 0 8px 18px rgba(6, 182, 212, 0.18);
+}
+
+html.theme-light .home-hero a[href="/marketplace"]:hover {
+  border-color: transparent !important;
+  background: #06b6d4 !important;
+  box-shadow: 0 12px 24px rgba(6, 182, 212, 0.26);
+  transform: translateY(-2px);
+}
+
+html.theme-light .app-shell main button[class~="rounded-2xl"][class~="bg-slate-900\/70"][class~="text-left"] {
+  cursor: pointer;
+  background: #ffffff !important;
+  border-color: rgba(23, 105, 255, 0.18) !important;
+  color: #173b73 !important;
+  transition: background 240ms ease, color 240ms ease, transform 240ms ease, box-shadow 240ms ease, border-color 240ms ease;
+}
+
+html.theme-light .app-shell main button[class~="rounded-2xl"][class~="bg-slate-900\/70"][class~="text-left"]:hover {
+  background: linear-gradient(135deg, #1769ff 0%, #06b6d4 100%) !important;
+  border-color: #06b6d4 !important;
+  box-shadow: 0 12px 26px rgba(23, 105, 255, 0.22);
+  color: #ffffff !important;
+  transform: translateY(-2px);
+}
+
+html.theme-light .app-shell main button[class~="rounded-2xl"][class~="bg-slate-900\/70"][class~="text-left"]:hover p {
+  color: #ffffff !important;
+}
+
+html.theme-light .featured-products-section article.group {
+  background: #ffffff !important;
+  border-color: rgba(23, 105, 255, 0.16) !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
+  transition: transform 240ms ease, box-shadow 240ms ease, border-color 240ms ease;
+}
+
+html.theme-light .featured-products-section article.group:hover {
+  border-color: rgba(23, 105, 255, 0.55) !important;
+  box-shadow: 0 22px 44px rgba(23, 105, 255, 0.2);
+  transform: translateY(-4px);
+}
+
+.home-hero a[href="/marketplace"] {
+  position: relative;
+  z-index: 30;
+  border-color: transparent !important;
+  background: #22d3ee !important;
+  color: #0f172a !important;
+  transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.home-hero a[href="/marketplace"]:hover {
+  background: #67e8f9 !important;
+  box-shadow: 0 12px 24px rgba(6, 182, 212, 0.26);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 767px) {
+  .home-hero-background {
+    background-image: var(--hero-banner-mobile-image);
+  }
+
+  .home-hero-overlay {
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.68) 0%, rgba(2, 6, 23, 0.38) 55%, rgba(2, 6, 23, 0.72) 100%);
+  }
+
+  html.theme-light .home-hero-overlay {
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.7) 0%, rgba(2, 6, 23, 0.42) 58%, rgba(2, 6, 23, 0.78) 100%);
+  }
+}
+
+.app-shell section[class~="relative"][class~="overflow-hidden"][class~="bg-[var(--app-bg)]"] > div[class~="max-w-7xl"] {
+  padding-block: 0 !important;
+}
+
+.app-shell section[class~="relative"][class~="overflow-hidden"][class~="bg-[var(--app-bg)]"] [class~="space-y-8"] > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1.25rem;
+}
+

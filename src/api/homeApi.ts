@@ -65,8 +65,20 @@ export interface HomeStatsResponse {
   [key: string]: number | string | null | undefined;
 }
 
+export interface HomeBannerResponse {
+  id: number | string;
+  title?: string | null;
+  subtitle?: string | null;
+  imageUrl?: string | null;
+  mobileImageUrl?: string | null;
+  buttonText?: string | null;
+  buttonLink?: string | null;
+  displayOrder?: number | null;
+}
+
 export interface HomeDataResponse {
   stats?: HomeStatsResponse | null;
+  banners?: HomeBannerResponse[] | null;
   categories?: CategoryResponse[] | null;
   featuredProducts?: ProductResponse[] | null;
   liveAuctions?: AuctionResponse[] | null;
@@ -89,6 +101,7 @@ export async function getHomeData(): Promise<HomeDataResponse> {
   return {
     ...response.data,
     stats: response.data.stats ?? null,
+    banners: Array.isArray(response.data.banners) ? response.data.banners : [],
     categories: Array.isArray(response.data.categories) ? response.data.categories : [],
     featuredProducts: Array.isArray(response.data.featuredProducts) ? response.data.featuredProducts : [],
     liveAuctions: Array.isArray(response.data.liveAuctions) ? response.data.liveAuctions : [],

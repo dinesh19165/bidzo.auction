@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { uploadToCloudinary } from '../../services/cloudinaryUpload';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, Bell, Boxes, CheckCircle2, Clock3, CreditCard, Download, FileText, Filter, Gavel, Globe, LayoutGrid, Megaphone, MessageSquare, Plus, Search, Settings2, ShieldCheck, Store, TrendingUp, Truck, Users, Wallet2 } from 'lucide-react';
 import { AdminShell } from '../../components/admin/AdminShell';
@@ -18,6 +19,7 @@ import { createBanner, createBlog, createFaq, createPage, createTestimonial, del
 import { createCategory, createCategoryField, deleteCategory, deleteCategoryField, getCategories, getCategoryFields, normalizeCategoryStatus, updateCategory, updateCategoryFeatured, updateCategoryField, type CategoryFieldDefinition, type CategoryFieldRequest, type CategoryFieldType, type CategoryRecord, type CategoryStatus } from '../../api/categoryApi';
 import { EmptyState, ErrorState, SkeletonTable } from '../../components/loading/LoadingComponents';
 import { showToast } from '../../components/ui/toast';
+import { API_BASE_URL } from '../../api/apiClient';
 
 const maskAccountNumber = (value?: string | number | null) => {
   const raw = String(value ?? '').trim();
@@ -1271,12 +1273,78 @@ const toCmsString = (value: unknown, fallback = '') => {
   return String(value);
 };
 
+function BannerImagePreview({ src, alt, className }: { src: string | null; alt: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  if (!src || failed) return <div className={`${className} flex items-center justify-center bg-slate-800 px-2 text-center text-xs text-slate-400`}>{failed ? 'Unable to load image' : 'No image selected'}</div>;
+  return <img src={src} alt={alt} onError={() => setFailed(true)} className={`${className} object-cover`} />;
+}
+
+function resolveBannerImageUrl(value?: string | null): string | null {
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  return `${API_BASE_URL}${value.startsWith('/') ? value : `/${value}`}`;
+}
+
+function BannerUploadField({ label, value, onUploaded, onRemoved, optional }: { label: string; value: string; onUploaded: (url: string) => void; onRemoved: () => void; optional?: boolean }) {
+  const [preview, setPreview] = useState(() => resolveBannerImageUrl(value));
+  const [filename, setFilename] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!objectUrlRef.current) setPreview(resolveBannerImageUrl(value));
+    return () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    };
+  }, [value]);
+
+  const chooseFile = async (file?: File) => {
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+      setUploadError('Choose a JPEG, PNG, or WEBP image up to 10 MB.');
+      return;
+    }
+    setUploadError(null);
+    setFilename(file.name);
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = URL.createObjectURL(file);
+    setPreview(objectUrlRef.current);
+    setUploading(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      onUploaded(url);
+      setPreview(resolveBannerImageUrl(url));
+      objectUrlRef.current = null;
+    } catch {
+      setUploadError('Image upload failed. Please try again.');
+      setPreview(resolveBannerImageUrl(value));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const remove = () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = null;
+    setFilename('');
+    setPreview(null);
+    setUploadError(null);
+    onRemoved();
+  };
+
+  return <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/30 p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">{label}</p>{optional ? <p className="mt-1 text-xs text-slate-400">Optional. Desktop image will be used on mobile when empty.</p> : null}</div><label className={`inline-flex cursor-pointer items-center rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white ${uploading ? 'pointer-events-none opacity-60' : 'hover:bg-blue-500'}`}><input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => { void chooseFile(event.target.files?.[0]); event.currentTarget.value = ''; }} className="sr-only" />{uploading ? 'Uploading...' : value ? 'Replace Image' : 'Choose Image'}</label></div>{filename ? <p className="text-xs text-slate-300">Selected: {filename}</p> : null}{uploadError ? <p className="text-xs text-rose-300">{uploadError}</p> : null}{preview ? <BannerImagePreview src={preview} alt={`${label} preview`} className="aspect-video w-full rounded-xl" /> : <div className="flex aspect-video items-center justify-center rounded-xl bg-slate-800 text-xs text-slate-400">No image selected</div>}{value || preview ? <button type="button" onClick={remove} disabled={uploading} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10">Remove</button> : null}</div>;
+}
+
 export function CMSBannersPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [draft, setDraft] = useState({ title: '', status: 'DRAFT' });
+  const [editingId, setEditingId] = useState<number | string | null>(null);
+  const [draft, setDraft] = useState({ title: '', subtitle: '', imageUrl: '', mobileImageUrl: '', buttonText: '', buttonLink: '', displayOrder: '1', startAt: '', endAt: '', status: 'DRAFT', featured: false });
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const loadItems = async () => {
     try {
@@ -1293,24 +1361,62 @@ export function CMSBannersPage() {
 
   useEffect(() => { void loadItems(); }, []);
 
-  const handleCreate = async () => {
+  const resetDraft = () => {
+    setDraft({ title: '', subtitle: '', imageUrl: '', mobileImageUrl: '', buttonText: '', buttonLink: '', displayOrder: '1', startAt: '', endAt: '', status: 'DRAFT', featured: false });
+    setEditingId(null);
+    setValidationError(null);
+  };
+
+  const beginEdit = (row: any) => {
+    setDraft({ title: toCmsString(row.title), subtitle: toCmsString(row.subtitle), imageUrl: toCmsString(row.imageUrl), mobileImageUrl: toCmsString(row.mobileImageUrl), buttonText: toCmsString(row.buttonText), buttonLink: toCmsString(row.buttonLink), displayOrder: toCmsString(row.displayOrder, '1'), startAt: toCmsString(row.startAt || row.startDate), endAt: toCmsString(row.endAt || row.endDate), status: normalizeCmsStatus(row.status), featured: row.featured === true });
+    setEditingId(row.id);
+    setValidationError(null);
+  };
+
+  const handleSave = async () => {
+    const displayOrder = Number(draft.displayOrder);
+    if (!draft.title.trim()) {
+      setValidationError('Title is required.');
+      return;
+    }
+    if (!draft.imageUrl.trim()) {
+      setValidationError('Please upload a desktop banner image.');
+      return;
+    }
+    if (!Number.isInteger(displayOrder) || displayOrder < 0) {
+      setValidationError('Display order must be a non-negative whole number.');
+      return;
+    }
+    if (draft.startAt && draft.endAt && new Date(draft.endAt).getTime() < new Date(draft.startAt).getTime()) {
+      setValidationError('End date cannot be earlier than the start date.');
+      return;
+    }
+    setValidationError(null);
+    setSaving(true);
     try {
-      const payload = { title: draft.title || 'New banner', status: normalizeCmsStatus(draft.status), imageUrl: '', ctaLabel: 'Shop now', ctaUrl: '#', isPublished: normalizeCmsStatus(draft.status) === 'PUBLISHED' };
-      const created = await createBanner(payload);
-      setItems((prev) => [created, ...prev]);
-      setDraft({ title: '', status: 'DRAFT' });
-      setIsCreating(false);
-      showToast('Banner created', 'The CMS banner was saved successfully.', 'success');
+      const payload = { title: draft.title.trim(), subtitle: draft.subtitle.trim() || null, imageUrl: draft.imageUrl.trim() || null, mobileImageUrl: draft.mobileImageUrl.trim() || null, buttonText: draft.buttonText.trim() || null, buttonLink: draft.buttonLink.trim() || null, displayOrder, startAt: draft.startAt || null, endAt: draft.endAt || null, status: normalizeCmsStatus(draft.status), featured: draft.featured === true };
+      if (editingId === null || editingId === 'new') {
+        const created = await createBanner(payload);
+        setItems((prev) => [created, ...prev]);
+        showToast('Banner created', 'The CMS banner was saved successfully.', 'success');
+      } else {
+        const updated = await updateBanner(editingId, payload);
+        setItems((prev) => prev.map((item) => item.id === editingId ? { ...item, ...updated } : item));
+        showToast('Banner updated', 'The CMS banner was updated successfully.', 'success');
+      }
+      resetDraft();
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : 'Failed to create banner';
+      const message = saveError instanceof Error ? saveError.message : 'Failed to save banner';
       setError(message);
       showToast('Banner save failed', message, 'warning');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleToggleStatus = async (row: any) => {
     try {
-      const nextStatus = normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED';
+      const nextStatus = normalizeCmsStatus(row.status) === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
       const updated = await updateBannerStatus(row.id, nextStatus);
       setItems((prev) => prev.map((item) => item.id === row.id ? { ...item, ...updated } : item));
       showToast('Banner status updated', `Status changed to ${nextStatus}.`, 'success');
@@ -1320,39 +1426,47 @@ export function CMSBannersPage() {
     }
   };
 
+  const handleDelete = async (row: any) => {
+    try {
+      await deleteBanner(row.id);
+      setItems((prev) => prev.filter((item) => item.id !== row.id));
+      if (editingId === row.id) resetDraft();
+      showToast('Banner deleted', 'The CMS banner was deleted successfully.', 'success');
+    } catch (deleteError) {
+      showToast('Delete failed', deleteError instanceof Error ? deleteError.message : 'Failed to delete banner', 'warning');
+    }
+  };
+
+  const updateDraft = (key: string, value: string | boolean) => setDraft((prev) => ({ ...prev, [key]: value }));
+  const previewUrl = (value: string) => resolveBannerImageUrl(value.trim());
+  const isLikelyDirectImageUrl = (value: string) => {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed || trimmed.includes('google.com/imgres') || trimmed.includes('google.com/search')) return false;
+    return /\.(jpg|jpeg|png|webp)(?:[?#].*)?$/.test(trimmed) || /^https?:\/\//.test(trimmed) || trimmed.startsWith('/');
+  };
+  const statuses = Array.from(new Set(['DRAFT', 'ACTIVE', 'INACTIVE', ...items.map((item) => normalizeCmsStatus(item.status))]));
+
   return (
-    <AdminShell title="Enterprise admin" subtitle="CMS banners" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Banners' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => setIsCreating((prev) => !prev)} icon={<Plus className="h-4 w-4" />}>Add banner</PrimaryButton>}>
-      <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+    <AdminShell title="Enterprise admin" subtitle="CMS banners" breadcrumbs={[{ label: 'Admin' }, { label: 'CMS', to: '/admin/cms' }, { label: 'Banners' }]} activePath="/admin/cms" actions={<PrimaryButton onClick={() => { resetDraft(); setEditingId('new'); }} icon={<Plus className="h-4 w-4" />}>Add banner</PrimaryButton>}>
+      <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+        {editingId !== null && draft.imageUrl.trim() ? <p className="lg:col-span-2 -mb-3 text-xs text-slate-400">Use a direct image URL, not a Google Images search URL.{!isLikelyDirectImageUrl(draft.imageUrl) ? <span className="ml-1 text-amber-300">Please use a direct image URL (for example, an image ending in .jpg, .jpeg, .png, .webp) or a URL that directly serves an image.</span> : null}</p> : null}
         <Card className="p-4">
-          {isCreating && (
-            <div className="mb-4 rounded-[18px] border border-white/10 bg-slate-900/80 p-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <LabeledInput label="Title" value={draft.title} onChange={(value) => setDraft((prev) => ({ ...prev, title: value }))} />
-                <div className="space-y-2">
-                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</span>
-                  <select value={draft.status} onChange={(event) => setDraft((prev) => ({ ...prev, status: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="PUBLISHED">PUBLISHED</option>
-                  </select>
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end gap-3">
-                <SecondaryButton onClick={() => setIsCreating(false)}>Cancel</SecondaryButton>
-                <PrimaryButton onClick={handleCreate}>Save</PrimaryButton>
-              </div>
-            </div>
-          )}
+          {editingId !== null ? <div className="mb-4 flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/40 p-3"><div><p className="text-sm font-semibold text-white">Featured banner</p><p className="mt-1 text-xs text-slate-400">Feature this banner for Home Page promotion.</p></div><label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-200"><input type="checkbox" checked={draft.featured} onChange={(event) => updateDraft('featured', event.target.checked)} className="h-4 w-4 rounded border-white/20 bg-slate-900 text-blue-600" />{draft.featured ? 'ON' : 'OFF'}</label></div> : null}
+          {editingId !== null && <div className="mb-5 rounded-[18px] border border-white/10 bg-slate-900/80 p-4"><div className="mb-4"><h2 className="text-lg font-semibold text-white">{editingId === 'new' ? 'Add banner' : 'Edit banner'}</h2><p className="mt-1 text-sm text-slate-400">Only active banners within their scheduled date range appear on the Home Page.</p></div><div className="grid gap-4 md:grid-cols-2"><LabeledInput label="Title" value={draft.title} onChange={(value) => updateDraft('title', value)} /><LabeledInput label="Subtitle" value={draft.subtitle} onChange={(value) => updateDraft('subtitle', value)} /><div className="md:col-span-2"><BannerUploadField label="Desktop Banner Image" value={draft.imageUrl} onUploaded={(url) => updateDraft('imageUrl', url)} onRemoved={() => updateDraft('imageUrl', '')} /></div><div className="md:col-span-2"><BannerUploadField label="Mobile Banner Image (Optional)" value={draft.mobileImageUrl} onUploaded={(url) => updateDraft('mobileImageUrl', url)} onRemoved={() => updateDraft('mobileImageUrl', '')} optional /></div><LabeledInput label="Button Text" value={draft.buttonText} onChange={(value) => updateDraft('buttonText', value)} /><div><LabeledInput label="Button Link" value={draft.buttonLink} onChange={(value) => updateDraft('buttonLink', value)} /><p className="mt-1 text-xs text-slate-400">Example: /auctions or /marketplace</p></div><div><LabeledInput label="Display Order" value={draft.displayOrder} onChange={(value) => updateDraft('displayOrder', value)} /><p className="mt-1 text-xs text-slate-400">Lower numbers appear first.</p></div><div><label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</label><select value={draft.status} onChange={(event) => updateDraft('status', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">{statuses.map((status) => <option key={status} value={status}>{status}</option>)}</select></div><div><label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Start date/time</label><input type="datetime-local" value={draft.startAt} onChange={(event) => updateDraft('startAt', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none" /></div><div><label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">End date/time</label><input type="datetime-local" value={draft.endAt} onChange={(event) => updateDraft('endAt', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none" /></div></div><p className="mt-3 text-xs text-slate-400">Leave dates blank to keep the banner active without a date restriction.</p>{validationError && <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{validationError}</p>}<div className="mt-5 flex justify-end gap-3"><SecondaryButton onClick={resetDraft}>Cancel</SecondaryButton><PrimaryButton onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</PrimaryButton></div></div>}
           {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
-          {loading ? <div className="text-sm text-slate-400">Loading banners...</div> : (
+          {loading ? <div className="text-sm text-slate-400">Loading banners...</div> : items.length === 0 ? <div className="rounded-2xl border border-dashed border-white/15 px-5 py-10 text-center"><p className="font-semibold text-white">No banners yet</p><p className="mt-2 text-sm text-slate-400">Create a banner to promote products, auctions, or marketplace campaigns on the Home Page.</p><PrimaryButton onClick={() => { resetDraft(); setEditingId('new'); }} className="mt-4" icon={<Plus className="h-4 w-4" />}>Add banner</PrimaryButton></div> : (
             <Table columns={[
+              { key: 'preview', label: 'Preview', render: (row: any) => <BannerImagePreview src={previewUrl(toCmsString(row.imageUrl))} alt="" className="h-12 w-20 rounded-lg" /> },
               { key: 'title', label: 'Title' },
-              { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
-              { key: 'ctaLabel', label: 'CTA', render: (row: any) => <span>{toCmsString(row.ctaLabel || row.cta, '—')}</span> },
-              { key: 'actions', label: 'Actions', render: (row: any) => <button onClick={() => handleToggleStatus(row)} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">{normalizeCmsStatus(row.status) === 'PUBLISHED' ? 'Unpublish' : 'Publish'}</button> },
+              { key: 'status', label: 'Status', render: (row: any) => <Badge className={normalizeCmsStatus(row.status) === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{normalizeCmsStatus(row.status)}</Badge> },
+              { key: 'buttonText', label: 'CTA', render: (row: any) => <span>{toCmsString(row.buttonText, '—')}</span> },
+              { key: 'displayOrder', label: 'Order' },
+              { key: 'schedule', label: 'Schedule', render: (row: any) => <span className="text-xs">{toCmsString(row.startAt || row.startDate, 'Anytime')} → {toCmsString(row.endAt || row.endDate, 'Open')}</span> },
+              { key: 'actions', label: 'Actions', render: (row: any) => <div className="flex flex-wrap gap-2"><button onClick={() => beginEdit(row)} className="rounded-full bg-white/10 px-2.5 py-1.5 text-xs font-medium text-slate-200">Edit</button><button onClick={() => handleToggleStatus(row)} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">{normalizeCmsStatus(row.status) === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button><button onClick={() => handleDelete(row)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button></div> },
             ]} data={items} className="p-0" />
           )}
         </Card>
-        <FakeTable title="Banner overview" items={[{ label: 'Live banners', value: String(items.filter((item) => normalizeCmsStatus(item.status) === 'PUBLISHED').length), tone: 'emerald' }, { label: 'Draft banners', value: String(items.filter((item) => normalizeCmsStatus(item.status) === 'DRAFT').length), tone: 'amber' }]} />
+        {editingId !== null ? <Card className="p-4"><h2 className="text-lg font-semibold text-white">Home Page Preview</h2><p className="mt-1 text-sm text-slate-400">Preview of the entered banner content.</p><div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-900"><BannerImagePreview src={previewUrl(draft.imageUrl)} alt="Image preview" className="aspect-[16/9] w-full" /><div className="p-4"><p className="text-lg font-semibold text-white">{draft.title || ' '}</p><p className="mt-1 min-h-6 text-sm text-slate-400">{draft.subtitle || ' '}</p>{draft.buttonText ? <span className="mt-3 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">{draft.buttonText}</span> : null}</div></div><div className="mt-4 grid grid-cols-2 gap-3"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Desktop preview</p><BannerImagePreview src={previewUrl(draft.imageUrl)} alt="Desktop preview" className="aspect-video w-full rounded-xl" /></div><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Mobile preview</p><BannerImagePreview src={previewUrl(draft.mobileImageUrl)} alt="Mobile preview" className="aspect-[3/4] w-full rounded-xl" /></div></div></Card> : <FakeTable title="Banner overview" items={[{ label: 'Active banners', value: String(items.filter((item) => normalizeCmsStatus(item.status) === 'ACTIVE').length), tone: 'emerald' }, { label: 'Draft banners', value: String(items.filter((item) => normalizeCmsStatus(item.status) === 'DRAFT').length), tone: 'amber' }]} />}
       </div>
     </AdminShell>
   );
