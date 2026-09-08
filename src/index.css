@@ -485,7 +485,8 @@ html.theme-light a[aria-disabled="true"] {
 .home-hero-background {
   background-image: var(--hero-banner-image);
   background-position: center;
-  background-size: cover;
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 .home-hero > section[class~="relative"][class~="overflow-hidden"] {
@@ -495,6 +496,13 @@ html.theme-light a[aria-disabled="true"] {
 
 .home-hero-overlay {
   background: linear-gradient(90deg, rgba(2, 6, 23, 0.78) 0%, rgba(2, 6, 23, 0.42) 48%, rgba(2, 6, 23, 0.08) 78%, transparent 100%);
+}
+
+@media (min-width: 1024px) {
+  .home-hero,
+  .home-hero > .relative {
+    min-height: clamp(460px, calc(100svh - 120px), 600px);
+  }
 }
 
 html.theme-light .home-hero-overlay {

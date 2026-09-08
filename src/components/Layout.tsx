@@ -110,8 +110,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className={`border-b transition duration-300 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
-          <div className={`mx-auto flex flex-col gap-1 px-4 py-1 text-xs transition duration-300 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
-            <p className={`inline-flex flex-wrap items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium transition duration-300 ${theme === 'dark' ? 'bg-blue-500/10 text-slate-100' : 'bg-slate-100 text-slate-950 border border-slate-200'}`}>
+          <div className={`mx-auto flex flex-col gap-0 px-4 py-0 text-xs transition duration-300 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
+            <p className={`inline-flex flex-wrap items-center gap-1.5 rounded-full px-2.5 py-0 text-sm font-medium transition duration-300 ${theme === 'dark' ? 'bg-blue-500/10 text-slate-100' : 'bg-slate-100 text-slate-950 border border-slate-200'}`}>
               <span className="font-medium">{translate('freeShipping')}</span>
               <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{translate('onOrdersOver', { amount: '₹5,000' })}</span>
             </p>
@@ -200,7 +200,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-<div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6 lg:px-8">
+<div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-4 py-1 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
           <div>
             {/* Shared header: logo always shown and links to home */}
@@ -281,16 +281,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        {showMarketplaceControls ? <nav className={`border-t px-4 py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
-          <div className="mx-auto flex flex-col items-start gap-2 sm:flex-row">
-            <Link to="/auctions" className={`inline-flex min-h-[42px] items-center justify-center rounded-full border px-5 py-2 text-sm font-semibold transition ${isLiveAuctionsPage
+        {showMarketplaceControls ? <nav className={`border-t px-4 py-0.5 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
+          <div className="mx-auto flex flex-col items-start gap-0.5 sm:flex-row">
+            <Link to="/auctions" className={`inline-flex min-h-[32px] items-center justify-center rounded-full border px-4 py-0.5 text-sm font-semibold transition ${isLiveAuctionsPage
               ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
               : theme === 'dark'
                 ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
                 : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               Live Auctions
             </Link>
-            <Link to="/marketplace" className={`inline-flex min-h-[42px] items-center justify-center rounded-full border px-5 py-2 text-sm font-semibold transition ${isDirectBuyPage
+            <Link to="/marketplace" className={`inline-flex min-h-[32px] items-center justify-center rounded-full border px-4 py-0.5 text-sm font-semibold transition ${isDirectBuyPage
               ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
               : theme === 'dark'
                 ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
