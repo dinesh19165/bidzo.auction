@@ -76,6 +76,29 @@ export interface HomeBannerResponse {
   displayOrder?: number | null;
 }
 
+export interface HomeReviewResponse {
+  id?: number | string;
+  customerName?: string | null;
+  author?: string | null;
+  rating?: number | string | null;
+  title?: string | null;
+  message?: string | null;
+  comment?: string | null;
+  content?: string | null;
+  quote?: string | null;
+  imageUrl?: string | null;
+  productImageUrl?: string | null;
+  productName?: string | null;
+  product?: {
+    id?: number | string | null;
+    name?: string | null;
+    imageUrl?: string | null;
+  } | null;
+  isVerifiedPurchase?: boolean | null;
+  createdAt?: string | null;
+  status?: string | null;
+}
+
 export interface HomeDataResponse {
   stats?: HomeStatsResponse | null;
   banners?: HomeBannerResponse[] | null;
@@ -87,6 +110,8 @@ export interface HomeDataResponse {
   recentProducts?: ProductResponse[] | null;
   popularProducts?: ProductResponse[] | null;
   verifiedSellers?: Array<Record<string, unknown>> | null;
+  reviews?: HomeReviewResponse[] | null;
+  testimonials?: HomeReviewResponse[] | null;
 }
 
 /**

@@ -646,7 +646,7 @@ html.theme-light .featured-products-section article.group:hover {
 
 @media (min-width: 768px) {
   .home-hero-has-banner {
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 2048 / 768;
   }
 }
 

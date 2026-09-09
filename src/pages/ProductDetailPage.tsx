@@ -4,7 +4,7 @@ import { ArrowRight, Heart, ShieldCheck, Truck, Share2 } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
 import { ProductCard } from '../components/cards/MarketplaceCards';
 import { getProductById, getProducts, type ProductListItem } from '../api/productApi';
-import { reviews as mockReviews } from '../data/mockData';
+import { getProductReviews, type ReviewResponse } from '../api/reviewApi';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
 import { ProductSpecification } from '../components/marketplace/MarketplaceComponents';
 import { initializeBuyNowFlow } from '../utils/auctionFlowState';
@@ -16,6 +16,7 @@ export function ProductDetailPage() {
   const [similarProducts, setSimilarProducts] = useState<ProductListItem[]>([]);
   const [main, setMain] = useState('');
   const [zoom, setZoom] = useState(false);
+  const [reviews, setReviews] = useState<ReviewResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +35,11 @@ export function ProductDetailPage() {
         const details = await getProductById(idNum);
         setProduct(details);
         setMain(details.image);
-        const list = await getProducts();
+        const [list, reviewData] = await Promise.all([
+          getProducts(),
+          getProductReviews(idNum),
+        ]);
+        setReviews(reviewData);
         setSimilarProducts(list.filter((item) => item.id !== details.id).slice(0, 3));
       } catch (err: any) {
         setError(err?.message || 'Unable to load product details');
@@ -170,12 +175,23 @@ export function ProductDetailPage() {
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <h4 className="text-lg font-semibold text-white">Reviews</h4>
           <div className="mt-4 space-y-3 text-sm text-slate-300">
-            {mockReviews.map((r) => (
-              <div key={r.author} className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                <div className="flex items-center justify-between"><div><p className="font-medium text-white">{r.author}</p><p className="text-slate-400 text-sm">{r.rating} ★</p></div></div>
-                <p className="mt-2">{r.quote}</p>
-              </div>
-            ))}
+            {reviews.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-400">No reviews yet for this product.</div>
+            ) : (
+              reviews.map((review) => (
+                <div key={review.id ?? `${review.productId}-${review.createdAt}`} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{review.customerName || review.customer?.name || review.customer?.firstName || 'Customer'}</p>
+                      <p className="text-slate-400 text-sm">{review.rating ?? 0} ★</p>
+                    </div>
+                    {review.createdAt ? <p className="text-xs text-slate-400">{new Date(review.createdAt).toLocaleDateString()}</p> : null}
+                  </div>
+                  {review.title ? <p className="mt-2 font-medium text-white">{review.title}</p> : null}
+                  {review.content ? <p className="mt-2">{review.content}</p> : null}
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -281,16 +281,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        {showMarketplaceControls ? <nav className={`border-t px-4 py-0.5 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
-          <div className="mx-auto flex flex-col items-start gap-0.5 sm:flex-row">
-            <Link to="/auctions" className={`inline-flex min-h-[32px] items-center justify-center rounded-full border px-4 py-0.5 text-sm font-semibold transition ${isLiveAuctionsPage
+        {showMarketplaceControls ? <nav className={`border-t px-4 py-1 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
+          <div className="mx-auto flex flex-wrap items-center gap-2 sm:flex-row">
+            <Link to="/auctions" className={`inline-flex min-h-[34px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-semibold transition ${isLiveAuctionsPage
               ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
               : theme === 'dark'
                 ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
                 : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               Live Auctions
             </Link>
-            <Link to="/marketplace" className={`inline-flex min-h-[32px] items-center justify-center rounded-full border px-4 py-0.5 text-sm font-semibold transition ${isDirectBuyPage
+            <Link to="/marketplace" className={`inline-flex min-h-[34px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-semibold transition ${isDirectBuyPage
               ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
               : theme === 'dark'
                 ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'

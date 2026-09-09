@@ -24,7 +24,8 @@ import { getVendorRevenue } from '../../api/vendorRevenueApi';
 import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
 import { updateVendorProfile, getVendorProfile, getVendorBankRecord, saveVendorBankRecord, type VendorProfileResponse, type VendorBankRecord } from '../../api/vendorApi';
 import { createVendorWithdrawal, getVendorWithdrawalBalance, getVendorWithdrawals, type WithdrawalBalance, type WithdrawalRecord } from '../../api/withdrawalApi';
-import { addresses, customerBids, invoices, notifications, popularSearches, recentlyViewed, reviews, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorProducts, vendorAuctions, vendorReports, vendorShippingRules, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
+import { getProductReviews, getReviews, getReviewEligibility, createReview } from '../../api/reviewApi';
+import { addresses, customerBids, invoices, notifications, popularSearches, recentlyViewed, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorProducts, vendorAuctions, vendorReports, vendorShippingRules, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
 
 
 
@@ -1611,15 +1612,61 @@ export function CustomerMessagesPage() {
 }
 
 export function CustomerReviewsPage() {
+  const [reviews, setReviews] = useState<Array<{ id: number; title?: string; content?: string; rating?: number; customerName?: string; createdAt?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadReviews = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getReviews();
+        if (active) {
+          setReviews(data.map((item) => ({
+            id: item.id ?? 0,
+            title: item.title,
+            content: item.content,
+            rating: item.rating,
+            customerName: item.customerName || item.customer?.name || item.customer?.firstName || 'Customer',
+            createdAt: item.createdAt,
+          })));
+        }
+      } catch (err: any) {
+        if (active) setError(err?.message || 'Unable to load reviews.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadReviews();
+    return () => { active = false; };
+  }, []);
+
   return (
     <SectionShell title="Reviews" subtitle="Your feedback and seller ratings">
       <div className="space-y-3">
-        {reviews.map((review) => (
-          <div key={review.author} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
-            <p className="font-semibold text-white">{review.author}</p>
-            <p className="mt-2">“{review.quote}”</p>
-          </div>
-        ))}
+        {loading ? (
+          <SkeletonCard />
+        ) : error ? (
+          <ErrorState title="Unable to load reviews" description={error} />
+        ) : reviews.length === 0 ? (
+          <EmptyState title="No reviews yet" description="Your public reviews will appear here once you submit them." />
+        ) : (
+          reviews.map((review) => (
+            <div key={review.id} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-semibold text-white">{review.customerName || 'Customer'}</p>
+                <p className="text-amber-300">{'★'.repeat(Math.max(1, Math.min(5, Number(review.rating ?? 0))))}</p>
+              </div>
+              {review.title ? <p className="mt-2 font-medium text-white">{review.title}</p> : null}
+              {review.content ? <p className="mt-2">“{review.content}”</p> : null}
+              {review.createdAt ? <p className="mt-3 text-xs text-slate-400">{new Date(review.createdAt).toLocaleDateString()}</p> : null}
+            </div>
+          ))
+        )}
       </div>
     </SectionShell>
   );
@@ -1923,6 +1970,7 @@ export function CustomerOrderDetailPage() {
   const [resolvedAddress, setResolvedAddress] = useState<AddressResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reviewStates, setReviewStates] = useState<Record<string, { eligible?: boolean; reviewed?: boolean; loading?: boolean }>>({});
 
   useEffect(() => {
     const loadOrder = async () => {
@@ -1959,6 +2007,55 @@ export function CustomerOrderDetailPage() {
     loadOrder();
   }, [id]);
 
+  useEffect(() => {
+    if (!order || order.orderStatus?.toUpperCase() !== 'DELIVERED' || !order.items?.length) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadReviewStates = async () => {
+      const nextState: Record<string, { eligible?: boolean; reviewed?: boolean; loading?: boolean }> = {};
+      for (const item of order.items ?? []) {
+        const productId = item.productId;
+        const orderId = item.orderId ?? order.id;
+        if (!productId || !orderId) {
+          continue;
+        }
+
+        const key = `${orderId}:${productId}`;
+        nextState[key] = { loading: true };
+
+        try {
+          const reviews = await getProductReviews(productId);
+          const reviewed = reviews.some((review) => Number(review.orderId ?? review.productId) === Number(orderId));
+          const eligibility = await getReviewEligibility(orderId, productId);
+          if (isMounted) {
+            nextState[key] = {
+              eligible: eligibility.eligible ?? eligibility.canReview ?? true,
+              reviewed: reviewed || eligibility.reviewed || false,
+              loading: false,
+            };
+          }
+        } catch {
+          if (isMounted) {
+            nextState[key] = { eligible: false, reviewed: false, loading: false };
+          }
+        }
+      }
+
+      if (isMounted) {
+        setReviewStates((current) => ({ ...current, ...nextState }));
+      }
+    };
+
+    loadReviewStates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [order]);
+
   if (loading) return <SectionShell title="Order details" subtitle="Loading order"><SkeletonCard /></SectionShell>;
   if (error || !order) return <SectionShell title="Order details" subtitle="Order unavailable"><ErrorState title="Unable to load order details" description={error || 'Order not found.'} /></SectionShell>;
 
@@ -1978,6 +2075,8 @@ export function CustomerOrderDetailPage() {
   ].filter(Boolean) : [];
   const productDisplay = order.items?.map((item) => item.productName || item.name || (item.productId ? `Product #${item.productId}` : 'Product details unavailable')).filter(Boolean).join(', ') || 'Product unavailable';
   const sellerDisplay = order.items?.map((item) => item.vendorName || item.sellerName).filter(Boolean).join(', ') || 'Not provided';
+  const isDelivered = order.orderStatus?.toUpperCase() === 'DELIVERED';
+  const reviewableItems = (order.items ?? []).filter((item) => item.productId && Number.isFinite(Number(item.productId)));
 
   return (
     <SectionShell title={`Order ${order.orderNumber || `#${order.id}`}`} subtitle="Order details and tracking information">
@@ -2011,6 +2110,46 @@ export function CustomerOrderDetailPage() {
                   <span className="text-white font-medium">{order.orderDate || 'Not provided'}</span>
                 </div>
               </div>
+
+              {reviewableItems.length > 0 ? (
+                <div className="mt-6">
+                  <p className="mb-3 text-sm font-semibold text-white">Order items</p>
+                  <div className="space-y-3">
+                    {reviewableItems.map((item) => {
+                      const reviewKey = `${item.orderId ?? order.id}:${item.productId}`;
+                      const reviewState = reviewStates[reviewKey] ?? {};
+                      const itemName = item.productName || item.name || `Product #${item.productId}`;
+
+                      return (
+                        <div key={reviewKey} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="font-medium text-white">{itemName}</p>
+                              <p className="text-xs text-slate-400">Qty: {item.quantity || 1}</p>
+                            </div>
+                            {isDelivered ? (
+                              reviewState.loading ? (
+                                <span className="text-xs text-slate-400">Checking review status...</span>
+                              ) : reviewState.reviewed ? (
+                                <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">Reviewed</span>
+                              ) : reviewState.eligible === false ? (
+                                <span className="rounded-full bg-slate-600/20 px-3 py-1 text-xs font-medium text-slate-300">Not eligible</span>
+                              ) : (
+                                <Link
+                                  to={`/customer/review?orderId=${item.orderId ?? order.id}&productId=${item.productId}`}
+                                  className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-300 hover:bg-blue-500/15"
+                                >
+                                  Write Review
+                                </Link>
+                              )
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
@@ -4187,14 +4326,7 @@ export function VendorNotificationsPage() {
 export function VendorReviewsPage() {
   return (
     <SectionShell title="Reviews" subtitle="Buyer feedback and store credibility">
-      <div className="space-y-3">
-        {reviews.map((review) => (
-          <div key={review.author} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
-            <p className="font-semibold text-white">{review.author}</p>
-            <p className="mt-2">“{review.quote}”</p>
-          </div>
-        ))}
-      </div>
+      <EmptyState title="No recent reviews yet" description="Buyer reviews will appear here once customers start sharing feedback." />
     </SectionShell>
   );
 }

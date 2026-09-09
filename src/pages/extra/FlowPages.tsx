@@ -11,6 +11,7 @@ import AuctionForm from '../../components/AuctionForm';
 import UploadField from '../../components/forms/UploadField';
 import { useAuth } from '../../context/AuthContext';
 import { createAuctionOrder, getAuctionPaymentState, getOrderById, isPaidStatus } from '../../api/orderApi';
+import { createReview, getReviewEligibility } from '../../api/reviewApi';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
 import type { AddressResponse } from '../../api/addressApi';
 import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } from '../../api/paymentApi';
@@ -1977,19 +1978,165 @@ export function CustomerDeliveredPage() {
 }
 
 export function CustomerReviewPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const orderIdParam = searchParams.get('orderId');
+  const productIdParam = searchParams.get('productId');
+  const [orderId, setOrderId] = useState<number | null>(null);
+  const [productId, setProductId] = useState<number | null>(null);
+  const [productName, setProductName] = useState('');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [rating, setRating] = useState(5);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+
+  useEffect(() => {
+    const loadContext = async () => {
+      const parsedOrderId = Number(orderIdParam ?? 0);
+      const parsedProductId = Number(productIdParam ?? 0);
+      if (!orderIdParam || !productIdParam || !Number.isFinite(parsedOrderId) || !Number.isFinite(parsedProductId)) {
+        setError('Review context is missing. Please open this page from an order item.');
+        setLoading(false);
+        return;
+      }
+
+      setOrderId(parsedOrderId);
+      setProductId(parsedProductId);
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      try {
+        const eligibility = await getReviewEligibility(parsedOrderId, parsedProductId);
+        const canReview = eligibility.eligible ?? eligibility.canReview ?? true;
+        setAlreadyReviewed(Boolean(eligibility.reviewed));
+        if (!canReview) {
+          setError(eligibility.message || 'This order item is not eligible for review yet.');
+        }
+
+        const orderData = await getOrderById(parsedOrderId);
+        const item = orderData.items?.find((entry) => Number(entry.productId) === parsedProductId);
+        setProductName(item?.productName || item?.name || `Product #${parsedProductId}`);
+      } catch (err: any) {
+        setError(err?.message || 'Unable to load the review context.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadContext();
+  }, [orderIdParam, productIdParam]);
+
+  const handleSubmit = async () => {
+    if (!orderId || !productId) {
+      setError('Missing order or product context.');
+      return;
+    }
+    if (!title.trim() || !content.trim()) {
+      setError('Please add a review title and comment before submitting.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const payload = {
+        orderId,
+        productId,
+        rating,
+        title: title.trim(),
+        content: content.trim(),
+      };
+      await createReview(payload);
+      setAlreadyReviewed(true);
+      setSuccess('Review submitted successfully.');
+      setTitle('');
+      setContent('');
+      setTimeout(() => navigate(`/customer/orders/${orderId}`), 800);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to submit the review.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <SectionShell title="Review product" subtitle="Share your purchase experience and return to the dashboard">
       <FlowBreadcrumbs steps={[{ label: 'Delivered', to: '/customer/delivered' }, { label: 'Review', to: '/customer/review' }, { label: 'Dashboard', to: '/dashboards/customer' }]} />
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          <p className="font-semibold text-white">How would you rate the experience?</p>
-          <p className="mt-2">5/5 • Delivery, quality and seller communication were excellent.</p>
-        </div>
-        <textarea className="mt-4 min-h-28 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" defaultValue="The item arrived in perfect condition and the support team was responsive." />
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link to="/dashboards/customer" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Submit review</Link>
-          <Link to="/customer/dashboard" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Skip for now</Link>
-        </div>
+        {loading ? (
+          <div className="text-sm text-slate-300">Loading review form...</div>
+        ) : (
+          <>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+              <p className="font-semibold text-white">How would you rate the experience?</p>
+              <p className="mt-2">{productName ? `${productName} • ${rating}/5 stars` : `${rating}/5 stars`}</p>
+            </div>
+
+            {error ? <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">{error}</div> : null}
+            {success ? <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">{success}</div> : null}
+
+            {alreadyReviewed ? (
+              <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">You have already reviewed this order item.</div>
+            ) : null}
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-slate-300">Rating</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRating(value)}
+                    className={`rounded-full px-3 py-2 text-sm font-medium ${rating === value ? 'bg-amber-500 text-slate-950' : 'border border-white/10 bg-white/5 text-slate-300'}`}
+                  >
+                    {value} ★
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="mt-4 block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Review title</span>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Summarize your experience"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white outline-none focus:border-blue-400/40"
+              />
+            </label>
+
+            <label className="mt-4 block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Comment</span>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Tell other buyers about your experience"
+                className="mt-4 min-h-28 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white outline-none focus:border-blue-400/40"
+              />
+            </label>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || alreadyReviewed || Boolean(error && !success)}
+                className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? 'Submitting...' : alreadyReviewed ? 'Reviewed' : 'Submit review'}
+              </button>
+              <button type="button" onClick={() => navigate(`/customer/orders/${orderId ?? ''}`)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">
+                Skip for now
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </SectionShell>
   );

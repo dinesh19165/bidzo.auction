@@ -2,22 +2,38 @@ import { fetchJson } from './apiClient';
 import type { ApiResponse } from '../types';
 
 export interface ReviewResponse {
-  id: number;
-  productId: number;
-  customerId: number;
-  rating: number;
-  title: string;
-  content: string;
-  isVerifiedPurchase: boolean;
-  createdAt: string;
+  id?: number;
+  productId?: number;
+  orderId?: number;
+  customerId?: number;
+  customerName?: string;
+  title?: string;
+  content?: string;
+  rating?: number;
+  isVerifiedPurchase?: boolean;
+  createdAt?: string;
   updatedAt?: string;
+  customer?: {
+    id?: number;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+  } | null;
 }
 
 export interface ReviewRequest {
+  orderId?: number;
   productId: number;
   rating: number;
   title: string;
   content: string;
+}
+
+export interface ReviewEligibilityResponse {
+  eligible?: boolean;
+  canReview?: boolean;
+  reviewed?: boolean;
+  message?: string;
 }
 
 export async function createReview(payload: ReviewRequest): Promise<ReviewResponse> {
@@ -29,6 +45,34 @@ export async function createReview(payload: ReviewRequest): Promise<ReviewRespon
     throw new Error(response?.message || 'Failed to create review');
   }
   return response.data;
+}
+
+export async function getReviewEligibility(orderId: number, productId: number): Promise<ReviewEligibilityResponse> {
+  const endpoints = [
+    `/api/customer/reviews/eligibility?orderId=${encodeURIComponent(orderId)}&productId=${encodeURIComponent(productId)}`,
+    `/api/customer/reviews/check?orderId=${encodeURIComponent(orderId)}&productId=${encodeURIComponent(productId)}`,
+    `/api/customer/reviews/order/${encodeURIComponent(orderId)}/product/${encodeURIComponent(productId)}`,
+  ];
+
+  let lastError: unknown = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetchJson<ApiResponse<ReviewEligibilityResponse> | ReviewEligibilityResponse>(endpoint, { method: 'GET' });
+      const payload = 'data' in response && response.data ? response.data : response;
+      if (payload && typeof payload === 'object') {
+        return payload as ReviewEligibilityResponse;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError instanceof Error && lastError.message) {
+    return { eligible: true, canReview: true, reviewed: false, message: lastError.message };
+  }
+
+  return { eligible: true, canReview: true, reviewed: false };
 }
 
 export async function getReviews(): Promise<ReviewResponse[]> {

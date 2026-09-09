@@ -3,11 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Gavel, Search, Sparkles } from 'lucide-react';
 import { getPortalHome, useAuth } from '../context/AuthContext';
 import { useLocaleContext } from '../context/LocaleContext';
-import { getHomeData, type AuctionResponse, type HomeBannerResponse, type HomeDataResponse, type ProductResponse } from '../api/homeApi';
+import { getHomeData, type AuctionResponse, type HomeBannerResponse, type HomeDataResponse, type HomeReviewResponse, type ProductResponse } from '../api/homeApi';
 import { getAuctions, type AuctionListItem } from '../api/auctionApi';
 import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
 import { API_BASE_URL } from '../api/apiClient';
-import { ProductCard } from '../components/cards/MarketplaceCards';
+import { ProductCard, ReviewCard } from '../components/cards/MarketplaceCards';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
 import { filterEndingSoonHomeAuctions, filterHomeAuctions, type HomeAuctionStatus } from '../utils/homeAuctions';
 
@@ -153,8 +153,8 @@ function ProductSection({ title, products, categories, emptyTitle, emptyDescript
   const visibleProducts = products.filter((product) => product.sellingType !== 'AUCTION');
   return (
     <section className={`mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 ${title === 'Featured products' ? 'featured-products-section' : ''}`}>
-      <div className="mb-6 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Bidzo marketplace</p><h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2></div><Link to="/marketplace" className="text-sm font-medium text-slate-300 hover:text-white">Browse Marketplace</Link></div>
-        {visibleProducts.length === 0 ? <EmptyState title={emptyTitle} description={emptyDescription} /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{visibleProducts.map((product) => <ProductCard key={product.id} id={product.id} title={text(product.name, 'Product')} description={text(product.description, 'Product details unavailable')} image={imageUrl(product.imageUrl || product.image || product.images?.[0])} price={numberText(product.price)} category={productCategory(product, categories)} condition={text(product.condition, '')} seller={sellerName(product)} rating={product.rating ?? undefined} reviews={product.reviewCount ?? product.reviews ?? undefined} verified={product.verified} createdAt={product.createdAt} badge="Direct Buy" actionLabel="View Product" actionLink={`/product/${product.id}`} showSellerMeta />)}</div>}
+      <div className="mb-6 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Bidzo marketplace</p><h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2></div><Link to="/marketplace" className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/80">Browse Marketplace</Link></div>
+        {visibleProducts.length === 0 ? <EmptyState title={emptyTitle} description={emptyDescription} /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{visibleProducts.map((product) => <ProductCard key={product.id} id={product.id} title={text(product.name, 'Product')} description={text(product.description, 'Product details unavailable')} image={imageUrl(product.imageUrl || product.image || product.images?.[0])} price={numberText(product.price)} category={productCategory(product, categories)} condition={text(product.condition, '')} seller={sellerName(product)} rating={product.rating ?? undefined} reviews={product.reviewCount ?? product.reviews ?? undefined} verified={product.verified} createdAt={product.createdAt} badge="Direct Buy" actionLabel="View Product" actionLink={`/product/${product.id}`} showSellerMeta compact={title === 'Recently added'} />)}</div>}
     </section>
   );
 }
@@ -169,6 +169,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   useEffect(() => {
     if (authReady && user && user.type !== 'customer') navigate(getPortalHome(user), { replace: true });
@@ -198,6 +199,15 @@ export function HomePage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setReducedMotion(mediaQuery.matches);
+    updatePreference();
+    mediaQuery.addEventListener?.('change', updatePreference);
+    return () => mediaQuery.removeEventListener?.('change', updatePreference);
+  }, []);
+
   const selectedCategory = useMemo(() => categories.find((item) => String(item.id) === categoryId), [categories, categoryId]);
   const submitSearch = () => {
     const params = new URLSearchParams({ page: '0' });
@@ -205,6 +215,32 @@ export function HomePage() {
     if (selectedCategory) params.set('categoryId', String(selectedCategory.id));
     navigate(`/marketplace?${params.toString()}`);
   };
+
+  const testimonials = useMemo(() => {
+    const source = Array.isArray(homeData?.testimonials) ? homeData.testimonials : [];
+
+    return source.map((review: HomeReviewResponse, index: number) => {
+      const title = text(review.title, '');
+      const content = [review.message, review.comment, review.content, review.quote]
+        .filter((entry) => entry && String(entry).trim())
+        .join(' ')
+        .trim();
+
+      const rating = Number(review.rating ?? 0);
+
+      return {
+        id: review.id ?? `${review.customerName ?? review.author ?? 'testimonial'}-${index}`,
+        title: title || undefined,
+        quote: content || undefined,
+        author: text(review.customerName || review.author, 'Verified buyer'),
+        rating: Number.isFinite(rating) && rating >= 1 && rating <= 5 ? rating : 5,
+        imageUrl: review.imageUrl || undefined,
+        productName: text(review.productName || review.product?.name, ''),
+        productImageUrl: review.productImageUrl || review.product?.imageUrl || undefined,
+        createdAt: review.createdAt || null,
+      };
+    });
+  }, [homeData?.testimonials]);
 
   if (!authReady || (user && user.type !== 'customer')) return null;
   if (loading) return <HomeSkeleton />;
@@ -220,15 +256,67 @@ export function HomePage() {
   const sellers = homeData.verifiedSellers ?? [];
 
   return <><div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8"><HomeBanner banners={homeData.banners ?? []}>
-    <section className="relative overflow-hidden bg-[var(--app-bg)] text-white"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="max-w-4xl space-y-8"><div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10"><Sparkles className="h-4 w-4 text-amber-300" /> Trusted auctions and verified sellers</div><h1 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl"><span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-amber-300 bg-clip-text text-transparent">Buy with confidence.</span> Bid on what matters.</h1><p className="max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">Search real marketplace inventory, discover live auctions, and connect with verified sellers.</p><div className="grid gap-3 rounded-[28px] border border-white/10 bg-slate-900/80 p-4 sm:grid-cols-[1fr_220px_auto]"><div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3"><Search className="h-5 w-5 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitSearch(); }} placeholder="Search products, auctions, sellers" className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" /></div><select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white"><option value="">All Categories</option>{categories.map((category) => <option key={category.id} value={String(category.id)}>{categoryLabel(category)}</option>)}</select><button type="button" onClick={submitSearch} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">Search</button></div><div className="flex flex-wrap gap-3"><Link to="/auctions" className="rounded-full bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950">Browse Live Auctions</Link><Link to="/marketplace" className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white">Browse Marketplace</Link></div>{stats ? <div className="grid gap-4 sm:grid-cols-3">{[['Live auctions', stats.liveAuctions], ['Products', stats.totalProducts], ['Verified sellers', stats.totalVendors]].map(([label, value]) => value !== null && value !== undefined ? <div key={String(label)} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5"><p className="text-xs uppercase tracking-[0.18em] text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{String(value)}</p></div> : null)}</div> : null}</div></div></section>
+    <section className="relative overflow-hidden bg-[var(--app-bg)] text-white"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="max-w-4xl space-y-8"><div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10"><Sparkles className="h-4 w-4 text-amber-300" /> Trusted auctions and verified sellers</div><h1 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl"><span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-amber-300 bg-clip-text text-transparent">Buy with confidence.</span> Bid on what matters.</h1><p className="max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">Search real marketplace inventory, discover live auctions, and connect with verified sellers.</p><div className="grid gap-3 rounded-[28px] border border-white/10 bg-slate-900/80 p-4 sm:grid-cols-[1fr_220px_auto]"><div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3"><Search className="h-5 w-5 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitSearch(); }} placeholder="Search products, auctions, sellers" className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500" /></div><select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white"><option value="">All Categories</option>{categories.map((category) => <option key={category.id} value={String(category.id)}>{categoryLabel(category)}</option>)}</select><button type="button" onClick={submitSearch} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">Search</button></div><div className="flex flex-wrap gap-3"><Link to="/auctions" className="rounded-full bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950">Browse Live Auctions</Link><Link to="/marketplace" className="rounded-full bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:bg-orange-600">Browse Marketplace</Link></div>{stats ? <div className="grid gap-4 sm:grid-cols-3">{[['Live auctions', stats.liveAuctions], ['Products', stats.totalProducts], ['Verified sellers', stats.totalVendors]].map(([label, value]) => value !== null && value !== undefined ? <div key={String(label)} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5"><p className="text-xs uppercase tracking-[0.18em] text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{String(value)}</p></div> : null)}</div> : null}</div></div></section>
     </HomeBanner></div>
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Explore</p><h2 className="mt-2 text-2xl font-semibold text-white">Categories</h2></div>{categories.length === 0 ? <EmptyState title="No categories available" description="Categories will appear here when available." /> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{categories.map((category) => <button type="button" key={category.id} onClick={() => navigate(`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`)} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-left transition hover:border-blue-400/40"><p className="font-semibold text-white">{categoryLabel(category)}</p>{category.count !== undefined && category.count !== null ? <p className="mt-1 text-sm text-slate-400">{String(category.count)} products</p> : null}</button>)}</div>}</section>
     <ProductSection title="Featured products" products={featured} categories={categories} emptyTitle="No featured products yet" emptyDescription="Featured products will appear here when available." />
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Live now</p><h2 className="mt-2 text-2xl font-semibold text-white">Live auctions</h2></div><Link to="/auctions" className="text-sm text-slate-300 hover:text-white">Browse Auctions</Link></div>{liveAuctions.length === 0 ? <EmptyState title="No live auctions right now" description="Check back soon for new auctions." /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{liveAuctions.map((auction) => <AuctionTile key={auction.id} auction={auction} status="RUNNING" />)}</div>}</section>
+    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Live now</p><h2 className="mt-2 text-2xl font-semibold text-white">Live auctions</h2></div><Link to="/auctions" className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/80">Browse Auctions</Link></div>{liveAuctions.length === 0 ? <EmptyState title="No live auctions right now" description="Check back soon for new auctions." /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{liveAuctions.map((auction) => <AuctionTile key={auction.id} auction={auction} status="RUNNING" />)}</div>}</section>
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Coming up</p><h2 className="mt-2 text-2xl font-semibold text-white">Scheduled auctions</h2></div>{scheduledAuctions.length === 0 ? <EmptyState title="No scheduled auctions" description="There are no upcoming auctions right now." /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{scheduledAuctions.map((auction) => <AuctionTile key={auction.id} auction={auction} status="SCHEDULED" />)}</div>}</section>
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Act soon</p><h2 className="mt-2 text-2xl font-semibold text-white">Ending soon</h2></div>{endingSoon.length === 0 ? <EmptyState title="No auctions ending soon" description="There are no ending-soon auctions right now." /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{endingSoon.map((auction) => <AuctionTile key={auction.id} auction={auction} status="RUNNING" />)}</div>}</section>
     <ProductSection title="Recently added" products={recent} categories={categories} emptyTitle="No recently added products" emptyDescription="New products will appear here when available." />
     <ProductSection title="Popular products" products={popular} categories={categories} emptyTitle="No popular products yet" emptyDescription="Popularity information will appear here when available." />
+    {testimonials.length > 0 ? (
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <style>{`
+          @keyframes bidzo-reviews-marquee {
+            from { transform: translateX(0); }
+            to { transform: translateX(-50%); }
+          }
+
+          .bidzo-reviews-track {
+            animation: bidzo-reviews-marquee 36s linear infinite;
+          }
+
+          .bidzo-reviews-track:hover {
+            animation-play-state: paused;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .bidzo-reviews-track {
+              animation: none !important;
+            }
+          }
+        `}</style>
+
+        <div className="mb-6">
+          <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Community</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">What Our Customers Say</h2>
+        </div>
+
+        <div className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/60 p-3 shadow-xl shadow-slate-950/20">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-600/70">
+            <div
+              className="bidzo-reviews-track flex min-w-max items-stretch gap-5"
+              style={reducedMotion ? { animation: 'none' } : undefined}
+            >
+              {testimonials.map((review, index) => (
+                <ReviewCard
+                  key={`${review.id}-${index}`}
+                  quote={review.quote}
+                  author={review.author}
+                  rating={review.rating}
+                  imageUrl={review.imageUrl}
+                  title={review.title}
+                  productName={review.productName}
+                  productImageUrl={review.productImageUrl}
+                  createdAt={review.createdAt}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    ) : null}
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Trusted sellers</p><h2 className="mt-2 text-2xl font-semibold text-white">Verified sellers</h2></div>{sellers.length === 0 ? <EmptyState title="No verified sellers available" description="Verified sellers will appear here when available." /> : <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{sellers.map((seller, index) => { const name = text(seller.name || seller.vendorName || seller.storeName, 'Seller unavailable'); const sellerId = seller.id || seller.vendorId; return <Link key={String(sellerId || index)} to={sellerId ? `/seller/${sellerId}` : '/marketplace'} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 transition hover:border-emerald-400/40"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold text-white">{name}</p>{seller.productCount !== undefined && seller.productCount !== null ? <p className="mt-1 text-sm text-slate-400">{String(seller.productCount)} products</p> : null}</div><CheckCircle2 className="h-5 w-5 text-emerald-300" /></div></Link>; })}</div>}</section>
   </>;
 }
