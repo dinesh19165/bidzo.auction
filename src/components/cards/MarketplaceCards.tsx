@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, Sparkles, Star, Users } from 'lucide-react';
-import { memo, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useState, useCallback, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react';
 import ReactDOM from 'react-dom';
 import { showToast } from '../ui/toast';
 import { useLocaleContext } from '../../context/LocaleContext';
@@ -199,6 +199,52 @@ export const ProductCard = memo(function ProductCard({
   const priceLabel = translate(isAuction ? 'currentBid' : 'price');
   const rawPrice = (isAuction ? (currentBid || price) : price).replace(/,/g, '');
   const priceValue = Number.isFinite(Number(rawPrice)) && rawPrice !== '' ? formatCurrency(rawPrice) : 'Price unavailable';
+  const productUrl = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return actionLink ?? `/product/${id}`;
+    }
+
+    try {
+      return new URL(actionLink ?? `/product/${id}`, window.location.origin).toString();
+    } catch {
+      return actionLink ?? `/product/${id}`;
+    }
+  }, [actionLink, id]);
+
+  const handleShare = useCallback(async (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title,
+          text: `Check out ${title} on Bidzo`,
+          url: productUrl,
+        });
+        showToast('Product shared', 'The product link has been opened in your sharing sheet.', 'success');
+        return;
+      }
+
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(productUrl);
+        showToast('Product link copied', 'The product link has been copied to your clipboard.', 'success');
+        return;
+      }
+
+      throw new Error('Clipboard API unavailable');
+    } catch (error) {
+      const message = error instanceof Error && error.name === 'AbortError'
+        ? 'Share was cancelled.'
+        : 'Unable to share this product right now. Please try again.';
+
+      showToast(
+        error instanceof Error && error.name === 'AbortError' ? 'Share cancelled' : 'Unable to share product',
+        message,
+        error instanceof Error && error.name === 'AbortError' ? 'info' : 'warning',
+      );
+    }
+  }, [productUrl, title]);
 
   useEffect(() => {
     if (!quickOpen) return;
@@ -310,7 +356,7 @@ export const ProductCard = memo(function ProductCard({
               <span className="relative z-10">{isAuction ? translate('watchAuction') : actionLabel || translate('buyNow')}</span>
               <ArrowRight className="relative z-10 h-3.5 w-3.5" />
             </Link>
-            <button type="button" className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
+            <button type="button" onClick={handleShare} className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
               <Share2 className="h-4 w-4" />
             </button>
             <button type="button" onClick={toggleFavorite} className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Favorite listing">

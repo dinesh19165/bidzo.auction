@@ -5,8 +5,10 @@ import { SectionShell } from '../components/SectionShell';
 import { ProductCard } from '../components/cards/MarketplaceCards';
 import { getProductById, getProducts, type ProductListItem } from '../api/productApi';
 import { getProductReviews, type ReviewResponse } from '../api/reviewApi';
+import { getWishlist, notifyWishlistChanged, removeFromWishlist, toggleWishlist, type WishlistItemResponse } from '../api/wishlistApi';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
 import { ProductSpecification } from '../components/marketplace/MarketplaceComponents';
+import { showToast } from '../components/ui/toast';
 import { initializeBuyNowFlow } from '../utils/auctionFlowState';
 
 export function ProductDetailPage() {
@@ -19,6 +21,8 @@ export function ProductDetailPage() {
   const [reviews, setReviews] = useState<ReviewResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [wishlistByProductId, setWishlistByProductId] = useState<Record<number, WishlistItemResponse>>({});
+  const [favoritePending, setFavoritePending] = useState(false);
 
   useEffect(() => {
     const idNum = Number(id);
@@ -50,6 +54,119 @@ export function ProductDetailPage() {
 
     loadProduct();
   }, [id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getWishlist()
+      .then((wishlist) => {
+        if (!isMounted) return;
+        setWishlistByProductId(
+          Object.fromEntries(
+            wishlist.map((item) => {
+              const key = item.itemType === 'AUCTION' ? (item.auctionId ?? item.productId) : item.productId;
+              return [key, item];
+            }),
+          ),
+        );
+      })
+      .catch(() => {
+        if (isMounted) {
+          setWishlistByProductId({});
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const currentProductWishlistItem = product
+    ? wishlistByProductId[product.isAuction ? (product.auctionId ?? product.id) : product.id]
+    : undefined;
+
+  const toggleProductFavorite = async () => {
+    if (!product || favoritePending) return;
+
+    setFavoritePending(true);
+
+    try {
+      if (currentProductWishlistItem?.id) {
+        await removeFromWishlist(currentProductWishlistItem.id);
+        setWishlistByProductId((prev) => {
+          const next = { ...prev };
+          const key = product.isAuction ? (product.auctionId ?? product.id) : product.id;
+          delete next[key];
+          return next;
+        });
+        notifyWishlistChanged({
+          productId: product.isAuction ? undefined : product.id,
+          auctionId: product.isAuction ? product.auctionId : undefined,
+          wishlistId: currentProductWishlistItem.id,
+          saved: false,
+        });
+        showToast('Removed from favourites', 'The listing is no longer in your saved collection.', 'info');
+      } else {
+        const savedItem = await toggleWishlist({
+          itemType: product.isAuction ? 'AUCTION' : 'PRODUCT',
+          productId: product.isAuction ? undefined : product.id,
+          auctionId: product.isAuction ? product.auctionId : undefined,
+        });
+
+        const key = product.isAuction ? (product.auctionId ?? product.id) : product.id;
+        setWishlistByProductId((prev) => ({ ...prev, [key]: savedItem }));
+        notifyWishlistChanged({
+          productId: product.isAuction ? undefined : product.id,
+          auctionId: product.isAuction ? product.auctionId : undefined,
+          wishlistId: savedItem.id,
+          saved: true,
+        });
+        showToast('Added to favourites', 'Saved for your next bidding session.', 'success');
+      }
+    } catch (error) {
+      showToast('Unable to update favourites', error instanceof Error ? error.message : 'Please try again.', 'warning');
+    } finally {
+      setFavoritePending(false);
+    }
+  };
+
+  const handleShareProduct = async () => {
+    if (!product) return;
+
+    const productUrl = typeof window === 'undefined'
+      ? `/product/${product.id}`
+      : new URL(`/product/${product.id}`, window.location.origin).toString();
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: product.title,
+          text: `Check out ${product.title} on Bidzo`,
+          url: productUrl,
+        });
+        showToast('Product shared', 'The product link has been opened in your sharing sheet.', 'success');
+        return;
+      }
+
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(productUrl);
+        showToast('Product link copied', 'The product link has been copied to your clipboard.', 'success');
+        return;
+      }
+
+      throw new Error('Clipboard API unavailable');
+    } catch (error) {
+      const message = error instanceof Error && error.name === 'AbortError'
+        ? 'Share was cancelled.'
+        : 'Unable to share this product right now. Please try again.';
+
+      showToast(
+        error instanceof Error && error.name === 'AbortError' ? 'Share cancelled' : 'Unable to share product',
+        message,
+        error instanceof Error && error.name === 'AbortError' ? 'info' : 'warning',
+      );
+    }
+  };
 
   const handleBuyNow = () => {
     if (!product) return;
@@ -101,8 +218,12 @@ export function ProductDetailPage() {
                 className={`h-72 w-full max-w-full rounded-[24px] object-cover transition-transform sm:h-96 ${zoom ? 'scale-105' : ''}`}
               />
               <div className="absolute right-4 top-4 inline-flex gap-2">
-                <button className="rounded-full bg-slate-950/75 p-2 text-slate-200"><Heart className="h-4 w-4" /></button>
-                <button className="rounded-full bg-slate-950/75 p-2 text-slate-200"><Share2 className="h-4 w-4" /></button>
+                <button type="button" onClick={toggleProductFavorite} className="rounded-full bg-slate-950/75 p-2 text-slate-200 transition hover:bg-slate-900/90" aria-label="Toggle favorite">
+                  <Heart className={`h-4 w-4 transition ${currentProductWishlistItem ? 'text-rose-500' : ''}`} />
+                </button>
+                <button type="button" onClick={handleShareProduct} className="rounded-full bg-slate-950/75 p-2 text-slate-200 transition hover:bg-slate-900/90" aria-label="Share product">
+                  <Share2 className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
@@ -202,9 +323,35 @@ export function ProductDetailPage() {
           {similarProducts.length === 0 ? (
             <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">No similar products available.</div>
           ) : (
-            similarProducts.map((item) => (
-              <ProductCard key={item.id} id={item.id} title={item.title} description={item.description} image={item.image} price={item.price} category={item.category} condition={item.condition} seller={item.seller} />
-            ))
+            similarProducts.map((item) => {
+              const wishlistKey = item.isAuction ? (item.auctionId ?? item.id) : item.id;
+              const wishlistEntry = wishlistByProductId[wishlistKey];
+
+              return (
+                <ProductCard
+                  key={item.id}
+                  id={item.id}
+                  title={item.title}
+                  description={item.description}
+                  image={item.image}
+                  price={item.price}
+                  category={item.category}
+                  condition={item.condition}
+                  seller={item.seller}
+                  rating={item.rating}
+                  reviews={item.reviews}
+                  verified={item.verified}
+                  badge={item.badge}
+                  location={item.location}
+                  actionLink={`/product/${item.id}`}
+                  wishlistItemType={item.isAuction ? 'AUCTION' : 'PRODUCT'}
+                  wishlistProductId={item.isAuction ? undefined : item.id}
+                  wishlistAuctionId={item.isAuction ? item.auctionId : undefined}
+                  wishlistRecordId={wishlistEntry?.id}
+                  initialFavorited={Boolean(wishlistEntry)}
+                />
+              );
+            })
           )}
         </div>
       </div>
