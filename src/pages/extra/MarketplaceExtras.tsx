@@ -6,28 +6,32 @@ import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/L
 import { categoryLabel, getCategories, type CategoryRecord } from '../../api/categoryApi';
 import { deduplicateMarketplaceResults, searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../../api/apiClient';
-import { products, categories } from '../../data/mockData';
 
 export function CategoriesPage() {
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { getCategories().then(setCategories).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load categories.')).finally(() => setLoading(false)); }, []);
+
   return (
     <SectionShell title="Categories" subtitle="Browse by vertical and intent">
-      <div className="grid gap-4 md:grid-cols-3">
-        {categories.map((category) => (
-          <div key={category} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">{category}</div>
-        ))}
-      </div>
+      {loading ? <p className="py-8 text-center text-slate-400">Loading categories...</p> : error ? <ErrorState title="Unable to load categories" description={error} /> : categories.length === 0 ? <EmptyState title="No categories found" description="Categories will appear here when they are available." /> : <div className="grid gap-4 md:grid-cols-3">{categories.map((category) => <div key={category.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">{categoryLabel(category)}</div>)}</div>}
     </SectionShell>
   );
 }
 
 export function SubCategoriesPage() {
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { getCategories().then(setCategories).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load categories.')).finally(() => setLoading(false)); }, []);
+  const subCategories = categories.filter((category) => category.parentId !== null && category.parentId !== undefined);
+
   return (
     <SectionShell title="Sub categories" subtitle="Details for niche discovery">
-      <div className="grid gap-4 md:grid-cols-3">
-        {['Smartphones', 'Gaming', 'Office Equipment', 'Classic Vehicles', 'Luxury Jewelry', 'Industrial Tools'].map((item) => (
-          <div key={item} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">{item}</div>
-        ))}
-      </div>
+      {loading ? <p className="py-8 text-center text-slate-400">Loading sub categories...</p> : error ? <ErrorState title="Unable to load sub categories" description={error} /> : subCategories.length === 0 ? <EmptyState title="No sub categories found" description="Sub categories will appear here when they are available." /> : <div className="grid gap-4 md:grid-cols-3">{subCategories.map((category) => <div key={category.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">{categoryLabel(category)}</div>)}</div>}
     </SectionShell>
   );
 }
@@ -107,16 +111,15 @@ function MarketplaceResultCard({ item }: { item: MarketplaceSearchResult }) {
 }
 
 export function RecommendedPage() {
+  const [results, setResults] = useState<MarketplaceSearchResult[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { searchMarketplace({ page: 0, size: 6, sort: 'relevance' }).then((data) => setResults(data.content)).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load recommendations.')).finally(() => setLoading(false)); }, []);
+
   return (
     <SectionShell title="Recommended" subtitle="Suggested for your buying journey">
-      <div className="grid gap-4 md:grid-cols-3">
-        {products.map((product) => (
-          <div key={product.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">
-            <h3 className="text-lg font-semibold text-white">{product.title}</h3>
-            <p className="mt-2 text-sm">{product.price}</p>
-          </div>
-        ))}
-      </div>
+      {loading ? <div className="grid gap-4 md:grid-cols-3">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div> : error ? <ErrorState title="Unable to load recommendations" description={error} /> : results.length === 0 ? <EmptyState title="No recommendations found" description="There are no marketplace recommendations available right now." /> : <div className="grid gap-4 md:grid-cols-3">{results.map((item) => <MarketplaceResultCard key={`${item.type}-${item.id}`} item={item} />)}</div>}
     </SectionShell>
   );
 }

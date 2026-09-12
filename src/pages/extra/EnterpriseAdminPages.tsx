@@ -7,7 +7,6 @@ import { Card } from '../../components/common/Card';
 import { Badge, PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
 import { Table } from '../../components/common/Table';
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
-import { adminStats, chartSeries, franchiseDashboardKpis, rolePermissions } from '../../data/mockData';
 import { Link } from 'react-router-dom';
 import Logo from '../../components/Logo';
 import { isAdminUser, useAuth } from '../../context/AuthContext';
@@ -55,56 +54,17 @@ const getSafeValue = (record: Record<string, unknown> | null | undefined, keys: 
   return '';
 };
 
-const dashboardKpis = [
-  { label: 'Total Customers', value: '18.2k', trend: '+12%' },
-  { label: 'Total Vendors', value: '1.4k', trend: '+8%' },
-  { label: 'Delivery Partners', value: '342', trend: '+5%' },
-  { label: 'Total Franchises', value: '24', trend: '+3%' },
-  { label: 'Total Products', value: '8.7k', trend: '+14%' },
-  { label: 'Total Auctions', value: '2.4k', trend: '+9%' },
-  { label: 'Live Auctions', value: '214', trend: '+6%' },
-  { label: 'Orders Today', value: '1,284', trend: '+11%' },
-  { label: 'Revenue Today', value: '₹18.5L', trend: '+16%' },
-  { label: 'Monthly Revenue', value: '₹214L', trend: '+19%' },
-  { label: 'Pending Vendor Approvals', value: '42', trend: 'Needs review' },
-  { label: 'Pending Franchise Approvals', value: '7', trend: 'Needs review' },
-];
+const dashboardKpis: Array<{ label: string; value: string; trend: string }> = [];
 
-const salesSeries = [
-  { name: 'Jan', sales: 120, revenue: 80 },
-  { name: 'Feb', sales: 140, revenue: 92 },
-  { name: 'Mar', sales: 158, revenue: 104 },
-  { name: 'Apr', sales: 174, revenue: 118 },
-  { name: 'May', sales: 186, revenue: 126 },
-  { name: 'Jun', sales: 208, revenue: 138 },
-];
+const salesSeries: Array<{ name: string; sales: number; revenue: number }> = [];
 
-const userSeries = [
-  { name: 'Jan', customers: 4200, vendors: 180, franchises: 8 },
-  { name: 'Feb', customers: 4700, vendors: 205, franchises: 10 },
-  { name: 'Mar', customers: 5300, vendors: 240, franchises: 12 },
-  { name: 'Apr', customers: 6100, vendors: 280, franchises: 14 },
-  { name: 'May', customers: 6900, vendors: 320, franchises: 18 },
-  { name: 'Jun', customers: 7800, vendors: 360, franchises: 24 },
-];
+const userSeries: Array<{ name: string; customers: number; vendors: number; franchises: number }> = [];
 
-const pieData = [
-  { name: 'Approved', value: 74 },
-  { name: 'Pending', value: 16 },
-  { name: 'Needs changes', value: 10 },
-];
+const pieData: Array<{ name: string; value: number }> = [];
 
-const activityRows = [
-  { action: 'Vendor KYC approved', user: 'Ops team', time: '10 min ago' },
-  { action: 'Auction reserve updated', user: 'Auction Ops', time: '34 min ago' },
-  { action: 'Franchise onboarding accepted', user: 'Super Admin', time: '1h ago' },
-];
+const activityRows: Array<{ action: string; user: string; time: string }> = [];
 
-const reportRows = [
-  { title: 'Q2 sales summary', owner: 'Finance', format: 'PDF' },
-  { title: 'Vendor performance', owner: 'Ops', format: 'Excel' },
-  { title: 'Franchise growth', owner: 'Strategy', format: 'CSV' },
-];
+const reportRows: Array<{ title: string; owner: string; format: string }> = [];
 
 export function SuperAdminDashboardPage() {
   return (
@@ -244,138 +204,11 @@ export function SuperAdminDashboardPage() {
 }
 
 export function FranchiseDashboardAdminPage() {
-  return (
-    <AdminShell title="Enterprise admin" subtitle="Franchise Dashboard" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise' }]} activePath="/admin/franchise-dashboard" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Create action</PrimaryButton>}>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {franchiseDashboardKpis.map((item) => (
-          <Card key={item.label} className="p-5">
-            <p className="text-sm text-slate-400">{item.label}</p>
-            <p className="mt-3 text-2xl font-semibold text-white">{item.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300">Revenue & orders</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Regional performance snapshot</h3>
-            </div>
-            <Badge>Updated 5m ago</Badge>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {[
-              { label: 'Revenue', value: '₹12.6L' },
-              { label: 'Orders', value: '386' },
-              { label: 'Customers', value: '2,104' },
-              { label: 'Vendors', value: '68' },
-            ].map((item) => (
-              <div key={item.label} className="rounded-[18px] border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-slate-400">{item.label}</p>
-                <p className="mt-2 text-xl font-semibold text-white">{item.value}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Top vendors</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Leading partners</h3>
-            </div>
-            <SecondaryButton icon={<Store className="h-4 w-4" />}>View all</SecondaryButton>
-          </div>
-          <div className="mt-4 space-y-3">
-            {['Nova Tech', 'DriveHub', 'Urban Estates'].map((vendor) => (
-              <div key={vendor} className="flex items-center justify-between rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
-                <span className="font-semibold text-white">{vendor}</span>
-                <Badge className="bg-emerald-500/10 text-emerald-200">High</Badge>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-200">Pending approvals</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Operational queue</h3>
-            </div>
-            <Badge className="bg-amber-500/10 text-amber-200">14 pending</Badge>
-          </div>
-          <div className="mt-4 space-y-3 text-sm text-slate-300">
-            {['Vendor onboarding', 'Product review', 'Auction validation', 'Wallet verification'].map((item) => (
-              <div key={item} className="rounded-[18px] border border-white/10 bg-white/5 p-3">{item}</div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-200">Recent activity</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Local operations</h3>
-            </div>
-            <SecondaryButton icon={<MessageSquare className="h-4 w-4" />}>Open feed</SecondaryButton>
-          </div>
-          <div className="mt-4 space-y-3 text-sm text-slate-300">
-            <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">Delivery partner route updated for 5 high-priority orders.</div>
-            <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">New product listing approved by franchise admin.</div>
-          </div>
-        </Card>
-      </div>
-    </AdminShell>
-  );
+  return <AdminShell title="Enterprise admin" subtitle="Franchise Dashboard" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise' }]} activePath="/admin/franchise-dashboard"><EmptyState title="Franchise dashboard data unavailable" description="The franchise dashboard API is not currently available." /></AdminShell>;
 }
 
 export function RolePermissionMatrixPage() {
-  return (
-    <AdminShell title="Enterprise admin" subtitle="Role Based Access" breadcrumbs={[{ label: 'Admin' }, { label: 'Permissions' }]} activePath="/admin/permissions" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add role</PrimaryButton>}>
-      <Card className="p-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-200">Permission matrix</p>
-            <p className="text-sm text-slate-400">Modules and action-level access for each role</p>
-          </div>
-          <SecondaryButton icon={<Search className="h-4 w-4" />}>Search roles</SecondaryButton>
-        </div>
-        <div className="overflow-x-auto p-4">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-400">
-                <th className="px-3 py-2">Role</th>
-                <th className="px-3 py-2">Module</th>
-                <th className="px-3 py-2">View</th>
-                <th className="px-3 py-2">Create</th>
-                <th className="px-3 py-2">Edit</th>
-                <th className="px-3 py-2">Delete</th>
-                <th className="px-3 py-2">Approve</th>
-                <th className="px-3 py-2">Reject</th>
-                <th className="px-3 py-2">Export</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-300">
-              {rolePermissions.map((role) => (
-                <tr key={role.role} className="border-t border-white/10">
-                  <td className="px-3 py-3 font-semibold text-white">{role.role}</td>
-                  <td className="px-3 py-3">{role.scope}</td>
-                  <td className="px-3 py-3"><CheckCircle2 className="h-4 w-4 text-emerald-300" /></td>
-                  <td className="px-3 py-3"><CheckCircle2 className="h-4 w-4 text-emerald-300" /></td>
-                  <td className="px-3 py-3"><CheckCircle2 className="h-4 w-4 text-emerald-300" /></td>
-                  <td className="px-3 py-3"><Clock3 className="h-4 w-4 text-slate-500" /></td>
-                  <td className="px-3 py-3"><CheckCircle2 className="h-4 w-4 text-emerald-300" /></td>
-                  <td className="px-3 py-3"><CheckCircle2 className="h-4 w-4 text-amber-300" /></td>
-                  <td className="px-3 py-3"><CheckCircle2 className="h-4 w-4 text-emerald-300" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </AdminShell>
-  );
+  return <AdminShell title="Enterprise admin" subtitle="Role Based Access" breadcrumbs={[{ label: 'Admin' }, { label: 'Permissions' }]} activePath="/admin/permissions"><EmptyState title="Permission data unavailable" description="The role and permissions API is not currently available." /></AdminShell>;
 }
 
 export function ApprovalCenterPage() {
@@ -852,12 +685,7 @@ export function FranchiseManagementAdminPage() {
 }
 
 export function VendorManagementAdminPage() {
-  const [rows, setRows] = useState([
-    { id: 1, name: 'Nova Tech', category: 'Electronics', kyc: 'Verified', status: 'Approved', rating: '4.9', revenue: '₹8.2L' },
-    { id: 2, name: 'Urban Furnish', category: 'Furniture', kyc: 'Pending', status: 'Pending', rating: '4.5', revenue: '₹3.7L' },
-    { id: 3, name: 'DriveHub', category: 'Automotive', kyc: 'Verified', status: 'Suspended', rating: '4.4', revenue: '₹6.9L' },
-    { id: 4, name: 'Blue Leaf', category: 'Home Decor', kyc: 'Verified', status: 'Approved', rating: '4.8', revenue: '₹5.1L' },
-  ]);
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
 
   const approve = (id: number) => setRows((prev) => prev.map((row) => row.id === id ? { ...row, status: 'Approved' } : row));
   const suspend = (id: number) => setRows((prev) => prev.map((row) => row.id === id ? { ...row, status: 'Suspended' } : row));
@@ -896,12 +724,7 @@ export function VendorManagementAdminPage() {
 }
 
 export function OrdersManagementAdminPage() {
-  const [orders, setOrders] = useState([
-    { id: 'ORD-1001', customer: 'Arjun Sharma', vendor: 'Nova Tech', total: '₹86,000', status: 'Processing' },
-    { id: 'ORD-1002', customer: 'Mina Patel', vendor: 'Urban Furnish', total: '₹48,000', status: 'Shipped' },
-    { id: 'ORD-1003', customer: 'Rohan Mehta', vendor: 'Blue Leaf', total: '₹62,500', status: 'Cancelled' },
-    { id: 'ORD-1004', customer: 'Sneha Roy', vendor: 'DriveHub', total: '₹34,900', status: 'Delivered' },
-  ]);
+  const [orders, setOrders] = useState<Record<string, unknown>[]>([]);
 
   const updateStatus = (id: string, next: string) => setOrders((prev) => prev.map((order) => order.id === id ? { ...order, status: next } : order));
 
@@ -933,11 +756,7 @@ export function OrdersManagementAdminPage() {
 }
 
 export function DeliveryManagementAdminPage() {
-  const [partners] = useState([
-    { id: 1, name: 'RapidRoute Logistics', status: 'Active', city: 'Bengaluru', deliveries: 182, rating: '4.8' },
-    { id: 2, name: 'GreenLine Express', status: 'Pending', city: 'Mumbai', deliveries: 96, rating: '4.6' },
-    { id: 3, name: 'SpeedMate', status: 'Offline', city: 'Hyderabad', deliveries: 54, rating: '4.3' },
-  ]);
+  const [partners] = useState<Record<string, unknown>[]>([]);
 
   return (
     <AdminShell title="Enterprise admin" subtitle="Delivery management" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery' }]} activePath="/admin/delivery" actions={<PrimaryButton icon={<Truck className="h-4 w-4" />}>Assign route</PrimaryButton>}>
@@ -1148,12 +967,7 @@ export function WalletManagementAdminPage() {
 }
 
 export function AuctionManagementAdminPage() {
-  const [auctions, setAuctions] = useState([
-    { id: 201, title: 'Royal Enfield Classic 350', vendor: 'DriveHub', start: '12 Aug 2026', status: 'Live', bids: 38 },
-    { id: 202, title: 'Vintage Camera Kit', vendor: 'Nova Tech', start: '13 Aug 2026', status: 'Upcoming', bids: 12 },
-    { id: 203, title: 'Luxury Watch', vendor: 'Blue Leaf', start: '09 Aug 2026', status: 'Ended', bids: 74 },
-    { id: 204, title: 'Designer Handbag', vendor: 'Urban Furnish', start: '10 Aug 2026', status: 'Pending', bids: 9 },
-  ]);
+  const [auctions, setAuctions] = useState<Record<string, unknown>[]>([]);
 
   const updateStatus = (id: number, next: string) => setAuctions((prev) => prev.map((row) => row.id === id ? { ...row, status: next } : row));
 
@@ -3143,11 +2957,7 @@ export function SettingsLocalizationPage() {
 }
 
 export function ApprovalVendorsPage() {
-  const [items] = useState([
-    { id: 1, name: 'Nova Tech', status: 'Pending', type: 'Vendor' },
-    { id: 2, name: 'Urban Furnish', status: 'Approved', type: 'Vendor' },
-    { id: 3, name: 'Blue Leaf', status: 'Rejected', type: 'Vendor' },
-  ]);
+  const [items] = useState<Record<string, unknown>[]>([]);
 
   return (
     <AdminShell title="Enterprise admin" subtitle="Vendor approvals" breadcrumbs={[{ label: 'Admin' }, { label: 'Approvals', to: '/admin/approvals' }, { label: 'Vendors' }]} activePath="/admin/approvals" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />}>Bulk approve</PrimaryButton>}>
@@ -3157,10 +2967,7 @@ export function ApprovalVendorsPage() {
 }
 
 export function ApprovalFranchisesPage() {
-  const [items] = useState([
-    { id: 1, name: 'Bengaluru Franchise', status: 'Pending', type: 'Franchise' },
-    { id: 2, name: 'Mumbai Franchise', status: 'Approved', type: 'Franchise' },
-  ]);
+  const [items] = useState<Record<string, unknown>[]>([]);
 
   return (
     <AdminShell title="Enterprise admin" subtitle="Franchise approvals" breadcrumbs={[{ label: 'Admin' }, { label: 'Approvals', to: '/admin/approvals' }, { label: 'Franchises' }]} activePath="/admin/approvals" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />}>Review queue</PrimaryButton>}>
@@ -3170,10 +2977,7 @@ export function ApprovalFranchisesPage() {
 }
 
 export function ApprovalProductsPage() {
-  const [items] = useState([
-    { id: 1, name: 'Premium Camera', status: 'Pending', type: 'Product' },
-    { id: 2, name: 'Designer Chair', status: 'Approved', type: 'Product' },
-  ]);
+  const [items] = useState<Record<string, unknown>[]>([]);
 
   return (
     <AdminShell title="Enterprise admin" subtitle="Product approvals" breadcrumbs={[{ label: 'Admin' }, { label: 'Approvals', to: '/admin/approvals' }, { label: 'Products' }]} activePath="/admin/approvals" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />}>Approve selected</PrimaryButton>}>
@@ -3183,10 +2987,7 @@ export function ApprovalProductsPage() {
 }
 
 export function ApprovalAuctionsPage() {
-  const [items] = useState([
-    { id: 1, name: 'Royal Enfield', status: 'Pending', type: 'Auction' },
-    { id: 2, name: 'Luxury Watch', status: 'Approved', type: 'Auction' },
-  ]);
+  const [items] = useState<Record<string, unknown>[]>([]);
 
   return (
     <AdminShell title="Enterprise admin" subtitle="Auction approvals" breadcrumbs={[{ label: 'Admin' }, { label: 'Approvals', to: '/admin/approvals' }, { label: 'Auctions' }]} activePath="/admin/approvals" actions={<PrimaryButton icon={<Gavel className="h-4 w-4" />}>Review</PrimaryButton>}>
@@ -3196,10 +2997,7 @@ export function ApprovalAuctionsPage() {
 }
 
 export function ApprovalKycPage() {
-  const [items] = useState([
-    { id: 1, name: 'Priya K', status: 'Pending', type: 'KYC' },
-    { id: 2, name: 'Sanjay M', status: 'Approved', type: 'KYC' },
-  ]);
+  const [items] = useState<Record<string, unknown>[]>([]);
 
   return (
     <AdminShell title="Enterprise admin" subtitle="KYC approvals" breadcrumbs={[{ label: 'Admin' }, { label: 'Approvals', to: '/admin/approvals' }, { label: 'KYC' }]} activePath="/admin/approvals" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />}>Verify queue</PrimaryButton>}>
@@ -3257,17 +3055,17 @@ export function PermissionsMatrixPage() {
   );
 }
 
-export function ReportsSalesPage() { return <AdminShell title="Enterprise admin" subtitle="Sales report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports', to: '/admin/reports' }, { label: 'Sales' }]} activePath="/admin/reports" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export CSV</PrimaryButton>}><Card className="p-6"><div className="grid gap-4 md:grid-cols-4"><div className="rounded-[18px] border border-white/10 bg-white/5 p-4"><p className="text-sm text-slate-400">Revenue</p><p className="mt-2 text-2xl font-semibold text-white">₹42.8L</p></div><div className="rounded-[18px] border border-white/10 bg-white/5 p-4"><p className="text-sm text-slate-400">Orders</p><p className="mt-2 text-2xl font-semibold text-white">1,284</p></div><div className="rounded-[18px] border border-white/10 bg-white/5 p-4"><p className="text-sm text-slate-400">Conversion</p><p className="mt-2 text-2xl font-semibold text-white">4.8%</p></div><div className="rounded-[18px] border border-white/10 bg-white/5 p-4"><p className="text-sm text-slate-400">Avg basket</p><p className="mt-2 text-2xl font-semibold text-white">₹2,642</p></div></div></Card></AdminShell>; }
+export function ReportsSalesPage() { return <AdminShell title="Enterprise admin" subtitle="Sales report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports' }, { label: 'Sales' }]} activePath="/admin/reports"><EmptyState title="Sales report unavailable" description="The sales report API is not currently available." /></AdminShell>; }
 
-export function ReportsRevenuePage() { return <AdminShell title="Enterprise admin" subtitle="Revenue report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports', to: '/admin/reports' }, { label: 'Revenue' }]} activePath="/admin/reports" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-6"><div className="grid gap-4 md:grid-cols-3"><div className="rounded-[18px] border border-white/10 bg-white/5 p-4"><p className="text-sm text-slate-400">Gross Revenue</p><p className="mt-2 text-2xl font-semibold text-white">₹214L</p></div><div className="rounded-[18px] border border-white/10 bg-white/5 p-4"><p className="text-sm text-slate-400">Net Revenue</p><p className="mt-2 text-2xl font-semibold text-white">₹186L</p></div><div className="rounded-[18px] border border-white/10 bg-white/5 p-4"><p className="text-sm text-slate-400">Commission</p><p className="mt-2 text-2xl font-semibold text-white">₹28L</p></div></div></Card></AdminShell>; }
+export function ReportsRevenuePage() { return <AdminShell title="Enterprise admin" subtitle="Revenue report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports' }, { label: 'Revenue' }]} activePath="/admin/reports"><EmptyState title="Revenue report unavailable" description="Use the API-backed revenue report when available." /></AdminShell>; }
 
-export function ReportsAuctionsPage() { return <AdminShell title="Enterprise admin" subtitle="Auction report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports', to: '/admin/reports' }, { label: 'Auctions' }]} activePath="/admin/reports" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Live auctions: 214</p><p>Completed auctions: 1,286</p><p>Average closing bid: ₹82,400</p></div></Card></AdminShell>; }
+export function ReportsAuctionsPage() { return <AdminShell title="Enterprise admin" subtitle="Auction report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports' }, { label: 'Auctions' }]} activePath="/admin/reports"><EmptyState title="Auction report unavailable" description="The API-backed auction report is not available in this view." /></AdminShell>; }
 
 export function ReportsVendorsPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports', to: '/admin/reports' }, { label: 'Vendors' }]} activePath="/admin/reports" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Approved vendors: 1,280</p><p>Pending review: 42</p><p>Top category: Electronics</p></div></Card></AdminShell>; }
 
-export function ReportsCustomersPage() { return <AdminShell title="Enterprise admin" subtitle="Customer report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports', to: '/admin/reports' }, { label: 'Customers' }]} activePath="/admin/reports" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Total customers: 18.2k</p><p>Repeat buyers: 38%</p><p>Avg order value: ₹4,820</p></div></Card></AdminShell>; }
+export function ReportsCustomersPage() { return <AdminShell title="Enterprise admin" subtitle="Customer report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports' }, { label: 'Customers' }]} activePath="/admin/reports"><EmptyState title="Customer report unavailable" description="The customer report API is not available in this view." /></AdminShell>; }
 
-export function ReportsOrdersPage() { return <AdminShell title="Enterprise admin" subtitle="Orders report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports', to: '/admin/reports' }, { label: 'Orders' }]} activePath="/admin/reports" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Orders today: 1,284</p><p>Delivered: 86%</p><p>Cancelled: 4%</p></div></Card></AdminShell>; }
+export function ReportsOrdersPage() { return <AdminShell title="Enterprise admin" subtitle="Orders report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports' }, { label: 'Orders' }]} activePath="/admin/reports"><EmptyState title="Orders report unavailable" description="The API-backed orders report is not available in this view." /></AdminShell>; }
 
 export function ReportsDeliveryPage() { return <AdminShell title="Enterprise admin" subtitle="Delivery report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports', to: '/admin/reports' }, { label: 'Delivery' }]} activePath="/admin/reports" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>On-time deliveries: 96.2%</p><p>Assigned partners: 342</p><p>Average SLA: 48 hours</p></div></Card></AdminShell>; }
 
@@ -3285,32 +3083,20 @@ export function ContentHelpPage() { return <AdminShell title="Enterprise admin" 
 export const ContentCategoriesPage = CMSCategoriesPage;
 export const ContentBannersPage = CMSBannersPage;
 
-export function AuctionPendingPage() {
-  return (
-    <AdminShell title="Enterprise admin" subtitle="Pending auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions', to: '/admin/auctions' }, { label: 'Pending' }]} activePath="/admin/auctions" actions={<PrimaryButton icon={<Gavel className="h-4 w-4" />}>Review</PrimaryButton>}>
-      <Card className="p-4"><Table columns={[{ key: 'title', label: 'Auction' }, { key: 'vendor', label: 'Vendor' }, { key: 'status', label: 'Status' }]} data={[{title:'Designer Handbag', vendor:'Urban Furnish', status:'Pending'}, {title:'Antique Lamp', vendor:'Blue Leaf', status:'Pending'}]} className="p-0" /></Card>
-    </AdminShell>
-  );
-}
+export function AuctionPendingPage() { return <AdminShell title="Enterprise admin" subtitle="Pending auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions' }, { label: 'Pending' }]} activePath="/admin/auctions"><EmptyState title="Auction data unavailable" description="The pending auction API is not currently available in this view." /></AdminShell>; }
 
-export function AuctionBidHistoryPage() {
-  return (
-    <AdminShell title="Enterprise admin" subtitle="Bid history" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions', to: '/admin/auctions' }, { label: 'Bid history' }]} activePath="/admin/auctions" actions={<PrimaryButton icon={<Gavel className="h-4 w-4" />}>Close</PrimaryButton>}>
-      <Card className="p-4"><Table columns={[{ key: 'bidder', label: 'Bidder' }, { key: 'amount', label: 'Amount' }, { key: 'time', label: 'Time' }]} data={[{bidder:'Ananya', amount:'₹2,18,000', time:'2 mins ago'}, {bidder:'Karan', amount:'₹2,14,000', time:'4 mins ago'}]} className="p-0" /></Card>
-    </AdminShell>
-  );
-}
+export function AuctionBidHistoryPage() { return <AdminShell title="Enterprise admin" subtitle="Bid history" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions' }, { label: 'Bid history' }]} activePath="/admin/auctions"><EmptyState title="Bid history unavailable" description="The bid history API is not currently available in this view." /></AdminShell>; }
 
-export function AuctionLivePage() { return <AdminShell title="Enterprise admin" subtitle="Live auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions', to: '/admin/auctions' }, { label: 'Live' }]} activePath="/admin/auctions" actions={<PrimaryButton icon={<Gavel className="h-4 w-4" />}>Review</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'title', label: 'Auction' }, { key: 'vendor', label: 'Vendor' }, { key: 'bids', label: 'Bids' }, { key: 'status', label: 'Status' }]} data={[{title:'Royal Enfield Classic', vendor:'DriveHub', bids:38, status:'Live'}, {title:'Luxury Watch', vendor:'Blue Leaf', bids:27, status:'Live'}]} className="p-0" /></Card></AdminShell>; }
-export function AuctionUpcomingPage() { return <AdminShell title="Enterprise admin" subtitle="Upcoming auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions', to: '/admin/auctions' }, { label: 'Upcoming' }]} activePath="/admin/auctions" actions={<PrimaryButton icon={<Gavel className="h-4 w-4" />}>Approve</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'title', label: 'Auction' }, { key: 'vendor', label: 'Vendor' }, { key: 'status', label: 'Status' }]} data={[{title:'Vintage Camera Kit', vendor:'Nova Tech', status:'Upcoming'}, {title:'Bespoke Watch', vendor:'Urban Furnish', status:'Upcoming'}]} className="p-0" /></Card></AdminShell>; }
-export function AuctionCompletedPage() { return <AdminShell title="Enterprise admin" subtitle="Completed auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions', to: '/admin/auctions' }, { label: 'Completed' }]} activePath="/admin/auctions" actions={<PrimaryButton icon={<FileText className="h-4 w-4" />}>Reports</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'title', label: 'Auction' }, { key: 'winner', label: 'Winner' }, { key: 'status', label: 'Status' }]} data={[{title:'Luxury Watch', winner:'Ananya', status:'Ended'}, {title:'Classic Bike', winner:'Karan', status:'Ended'}]} className="p-0" /></Card></AdminShell>; }
-export function AuctionDetailAdminPage() { return <AdminShell title="Enterprise admin" subtitle="Auction details" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions', to: '/admin/auctions' }, { label: 'Auction details' }]} activePath="/admin/auctions" actions={<PrimaryButton icon={<Gavel className="h-4 w-4" />}>End auction</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Product: Royal Enfield Classic 350</p><p>Vendor: DriveHub</p><p>Current bid: ₹2,18,000</p><p>Bid count: 38</p><p>Status: Live</p></div></Card></AdminShell>; }
+export function AuctionLivePage() { return <AdminShell title="Enterprise admin" subtitle="Live auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions' }, { label: 'Live' }]} activePath="/admin/auctions"><EmptyState title="Auction data unavailable" description="The live auction API is not currently available in this view." /></AdminShell>; }
+export function AuctionUpcomingPage() { return <AdminShell title="Enterprise admin" subtitle="Upcoming auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions' }, { label: 'Upcoming' }]} activePath="/admin/auctions"><EmptyState title="Auction data unavailable" description="The upcoming auction API is not currently available in this view." /></AdminShell>; }
+export function AuctionCompletedPage() { return <AdminShell title="Enterprise admin" subtitle="Completed auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions' }, { label: 'Completed' }]} activePath="/admin/auctions"><EmptyState title="Auction data unavailable" description="The completed auction API is not currently available in this view." /></AdminShell>; }
+export function AuctionDetailAdminPage() { return <AdminShell title="Enterprise admin" subtitle="Auction details" breadcrumbs={[{ label: 'Admin' }, { label: 'Auctions' }, { label: 'Auction details' }]} activePath="/admin/auctions"><EmptyState title="Auction details unavailable" description="The auction detail API is not currently available in this view." /></AdminShell>; }
 
-export function AdminOrderDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Order details" breadcrumbs={[{ label: 'Admin' }, { label: 'Orders', to: '/admin/orders' }, { label: 'Order #ORD-1001' }]} activePath="/admin/orders" actions={<PrimaryButton icon={<Boxes className="h-4 w-4" />}>Update status</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Customer: Arjun Sharma</p><p>Vendor: Nova Tech</p><p>Products: Camera X × 1</p><p>Amount: ₹86,000</p><p>Payment: UPI</p><p>Delivery: RapidRoute</p><p>Status: Processing</p></div></Card></AdminShell>; }
+export function AdminOrderDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Order details" breadcrumbs={[{ label: 'Admin' }, { label: 'Orders' }, { label: 'Details' }]} activePath="/admin/orders"><EmptyState title="Order details unavailable" description="The order detail API is not currently available in this view." /></AdminShell>; }
 
-export function DeliveryPartnersPage() { return <AdminShell title="Enterprise admin" subtitle="Delivery partners" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery', to: '/admin/delivery' }, { label: 'Partners' }]} activePath="/admin/delivery" actions={<PrimaryButton icon={<Truck className="h-4 w-4" />}>Add partner</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'name', label: 'Partner' }, { key: 'city', label: 'City' }, { key: 'status', label: 'Status' }]} data={[{name:'RapidRoute Logistics', city:'Bengaluru', status:'Active'}, {name:'GreenLine Express', city:'Mumbai', status:'Pending'}]} className="p-0" /></Card></AdminShell>; }
-export function DeliveryPartnerDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Delivery partner details" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery', to: '/admin/delivery' }, { label: 'Partner details' }]} activePath="/admin/delivery" actions={<PrimaryButton icon={<Truck className="h-4 w-4" />}>Assign route</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Name: RapidRoute Logistics</p><p>City: Bengaluru</p><p>Active deliveries: 182</p><p>On-time rate: 96.2%</p></div></Card></AdminShell>; }
-export function DeliveryAssignmentsPage() { return <AdminShell title="Enterprise admin" subtitle="Delivery assignments" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery', to: '/admin/delivery' }, { label: 'Assignments' }]} activePath="/admin/delivery" actions={<PrimaryButton icon={<Truck className="h-4 w-4" />}>Assign</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'order', label: 'Order' }, { key: 'partner', label: 'Partner' }, { key: 'status', label: 'Status' }]} data={[{order:'ORD-1001', partner:'RapidRoute', status:'Assigned'}, {order:'ORD-1002', partner:'GreenLine', status:'In transit'}]} className="p-0" /></Card></AdminShell>; }
+export function DeliveryPartnersPage() { return <AdminShell title="Enterprise admin" subtitle="Delivery partners" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery' }, { label: 'Partners' }]} activePath="/admin/delivery"><EmptyState title="Delivery data unavailable" description="The delivery partner API is not currently available." /></AdminShell>; }
+export function DeliveryPartnerDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Delivery partner details" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery' }, { label: 'Partner details' }]} activePath="/admin/delivery"><EmptyState title="Delivery partner unavailable" description="The delivery partner API is not currently available." /></AdminShell>; }
+export function DeliveryAssignmentsPage() { return <AdminShell title="Enterprise admin" subtitle="Delivery assignments" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery' }, { label: 'Assignments' }]} activePath="/admin/delivery"><EmptyState title="Delivery assignments unavailable" description="The delivery assignment API is not currently available." /></AdminShell>; }
 export function DeliveryPerformancePage() { return <AdminShell title="Enterprise admin" subtitle="Delivery performance" breadcrumbs={[{ label: 'Admin' }, { label: 'Delivery', to: '/admin/delivery' }, { label: 'Performance' }]} activePath="/admin/delivery" actions={<PrimaryButton icon={<TrendingUp className="h-4 w-4" />}>View stats</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>On-time rate: 96.2%</p><p>Avg delivery: 2.4 days</p><p>Failed deliveries: 18</p></div></Card></AdminShell>; }
 
 export function WalletTransactionsPage() { return <AdminShell title="Enterprise admin" subtitle="Wallet transactions" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet', to: '/admin/wallet' }, { label: 'Transactions' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'id', label: 'ID' }, { key: 'type', label: 'Type' }, { key: 'amount', label: 'Amount' }, { key: 'status', label: 'Status' }]} data={[{id:'W-101', type:'Vendor payout', amount:'₹1,24,000', status:'Completed'}, {id:'W-102', type:'Platform commission', amount:'₹86,500', status:'Pending'}]} className="p-0" /></Card></AdminShell>; }
@@ -3386,15 +3172,15 @@ export function WalletTransactionDetailPage() { return <AdminShell title="Enterp
 export function FranchiseDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Franchise details" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Details' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Store className="h-4 w-4" />}>Update</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Name: Bengaluru Franchise</p><p>City: Bengaluru</p><p>Admin: Asha Rao</p><p>Revenue: ₹18.4L</p><p>Status: Healthy</p></div></Card></AdminShell>; }
 export function FranchiseCreatePage() { return <AdminShell title="Enterprise admin" subtitle="Create franchise" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Create' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Save</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>New franchise onboarding form placeholder.</p><p>Includes basic organization, city, admin, and compliance fields.</p></div></Card></AdminShell>; }
 export function FranchiseEditPage() { return <AdminShell title="Enterprise admin" subtitle="Edit franchise" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Edit' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Settings2 className="h-4 w-4" />}>Save changes</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Update franchise profile, contact details, and policies.</p></div></Card></AdminShell>; }
-export function FranchiseVendorsPage() { return <AdminShell title="Enterprise admin" subtitle="Franchise vendors" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Vendors' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Users className="h-4 w-4" />}>Add vendor</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'name', label: 'Vendor' }, { key: 'category', label: 'Category' }, { key: 'status', label: 'Status' }]} data={[{name:'Nova Tech', category:'Electronics', status:'Approved'}, {name:'Blue Leaf', category:'Home decor', status:'Pending'}]} className="p-0" /></Card></AdminShell>; }
-export function FranchiseOrdersPage() { return <AdminShell title="Enterprise admin" subtitle="Franchise orders" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Orders' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Boxes className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'id', label: 'Order ID' }, { key: 'customer', label: 'Customer' }, { key: 'total', label: 'Revenue' }]} data={[{id:'ORD-2001', customer:'Amit', total:'₹26,400'}, {id:'ORD-2002', customer:'Rekha', total:'₹19,800'}]} className="p-0" /></Card></AdminShell>; }
+export function FranchiseVendorsPage() { return <AdminShell title="Enterprise admin" subtitle="Franchise vendors" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise' }, { label: 'Vendors' }]} activePath="/admin/franchise"><EmptyState title="Franchise vendor data unavailable" description="The franchise vendor API is not currently available." /></AdminShell>; }
+export function FranchiseOrdersPage() { return <AdminShell title="Enterprise admin" subtitle="Franchise orders" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise' }, { label: 'Orders' }]} activePath="/admin/franchise"><EmptyState title="Franchise order data unavailable" description="The franchise order API is not currently available." /></AdminShell>; }
 export function FranchisePerformancePage() { return <AdminShell title="Enterprise admin" subtitle="Franchise performance" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Performance' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<TrendingUp className="h-4 w-4" />}>View report</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Revenue this month: ₹86.3L</p><p>Order conversion: 21.4%</p><p>Customer retention: 72%</p></div></Card></AdminShell>; }
 
-export function VendorDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor details" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors', to: '/admin/vendors' }, { label: 'Details' }]} activePath="/admin/vendors" actions={<PrimaryButton icon={<Store className="h-4 w-4" />}>Review</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Name: Nova Tech</p><p>Category: Electronics</p><p>KYC: Verified</p><p>Status: Approved</p><p>Revenue: ₹8.2L</p></div></Card></AdminShell>; }
+export function VendorDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor details" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors' }, { label: 'Details' }]} activePath="/admin/vendors"><EmptyState title="Vendor details unavailable" description="The vendor detail API is not currently available in this view." /></AdminShell>; }
 export function VendorEditPage() { return <AdminShell title="Enterprise admin" subtitle="Edit vendor" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors', to: '/admin/vendors' }, { label: 'Edit' }]} activePath="/admin/vendors" actions={<PrimaryButton icon={<Settings2 className="h-4 w-4" />}>Save</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Vendor profile and compliance details editing form placeholder.</p></div></Card></AdminShell>; }
 export function VendorProductsPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor products" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors', to: '/admin/vendors' }, { label: 'Products' }]} activePath="/admin/vendors" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add product</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'name', label: 'Product' }, { key: 'inventory', label: 'Inventory' }, { key: 'status', label: 'Status' }]} data={[{name:'Camera X', inventory:54, status:'Active'}, {name:'Smart Speaker', inventory:18, status:'Active'}]} className="p-0" /></Card></AdminShell>; }
-export function VendorAuctionsPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors', to: '/admin/vendors' }, { label: 'Auctions' }]} activePath="/admin/vendors" actions={<PrimaryButton icon={<Gavel className="h-4 w-4" />}>Review</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'title', label: 'Auction' }, { key: 'status', label: 'Status' }, { key: 'bids', label: 'Bids' }]} data={[{title:'Vintage Camera Kit', status:'Live', bids:12}, {title:'Classic Bike', status:'Ended', bids:48}]} className="p-0" /></Card></AdminShell>; }
-export function VendorOrdersPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor orders" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors', to: '/admin/vendors' }, { label: 'Orders' }]} activePath="/admin/vendors" actions={<PrimaryButton icon={<Boxes className="h-4 w-4" />}>Dispatch</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'id', label: 'Order ID' }, { key: 'customer', label: 'Customer' }, { key: 'total', label: 'Total' }]} data={[{id:'ORD-1001', customer:'Arjun', total:'₹86,000'}, {id:'ORD-1005', customer:'Sneha', total:'₹63,500'}]} className="p-0" /></Card></AdminShell>; }
+export function VendorAuctionsPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor auctions" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors' }, { label: 'Auctions' }]} activePath="/admin/vendors"><EmptyState title="Vendor auctions unavailable" description="The vendor auction API is not currently available in this view." /></AdminShell>; }
+export function VendorOrdersPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor orders" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors' }, { label: 'Orders' }]} activePath="/admin/vendors"><EmptyState title="Vendor orders unavailable" description="The vendor order API is not currently available in this view." /></AdminShell>; }
 export function VendorWalletPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor wallet" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors', to: '/admin/vendors' }, { label: 'Wallet' }]} activePath="/admin/vendors" actions={<PrimaryButton icon={<Wallet2 className="h-4 w-4" />}>Payout</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Available balance: ₹1,24,000</p><p>Ongoing settlements: ₹86,500</p><p>Pending payout: ₹18,500</p></div></Card></AdminShell>; }
 export function VendorKycPage() { return <AdminShell title="Enterprise admin" subtitle="Vendor KYC" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors', to: '/admin/vendors' }, { label: 'KYC' }]} activePath="/admin/vendors" actions={<PrimaryButton icon={<ShieldCheck className="h-4 w-4" />}>Validate</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Identity: Verified</p><p>GST: Verified</p><p>Bank: Verified</p><p>Risk: Low</p></div></Card></AdminShell>; }
 export function VendorPerformancePage() { return <AdminShell title="Enterprise admin" subtitle="Vendor performance" breadcrumbs={[{ label: 'Admin' }, { label: 'Vendors', to: '/admin/vendors' }, { label: 'Performance' }]} activePath="/admin/vendors" actions={<PrimaryButton icon={<TrendingUp className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Sales this month: ₹8.2L</p><p>Return rate: 2.1%</p><p>Repeat customers: 64%</p></div></Card></AdminShell>; }

@@ -1,6 +1,4 @@
-﻿import { auctionItems } from '../data/mockData';
-
-export type AuctionFlowStage =
+﻿export type AuctionFlowStage =
   | 'LISTING'
   | 'DETAILS'
   | 'PLACE_BID'
@@ -49,21 +47,17 @@ function formatAuctionEndTime(secondsLeft: number) {
 }
 
 const defaultState: AuctionFlowState = {
-  auctionId: 104,
-  auctionTitle: 'Royal Enfield Classic 350',
-  highestBid: 235000,
-  highestBidder: 'Tara',
-  participants: 18,
-  secondsLeft: 120,
-  bids: [
-    { bidder: 'Tara', amount: 235000, time: 'just now' },
-    { bidder: 'Vikram', amount: 230000, time: '9 min ago' },
-    { bidder: 'Anita', amount: 225000, time: '20 min ago' },
-  ],
+  auctionId: 0,
+  auctionTitle: '',
+  highestBid: 0,
+  highestBidder: '',
+  participants: 0,
+  secondsLeft: 0,
+  bids: [],
   winnerName: null,
   winningAmount: 0,
   auctionStage: 'LISTING',
-  auctionEndTime: formatAuctionEndTime(120),
+  auctionEndTime: '',
 };
 
 function parseCurrency(value: string | number | undefined) {
@@ -72,28 +66,19 @@ function parseCurrency(value: string | number | undefined) {
   return Number(String(value).replace(/[^\d]/g, '')) || 0;
 }
 
-function getAuctionMeta(auctionId: number) {
-  return auctionItems.find((item) => item.id === auctionId);
-}
-
 function makeAuctionBaseState(auctionId: number): AuctionFlowState {
-  const meta = getAuctionMeta(auctionId);
-  const highestBid = parseCurrency(meta?.currentBid);
-  const bids = meta?.bidHistory?.map((bid) => ({ bidder: bid.bidder, amount: parseCurrency(bid.amount), time: bid.time })) || defaultState.bids;
-  const secondsLeft = defaultState.secondsLeft;
-
   return {
     auctionId,
-    auctionTitle: meta?.title || defaultState.auctionTitle,
-    highestBid: highestBid || defaultState.highestBid,
-    highestBidder: bids[0]?.bidder || defaultState.highestBidder,
-    participants: meta?.participants || defaultState.participants,
-    secondsLeft,
-    bids,
+    auctionTitle: defaultState.auctionTitle,
+    highestBid: defaultState.highestBid,
+    highestBidder: defaultState.highestBidder,
+    participants: defaultState.participants,
+    secondsLeft: defaultState.secondsLeft,
+    bids: defaultState.bids,
     winnerName: null,
     winningAmount: 0,
     auctionStage: 'LISTING',
-    auctionEndTime: formatAuctionEndTime(secondsLeft),
+    auctionEndTime: defaultState.auctionEndTime,
   };
 }
 
@@ -238,23 +223,7 @@ export function placeBid(amount: string | number, bidderName: string, currentUse
 }
 
 export function addMockBid() {
-  const state = readAuctionFlowState();
-  if (state.auctionStage !== 'LIVE_AUCTION') return state;
-
-  const mockNames = ['Asha', 'Nikhil', 'Priya', 'Rohan', 'Mina'];
-  const bidder = mockNames[Math.floor(Math.random() * mockNames.length)];
-  const amount = state.highestBid + 5000 + Math.floor(Math.random() * 4000);
-
-  const nextState: AuctionFlowState = {
-    ...state,
-    highestBid: amount,
-    highestBidder: bidder,
-    participants: state.participants + 1,
-    bids: [{ bidder, amount, time: 'just now' }, ...state.bids].slice(0, 6),
-    auctionEndTime: state.auctionEndTime || formatAuctionEndTime(state.secondsLeft),
-  };
-
-  return writeAuctionFlowState(nextState);
+  return readAuctionFlowState();
 }
 
 export function advanceAuctionClock(currentUserName: string) {

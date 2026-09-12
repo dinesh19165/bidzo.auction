@@ -3,7 +3,6 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { motion } from 'framer-motion';
 import { ArrowRight, BadgeCheck, CheckCircle2, Clock3, CreditCard, Gavel, Heart, Loader2, MapPin, PackageCheck, Search, Share2, ShieldCheck, ShoppingBag, Sparkles, Truck, Wallet, Zap, CircleDollarSign, QrCode, Printer, Download, BadgeAlert, Radio, ChevronRight } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
-import { products, sellers, wishlistItems, reviews, transactions, categories } from '../../data/mockData';
 import { categoryLabel, getCategories, getCategoryFields, type CategoryFieldDefinition, type CategoryRecord } from '../../api/categoryApi';
 import ProductForm from '../../components/ProductForm';
 import Wizard from '../../components/Wizard';
@@ -16,12 +15,13 @@ import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSe
 import type { AddressResponse } from '../../api/addressApi';
 import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } from '../../api/paymentApi';
 import { createVendorProduct, getVendorProducts, updateVendorProduct, type SellingType } from '../../api/vendorProductApi';
-import { createProductImage, createBuyNowOrder, getProducts, type ProductListItem } from '../../api/productApi';
+import { createProductImage, createBuyNowOrder, getProducts, getProductById, type ProductListItem } from '../../api/productApi';
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
 import { getWishlist, notifyWishlistChanged, removeFromWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
 import { createAuction, getAuctions } from '../../api/auctionApi';
 import { getVendorProfile } from '../../api/vendorApi';
 import { getVendorAuctions } from '../../api/vendorAuctionApi';
+import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
 import type { OrderResponseDto, PaymentResponseDto, RazorpayOrderResponse } from '../../types';
 import { addMockBid, advanceAuctionClock, beginFinalPayment, enterLiveAuctionRoom, goToMarketplace, initializeAuctionFlowState, initializeAuctionFlowStateForAuction, markInvoiceReady, markOrderConfirmed, placeBid, readAuctionFlowState, resolveAuctionOutcome, startAuctionFlow, type AuctionFlowState, writeAuctionFlowState, setSelectedAuctionId, isAuctionRegistered, markAuctionAsRegistered, getSelectedAuctionId, readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 
@@ -112,6 +112,12 @@ function useAuctionFlowBackGuard(enabled: boolean) {
 
 
 export function CustomerSearchPage() {
+  const [products, setProducts] = useState<ProductListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { getProducts().then(setProducts).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load products.')).finally(() => setLoading(false)); }, []);
+
   return (
     <SectionShell title="Search products" subtitle="Discover the right listing and continue to the next step">
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -128,7 +134,7 @@ export function CustomerSearchPage() {
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Top matches</p>
           <div className="mt-4 space-y-3">
-            {products.slice(0, 3).map((product) => (
+            {loading ? <SkeletonCard /> : error ? <p className="text-sm text-rose-300">{error}</p> : products.length === 0 ? <p className="text-sm text-slate-400">No products found.</p> : products.slice(0, 3).map((product) => (
               <div key={product.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
                 <div>
                   <p className="font-semibold text-white">{product.title}</p>
@@ -151,7 +157,7 @@ export function CustomerFilterPage() {
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <div className="space-y-3 text-sm text-slate-300">
-            {['Verified sellers only', 'Price range ₹10k–₹3L', 'Like new or certified', 'Bengaluru and Mumbai'].map((filter) => (
+            {['Verified sellers only', 'Price range', 'Condition', 'Location'].map((filter) => (
               <div key={filter} className="rounded-2xl border border-white/10 bg-white/5 p-3">{filter}</div>
             ))}
           </div>
@@ -159,8 +165,8 @@ export function CustomerFilterPage() {
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <p className="text-sm font-medium uppercase tracking-[0.24em] text-amber-300">Results summary</p>
           <div className="mt-4 rounded-2xl border border-white/10 bg-gradient-to-br from-blue-600/10 to-amber-500/10 p-5 text-sm text-slate-300">
-            <p className="text-lg font-semibold text-white">18 premium matches</p>
-            <p className="mt-2">Delivery forecast: 24h to 72h depending on order value and seller location.</p>
+            <p className="text-lg font-semibold text-white">Choose your filters</p>
+            <p className="mt-2">Continue to the category view to browse current marketplace results.</p>
           </div>
           <Link to="/customer/category" className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to category <ArrowRight className="h-4 w-4" /></Link>
         </div>
@@ -170,10 +176,16 @@ export function CustomerFilterPage() {
 }
 
 export function CustomerCategoryPage() {
+  const [products, setProducts] = useState<ProductListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { getProducts().then(setProducts).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load products.')).finally(() => setLoading(false)); }, []);
+
   return (
     <SectionShell title="Category page" subtitle="Browse the chosen category with premium filters and clear next actions">
       <FlowBreadcrumbs steps={[{ label: 'Search', to: '/customer/search-products' }, { label: 'Filters', to: '/customer/filter-products' }, { label: 'Category', to: '/customer/category' }, { label: 'Product', to: '/customer/product/1' }]} />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {loading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div> : error ? <ErrorState title="Unable to load products" description={error} /> : products.length === 0 ? <EmptyState title="No products found" description="There are no products available in this category." /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {products.map((product) => (
           <div key={product.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
             <p className="text-sm text-slate-400">{product.category}</p>
@@ -185,14 +197,22 @@ export function CustomerCategoryPage() {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
     </SectionShell>
   );
 }
 
 export function CustomerProductPage() {
   const { id } = useParams();
-  const product = products.find((item) => item.id === Number(id)) || products[0];
+  const [product, setProduct] = useState<ProductListItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { const productId = Number(id); if (!Number.isFinite(productId)) { setError('Invalid product ID.'); setLoading(false); return; } getProductById(productId).then(setProduct).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load product.')).finally(() => setLoading(false)); }, [id]);
+
+  if (loading) return <SectionShell title="Product details" subtitle="Loading product"><SkeletonCard /></SectionShell>;
+  if (error) return <SectionShell title="Product details" subtitle="Unable to load product"><ErrorState title="Product unavailable" description={error} /></SectionShell>;
+  if (!product) return <SectionShell title="Product details" subtitle="Product unavailable"><EmptyState title="Product not found" description="The requested product is not available." /></SectionShell>;
 
   return (
     <SectionShell title="Product details" subtitle={product.title}>
@@ -236,33 +256,10 @@ export function CustomerProductPage() {
 }
 
 export function CustomerSellerPage() {
-  const seller = sellers[0];
-
   return (
-    <SectionShell title="Seller profile" subtitle={seller.name}>
+    <SectionShell title="Seller profile" subtitle="Seller information">
       <FlowBreadcrumbs steps={[{ label: 'Product', to: '/customer/product/1' }, { label: 'Seller', to: '/customer/seller/1' }, { label: 'Wishlist', to: '/customer/wishlist' }]} />
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-blue-500/10 p-3 text-blue-300"><BadgeCheck className="h-5 w-5" /></div>
-            <div>
-              <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Verified seller</p>
-              <h3 className="mt-1 text-2xl font-semibold text-white">Trusted by 12.4k buyers</h3>
-            </div>
-          </div>
-          <p className="mt-5 text-sm text-slate-300">This seller offers rapid dispatch, premium packaging, and responsive support for high-value orders and auctions.</p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link to="/customer/wishlist" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Add to wishlist</Link>
-            <Link to="/customer/watch-auction" className="rounded-full bg-amber-500 px-4 py-2 text-sm font-medium text-slate-950">Watch auction</Link>
-          </div>
-        </div>
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-          <h4 className="text-lg font-semibold text-white">Recent buyer feedback</h4>
-          <div className="mt-4 space-y-3 text-sm text-slate-300">
-            {reviews.map((review) => <div key={review.author} className="rounded-2xl border border-white/10 bg-white/5 p-3">{review.quote}</div>)}
-          </div>
-        </div>
-      </div>
+      <EmptyState title="Seller details unavailable" description="Seller profiles are not available from the current public API." />
     </SectionShell>
   );
 }
@@ -608,7 +605,7 @@ export function CustomerPlaceBidPage() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-slate-400">Current bid</p><p className="mt-1 font-semibold text-white">₹{flowState.highestBid.toLocaleString()}</p></div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-slate-400">Minimum next bid</p><p className="mt-1 font-semibold text-white">₹{(flowState.highestBid + 5000).toLocaleString()}</p></div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-slate-400">Suggested bid</p><p className="mt-1 font-semibold text-white">₹{(flowState.highestBid + 10000).toLocaleString()}</p></div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4"><p className="text-slate-400">Winning chance</p><p className="mt-1 font-semibold text-white">82%</p></div>
+            
           </div>
           <label className="mt-5 block text-sm text-slate-400" htmlFor="bid-amount">Enter amount</label>
           <input id="bid-amount" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60" />
@@ -693,7 +690,7 @@ export function CustomerBidConfirmationPage() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Registration fee: Confirmed by the backend</div>
           </div>
           <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-            Estimated payment: ₹{(flowState.highestBid + 20).toLocaleString()}
+            Estimated payment: Not available
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
             Continuing to registration payment.
@@ -762,7 +759,7 @@ export function CustomerWalletPaymentPage() {
           ) : null}
           <div className="mt-5 space-y-3 text-sm text-slate-300">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Fee due: Backend-configured fee</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Auction balance reserve: ₹2,50,000</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Auction balance reserve: Not available</div>
           </div>
           <Link to="/customer/payment" className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to payment <ArrowRight className="h-4 w-4" /></Link>
         </div>
@@ -1346,10 +1343,10 @@ export function CustomerCheckoutPage() {
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
         <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
           <div>
-            <p className="font-semibold text-white">Rare Collectible Watch</p>
-            <p>Winning bid ₹2,50,000</p>
+            <p className="font-semibold text-white">{flowState.auctionTitle || 'Auction item unavailable'}</p>
+            <p>Winning bid {flowState.highestBid > 0 ? `₹${flowState.highestBid.toLocaleString()}` : 'Not available'}</p>
           </div>
-          <span className="text-white">₹2,50,000</span>
+          <span className="text-white">{flowState.highestBid > 0 ? `₹${flowState.highestBid.toLocaleString()}` : 'Not available'}</span>
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
           <Link to="/customer/address" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue</Link>
@@ -1410,19 +1407,7 @@ export function CustomerShippingPage() {
   return (
     <SectionShell title="Shipping method" subtitle="Choose an express or standard delivery mode">
       <FlowBreadcrumbs steps={[{ label: 'Address', to: '/customer/address' }, { label: 'Shipping', to: '/customer/shipping' }, { label: 'Payment', to: '/customer/payment' }]} />
-      <div className="grid gap-4 md:grid-cols-3">
-        {[
-          { label: 'Express', detail: '1-2 business days', price: '₹1,200' },
-          { label: 'Standard', detail: '3-5 business days', price: '₹450' },
-          { label: 'Pickup', detail: 'Same-day pickup', price: 'Free' },
-        ].map((option) => (
-          <div key={option.label} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
-            <p className="font-semibold text-white">{option.label}</p>
-            <p className="mt-2">{option.detail}</p>
-            <p className="mt-4 text-white">{option.price}</p>
-          </div>
-        ))}
-      </div>
+      <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-6 text-center text-slate-400">Shipping calculated at checkout.</div>
       <button type="button" onClick={continueToPayment} className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to payment <ArrowRight className="h-4 w-4" /></button>
     </SectionShell>
   );
@@ -2416,7 +2401,8 @@ export function VendorCreateProductWizardPage() {
 
 export function VendorEditProductWizardPage() {
   const { id } = useParams();
-  const product = products.find((p) => p.id === Number(id)) || products[0];
+  const [product, setProduct] = useState<{ id: number; title: string; category?: string; price?: number | string; description?: string } | null>(null);
+  const [productError, setProductError] = useState<string | null>(null);
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [categoryFields, setCategoryFields] = useState<CategoryFieldDefinition[]>([]);
   const [categoryFieldsLoading, setCategoryFieldsLoading] = useState(false);
@@ -2428,7 +2414,7 @@ export function VendorEditProductWizardPage() {
 
   const steps = ['Edit Info', 'Category fields', 'Images', 'Pricing', 'Shipping', 'Preview', 'Publish'];
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<any>({ title: product.title, category: product.category || 'Electronics', categoryId: null, price: product.price, fields: {}, description: product.description });
+  const [formData, setFormData] = useState<any>({ title: '', category: '', categoryId: null, price: '', fields: {}, description: '' });
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
 
   useEffect(() => {
@@ -2437,7 +2423,11 @@ export function VendorEditProductWizardPage() {
       if (!active) return;
       setCategories(items);
       const current = vendorProducts.find((item) => item.id === Number(id));
-      const categoryId = current?.categoryId ?? items.find((item) => item.name === product.category)?.id ?? null;
+      if (!current) throw new Error('Product not found.');
+      const categoryName = items.find((item) => String(item.id) === String(current.categoryId))?.name || '';
+      const normalizedProduct = { id: current.id, title: current.name, category: categoryName, price: current.price, description: current.description || '' };
+      setProduct(normalizedProduct);
+      const categoryId = current.categoryId ?? items.find((item) => item.name === categoryName)?.id ?? null;
       setExistingSpecifications(current?.specifications ?? []);
       setFormData((previous: any) => ({
         ...previous,
@@ -2447,9 +2437,9 @@ export function VendorEditProductWizardPage() {
         category: items.find((item) => String(item.id) === String(categoryId))?.name ?? previous.category,
         categoryId,
       }));
-    }).catch(() => { if (active) setCategories([]); });
+    }).catch((reason) => { if (active) { setCategories([]); setProductError(reason instanceof Error ? reason.message : 'Unable to load product.'); } });
     return () => { active = false; };
-  }, [id, product.category]);
+  }, [id]);
 
   useEffect(() => {
     setAutosaveStatus('Autosaving...');
@@ -2483,6 +2473,8 @@ export function VendorEditProductWizardPage() {
     }).filter((entry): entry is [string, string] => Boolean(entry[1])));
     if (Object.keys(values).length) setFormData((previous: any) => ({ ...previous, fields: values }));
   }, [categoryFields, existingSpecifications, formData.fields]);
+
+  if (!product) return <SectionShell title="Edit product" subtitle="Product unavailable">{productError ? <ErrorState title="Unable to load product" description={productError} /> : <SkeletonCard />}</SectionShell>;
 
   const handleEditNext = async () => {
     if (step !== 6) {

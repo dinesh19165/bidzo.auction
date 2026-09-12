@@ -1,49 +1,28 @@
+import { useEffect, useState } from 'react';
 import { SectionShell } from '../../components/SectionShell';
-import { auctionItems } from '../../data/mockData';
+import { getAuctions, getEffectiveAuctionStatus, type AuctionListItem } from '../../api/auctionApi';
+import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
+
+function AuctionListPage({ title, subtitle, status, bidLabel }: { title: string; subtitle: string; status: 'RUNNING' | 'SCHEDULED' | 'ENDED'; bidLabel: string }) {
+  const [auctions, setAuctions] = useState<AuctionListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { getAuctions().then((items) => setAuctions(items.filter((item) => getEffectiveAuctionStatus(item.status, item.startAt, item.endAt) === status))).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load auctions.')).finally(() => setLoading(false)); }, [status]);
+
+  return <SectionShell title={title} subtitle={subtitle}>{loading ? <div className="grid gap-4 md:grid-cols-3">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div> : error ? <ErrorState title="Unable to load auctions" description={error} /> : auctions.length === 0 ? <EmptyState title="No auctions found" description="There are no auctions in this section right now." /> : <div className="grid gap-4 md:grid-cols-3">{auctions.map((item) => <div key={item.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300"><h3 className="text-lg font-semibold text-white">{item.title}</h3><p className="mt-3 text-sm">{bidLabel}: {item.currentBid ?? item.startingPrice ?? 'Not available'}</p></div>)}</div>}</SectionShell>;
+}
 
 export function LiveAuctionsPage() {
-  return (
-    <SectionShell title="Live auctions" subtitle="Fast-moving bidding events">
-      <div className="grid gap-4 md:grid-cols-3">
-        {auctionItems.filter((item) => item.status === 'Live').map((item) => (
-          <div key={item.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">
-            <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-            <p className="mt-3 text-sm">Current bid: {item.currentBid}</p>
-          </div>
-        ))}
-      </div>
-    </SectionShell>
-  );
+  return <AuctionListPage title="Live auctions" subtitle="Fast-moving bidding events" status="RUNNING" bidLabel="Current bid" />;
 }
 
 export function UpcomingAuctionsPage() {
-  return (
-    <SectionShell title="Upcoming auctions" subtitle="Planned inventory and premium events">
-      <div className="grid gap-4 md:grid-cols-3">
-        {auctionItems.filter((item) => item.status === 'Upcoming').map((item) => (
-          <div key={item.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">
-            <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-            <p className="mt-3 text-sm">Starts in {item.endsIn}</p>
-          </div>
-        ))}
-      </div>
-    </SectionShell>
-  );
+  return <AuctionListPage title="Upcoming auctions" subtitle="Planned inventory and premium events" status="SCHEDULED" bidLabel="Starting price" />;
 }
 
 export function EndedAuctionsPage() {
-  return (
-    <SectionShell title="Ended auctions" subtitle="Closed bids and winners">
-      <div className="grid gap-4 md:grid-cols-3">
-        {auctionItems.filter((item) => item.status === 'Closed').map((item) => (
-          <div key={item.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">
-            <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-            <p className="mt-3 text-sm">Winning bid: {item.currentBid}</p>
-          </div>
-        ))}
-      </div>
-    </SectionShell>
-  );
+  return <AuctionListPage title="Ended auctions" subtitle="Closed bids and winners" status="ENDED" bidLabel="Final bid" />;
 }
 
 export function WinnerScreenPage() {

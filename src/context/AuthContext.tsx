@@ -82,15 +82,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [authReady, user]);
 
-  const fakeUser = (overrides: Partial<User> = {}): User => ({
-    id: String(Math.floor(Math.random() * 100000)),
-    name: overrides.name || 'New User',
-    email: overrides.email || 'user@example.com',
-    type: (overrides.type as UserType) || 'customer',
-    avatar: overrides.avatar || undefined,
-    vendorVerified: overrides.vendorVerified || false,
-  });
-
   const clearPendingRole = () => {
     setPendingRole(null);
   };

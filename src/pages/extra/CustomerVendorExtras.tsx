@@ -26,7 +26,10 @@ import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
 import { updateVendorProfile, getVendorProfile, getVendorBankRecord, saveVendorBankRecord, type VendorProfileResponse, type VendorBankRecord } from '../../api/vendorApi';
 import { createVendorWithdrawal, getVendorWithdrawalBalance, getVendorWithdrawals, type WithdrawalBalance, type WithdrawalRecord } from '../../api/withdrawalApi';
 import { getProductReviews, getReviews, getReviewEligibility, createReview } from '../../api/reviewApi';
-import { addresses, customerBids, invoices, popularSearches, recentlyViewed, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorProducts, vendorAuctions, vendorReports, vendorShippingRules, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
+import { getTransactions, type TransactionResponse } from '../../api/walletApi';
+import { getInvoices, type InvoiceResponse } from '../../api/invoiceApi';
+import { createSupportTicket, getSupportTickets, type SupportTicketResponse } from '../../api/supportApi';
+import { getWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
 import { getConversations, getMessages, sendMessage, type ConversationResponse, type MessageResponse } from '../../api/messageApi';
 
 
@@ -403,19 +406,15 @@ export function CustomerOrdersPage() {
 }
 
 export function CustomerAuctionsPage() {
+  const [bids, setBids] = useState<BidResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { getMyBids().then(setBids).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load auctions.')).finally(() => setLoading(false)); }, []);
+
   return (
     <SectionShell title="My auctions" subtitle="Items you listed or are watching as a buyer">
-      <div className="space-y-3">
-        {customerBids.map((bid) => (
-          <Link key={bid.item} to={`/customer/auctions/${bid.item.toLowerCase().replace(/ /g, '-')}`} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300 transition hover:border-blue-400/40 hover:bg-slate-900/90">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-white">{bid.item}</p>
-              <p className="text-white">{bid.bid}</p>
-            </div>
-            <p className="mt-2">{bid.progress}</p>
-          </Link>
-        ))}
-      </div>
+      {loading ? <p className="text-slate-400">Loading auctions...</p> : error ? <ErrorState title="Unable to load auctions" description={error} /> : bids.length === 0 ? <EmptyState title="No auctions found" description="Your auction activity will appear here." /> : <div className="space-y-3">{bids.map((bid) => <Link key={bid.id} to={`/customer/auctions/${bid.auctionId}`} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300 transition hover:border-blue-400/40 hover:bg-slate-900/90"><div className="flex items-center justify-between"><p className="font-semibold text-white">Auction #{bid.auctionId}</p><p className="text-white">{bid.amount}</p></div><p className="mt-2">{bid.status}</p></Link>)}</div>}
     </SectionShell>
   );
 }
@@ -1041,165 +1040,28 @@ export function CustomerWonAuctionsPage() {
 export function CustomerRecentlyViewedPage() {
   return (
     <SectionShell title="Recently viewed" subtitle="Items you explored recently">
-      <div className="grid gap-4 md:grid-cols-2">
-        {recentlyViewed.map((item) => (
-          <div key={item.title} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
-            <p className="font-semibold text-white">{item.title}</p>
-            <p className="mt-2 text-sm text-slate-400">{item.price}</p>
-          </div>
-        ))}
-      </div>
+      <EmptyState title="Recently viewed is unavailable" description="The backend does not currently provide recently viewed items." />
     </SectionShell>
   );
 }
 
 export function CustomerWatchlistPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'price'>('name');
-  const [localWishlist, setLocalWishlist] = useState(wishlistItems);
-
-  const filteredWishlist = useMemo(() => {
-    let filtered = localWishlist.filter((item) => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
-    if (sortBy === 'price') {
-      filtered.sort((a, b) => {
-        const priceA = parseInt(a.price.replace(/[^0-9]/g, ''));
-        const priceB = parseInt(b.price.replace(/[^0-9]/g, ''));
-        return priceA - priceB;
-      });
-    }
-    return filtered;
-  }, [localWishlist, searchTerm, sortBy]);
+  const [items, setItems] = useState<WishlistItemResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { getWishlist().then(setItems).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load watchlist.')).finally(() => setLoading(false)); }, []);
 
   return (
     <SectionShell title="Wishlist" subtitle="Items you want to track for future deals">
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <input
-            type="text"
-            placeholder="Search wishlist..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
-          />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
-          >
-            <option value="name">Sort by name</option>
-            <option value="price">Sort by price</option>
-          </select>
-        </div>
-
-        {filteredWishlist.length === 0 ? (
-          <EmptyState title="Wishlist is empty" description="Add items to your wishlist to save them for later." />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {filteredWishlist.map((item) => (
-              <div key={item.title} className="flex flex-col justify-between rounded-2xl border border-white/10 bg-slate-900/70 p-6">
-                <div>
-                  <p className="font-semibold text-white">{item.title}</p>
-                  <p className="mt-2 text-sm text-slate-400">{item.note}</p>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <p className="text-lg font-semibold text-white">{item.price}</p>
-                  <div className="flex gap-2">
-                    <Link to="#" className="flex-1 text-center rounded-full bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500">
-                      View
-                    </Link>
-                    <button
-                      onClick={() => setLocalWishlist((prev) => prev.filter((i) => i.title !== item.title))}
-                      className="rounded-full border border-rose-400/30 px-3 py-2 text-xs font-medium text-rose-400 hover:bg-rose-400/10"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {loading ? <p className="text-slate-400">Loading watchlist...</p> : error ? <ErrorState title="Unable to load watchlist" description={error} /> : items.length === 0 ? <EmptyState title="Watchlist is empty" description="Add items to your watchlist to save them for later." /> : <div className="grid gap-4 md:grid-cols-2">{items.map((item) => <div key={item.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-6"><p className="font-semibold text-white">{item.title || item.product?.name || 'Saved item'}</p><p className="mt-2 text-sm text-slate-400">{item.description || item.product?.description || 'Saved marketplace item'}</p></div>)}</div>}
     </SectionShell>
   );
 }
 
 export function CustomerSavedSearchesPage() {
-  const [showNewSearch, setShowNewSearch] = useState(false);
-  const [newSearch, setNewSearch] = useState('');
-  const [localSearches, setLocalSearches] = useState(savedSearches);
-  const [activeAlerts, setActiveAlerts] = useState<Record<string, boolean>>({});
-
-  const handleAddSearch = () => {
-    if (newSearch.trim()) {
-      setLocalSearches((prev) => [...prev, newSearch]);
-      setActiveAlerts((prev) => ({ ...prev, [newSearch]: false }));
-      setNewSearch('');
-      setShowNewSearch(false);
-    }
-  };
-
-  const toggleAlert = (search: string) => {
-    setActiveAlerts((prev) => ({ ...prev, [search]: !prev[search] }));
-  };
-
   return (
     <SectionShell title="Saved searches" subtitle="Search filters you revisit often">
-      <div className="space-y-4">
-        <button
-          onClick={() => setShowNewSearch(!showNewSearch)}
-          className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
-        >
-          + Save search
-        </button>
-
-        {showNewSearch && (
-          <div className="flex gap-2 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-            <input
-              value={newSearch}
-              onChange={(e) => setNewSearch(e.target.value)}
-              placeholder="e.g., Luxury SUV, Gaming laptops"
-              className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
-              onKeyDown={(e) => e.key === 'Enter' && handleAddSearch()}
-            />
-            <button onClick={handleAddSearch} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500">
-              Save
-            </button>
-            <button onClick={() => setShowNewSearch(false)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {localSearches.length === 0 ? (
-          <EmptyState title="No saved searches" description="Create saved searches to quickly find items you're interested in." />
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {localSearches.map((search) => (
-              <div key={search} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300">
-                <div className="flex-1">
-                  <p className="font-semibold text-white">{search}</p>
-                  <p className="text-xs text-slate-400">Created recently</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => toggleAlert(search)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${activeAlerts[search] ? 'bg-blue-600 text-white' : 'border border-white/10 text-slate-300 hover:bg-white/5'}`}
-                  >
-                    {activeAlerts[search] ? 'Alerts On' : 'Alerts Off'}
-                  </button>
-                  <button
-                    onClick={() => setLocalSearches((prev) => prev.filter((s) => s !== search))}
-                    className="text-xs text-rose-400 hover:text-rose-300"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <EmptyState title="Saved searches unavailable" description="The backend does not currently provide saved search data." />
     </SectionShell>
   );
 }
@@ -1207,13 +1069,18 @@ export function CustomerSavedSearchesPage() {
 export function CustomerTransactionsPage() {
   const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [transactions, setTransactions] = useState<TransactionResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { getTransactions().then(setTransactions).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load transactions.')).finally(() => setLoading(false)); }, []);
 
   const filteredTransactions = useMemo(() => {
     const query = searchTerm.toLowerCase();
-    let filtered = transactions.filter((tx) => tx.id.toLowerCase().includes(query) || tx.type.toLowerCase().includes(query));
+    let filtered = transactions.filter((tx) => `${tx.id ?? ''} ${tx.type ?? ''} ${tx.description ?? ''}`.toLowerCase().includes(query));
 
-    if (filterType === 'credit') filtered = filtered.filter((tx) => tx.amount.startsWith('+'));
-    if (filterType === 'debit') filtered = filtered.filter((tx) => tx.amount.startsWith('-'));
+    if (filterType === 'credit') filtered = filtered.filter((tx) => tx.type === 'credit');
+    if (filterType === 'debit') filtered = filtered.filter((tx) => tx.type !== 'credit');
 
     return filtered;
   }, [filterType, searchTerm]);
@@ -1240,19 +1107,19 @@ export function CustomerTransactionsPage() {
           </select>
         </div>
 
-        {filteredTransactions.length === 0 ? (
+        {loading ? <p className="text-slate-400">Loading transactions...</p> : error ? <ErrorState title="Unable to load transactions" description={error} /> : filteredTransactions.length === 0 ? (
           <EmptyState title="No transactions found" description="Your wallet transactions will appear here." />
         ) : (
           <div className="space-y-2">
             {filteredTransactions.map((tx) => (
               <Link key={tx.id} to={`#`} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300 transition hover:bg-slate-900/90">
                 <div>
-                  <p className="font-semibold text-white">{tx.type}</p>
-                  <p className="text-xs text-slate-400">{tx.id}</p>
+                  <p className="font-semibold text-white">{tx.description || tx.referenceType || tx.type || 'Transaction'}</p>
+                  <p className="text-xs text-slate-400">{tx.id ?? tx.referenceId ?? ''}</p>
                 </div>
                 <div className="text-right">
-                  <p className={`font-semibold ${tx.amount.startsWith('+') ? 'text-emerald-400' : 'text-slate-300'}`}>{tx.amount}</p>
-                  <p className="text-xs text-slate-400">{tx.status}</p>
+                  <p className={`font-semibold ${tx.type === 'credit' ? 'text-emerald-400' : 'text-slate-300'}`}>{tx.type === 'credit' ? '+' : '-'}₹{Math.abs(Number(tx.amount ?? 0)).toLocaleString()}</p>
+                  <p className="text-xs text-slate-400">{tx.status || 'Processed'}</p>
                 </div>
               </Link>
             ))}
@@ -1282,7 +1149,6 @@ export function CustomerAddressesPage() {
         setAddressList(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load addresses');
-        console.log('Using mock data due to API error');
       } finally {
         setLoading(false);
       }
@@ -1355,7 +1221,7 @@ export function CustomerAddressesPage() {
     setShowForm(false);
   };
 
-  const displayAddresses = addressList && addressList.length > 0 ? addressList : addresses.map((a, i) => ({ id: i, customerId: 0, ...a, isDefault: i === 0, createdAt: new Date().toISOString() }));
+  const displayAddresses = addressList;
 
   return (
     <SectionShell title="Addresses" subtitle="Saved delivery destinations">
@@ -1694,18 +1560,22 @@ export function CustomerReviewsPage() {
 export function CustomerSupportPage() {
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [form, setForm] = useState({ subject: '', description: '', priority: 'Medium' });
-  const [localTickets, setLocalTickets] = useState(supportTickets);
+  const [localTickets, setLocalTickets] = useState<SupportTicketResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreateTicket = () => {
+  useEffect(() => { getSupportTickets().then(setLocalTickets).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load support tickets.')).finally(() => setLoading(false)); }, []);
+
+  const handleCreateTicket = async () => {
     if (form.subject && form.description) {
-      const newTicket = {
-        id: `TK-${Math.floor(Math.random() * 1000)}`,
-        subject: form.subject,
-        status: 'Pending',
-      };
-      setLocalTickets((prev) => [newTicket, ...prev]);
-      setForm({ subject: '', description: '', priority: 'Medium' });
-      setShowNewTicket(false);
+      try {
+        const ticket = await createSupportTicket({ subject: form.subject, description: form.description, category: 'GENERAL', priority: form.priority.toLowerCase() as 'low' | 'medium' | 'high' });
+        setLocalTickets((prev) => [ticket, ...prev]);
+        setForm({ subject: '', description: '', priority: 'Medium' });
+        setShowNewTicket(false);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'Unable to create support ticket.');
+      }
     }
   };
 
@@ -1764,7 +1634,7 @@ export function CustomerSupportPage() {
         )}
 
         <div className="space-y-2">
-          {localTickets.length === 0 ? (
+          {loading ? <p className="text-slate-400">Loading support tickets...</p> : error ? <ErrorState title="Unable to load support tickets" description={error} /> : localTickets.length === 0 ? (
             <EmptyState title="No support tickets" description="Create a ticket to get help from our support team." />
           ) : (
             localTickets.map((ticket) => (
@@ -1773,7 +1643,7 @@ export function CustomerSupportPage() {
                   <p className="font-semibold text-white">{ticket.subject}</p>
                   <p className="text-xs text-slate-400">{ticket.id}</p>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${ticket.status === 'Resolved' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${ticket.status === 'resolved' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'}`}>
                   {ticket.status}
                 </span>
               </Link>
@@ -1788,13 +1658,18 @@ export function CustomerSupportPage() {
 export function CustomerInvoicesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending'>('all');
+  const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { getInvoices().then(setInvoices).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load invoices.')).finally(() => setLoading(false)); }, []);
 
   const filteredInvoices = useMemo(() => {
     const query = searchTerm.toLowerCase();
-    let filtered = invoices.filter((inv) => inv.id.toLowerCase().includes(query) || inv.amount.toLowerCase().includes(query));
+    let filtered = invoices.filter((inv) => `${inv.id ?? ''} ${inv.invoiceNumber ?? ''} ${inv.totalAmount ?? ''}`.toLowerCase().includes(query));
 
-    if (filterStatus === 'paid') filtered = filtered.filter((inv) => inv.due === 'Paid');
-    if (filterStatus === 'pending') filtered = filtered.filter((inv) => inv.due !== 'Paid');
+    if (filterStatus === 'paid') filtered = filtered.filter((inv) => String(inv.status).toLowerCase() === 'paid');
+    if (filterStatus === 'pending') filtered = filtered.filter((inv) => String(inv.status).toLowerCase() !== 'paid');
 
     return filtered;
   }, [filterStatus, searchTerm]);
@@ -1821,21 +1696,21 @@ export function CustomerInvoicesPage() {
           </select>
         </div>
 
-        {filteredInvoices.length === 0 ? (
+        {loading ? <p className="text-slate-400">Loading invoices...</p> : error ? <ErrorState title="Unable to load invoices" description={error} /> : filteredInvoices.length === 0 ? (
           <EmptyState title="No invoices found" description="Your invoices will appear here." />
         ) : (
           <div className="space-y-2">
             {filteredInvoices.map((invoice) => (
               <div key={invoice.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300 hover:bg-slate-900/90 transition">
                 <div>
-                  <p className="font-semibold text-white">{invoice.id}</p>
-                  <p className="text-xs text-slate-400">{invoice.due}</p>
+                  <p className="font-semibold text-white">{invoice.invoiceNumber || invoice.id}</p>
+                  <p className="text-xs text-slate-400">{invoice.status || 'Status unavailable'}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-right">
-                    <p className="font-semibold text-white">{invoice.amount}</p>
+                    <p className="font-semibold text-white">₹{Number(invoice.totalAmount ?? 0).toLocaleString()}</p>
                     <p className="text-xs text-slate-400">
-                      {invoice.due === 'Paid' ? 'Paid' : 'Scheduled'}
+                      {invoice.status || 'Status unavailable'}
                     </p>
                   </span>
                   <button className="text-xs text-blue-400 hover:text-blue-300 px-3 py-1 rounded-full border border-blue-400/30 hover:bg-blue-400/10">
@@ -3118,7 +2993,7 @@ export function VendorWalletPage() {
             <Card>
               <h3 className="text-lg font-semibold text-white">Recent activity</h3>
               <div className="mt-4">
-                <Table columns={[{ key: 'title', label: 'Activity' }, { key: 'amount', label: 'Amount' }, { key: 'time', label: 'When' }]} data={walletActivity as any} />
+                <EmptyState title="Wallet activity unavailable" description="Recent vendor wallet activity is not currently provided by the API." />
               </div>
             </Card>
 
@@ -3276,15 +3151,7 @@ export function VendorWithdrawPage() {
             <Card>
               <h3 className="text-lg font-semibold text-white">Fee summary</h3>
               <div className="mt-4 space-y-3 text-sm text-slate-300">
-                {vendorFeeHistory.map((fee) => (
-                  <div key={fee.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <div className="flex items-center justify-between">
-                      <p>{fee.title}</p>
-                      <p className="font-semibold text-white">{fee.amount}</p>
-                    </div>
-                    <p className="mt-1 text-slate-400">{fee.category} • {fee.date}</p>
-                  </div>
-                ))}
+                <EmptyState title="No fee history available" description="Fee history is not currently provided by the vendor API." />
               </div>
             </Card>
 
@@ -4414,25 +4281,7 @@ export function VendorMessagesPage() {
           <div className="mb-4">
             <input placeholder="Search conversations" className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2 text-sm text-white" />
           </div>
-          <Card>
-            <div className="space-y-3">
-              {vendorMessages.map((message) => (
-                <div key={message.id} className={`flex flex-col gap-3 rounded-2xl border border-white/10 px-4 py-4 ${message.unread ? 'bg-white/5' : 'bg-transparent'}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-white">{message.name}</p>
-                      <p className="text-sm text-slate-400">{message.type}</p>
-                    </div>
-                    <Badge className={message.unread ? 'bg-amber-500/10 text-amber-200' : 'bg-slate-500/10 text-slate-200'}>{message.unread ? 'Unread' : 'Read'}</Badge>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-300">
-                    <p>{message.lastMessage}</p>
-                    <p>{message.attachments} attachment{message.attachments !== 1 ? 's' : ''}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+          <EmptyState title="Vendor messages unavailable" description="A vendor-specific messaging API is not currently available." />
         </main>
       </div>
     </SectionShell>
@@ -4445,19 +4294,7 @@ export function VendorNotificationsPage() {
       <div className="lg:flex lg:gap-6">
         <VendorSidebar />
         <main className="flex-1">
-          <Card>
-            <div className="space-y-3">
-              {vendorNotifications.map((note) => (
-                <div key={note.id} className={`flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 ${note.unread ? 'bg-white/5' : 'bg-transparent'}`}>
-                  <div>
-                    <p className="font-semibold text-white">{note.title}</p>
-                    <p className="mt-1 text-sm text-slate-400">{note.time}</p>
-                  </div>
-                  <Badge className={note.unread ? 'bg-amber-500/10 text-amber-200' : 'bg-slate-500/10 text-slate-200'}>{note.category}</Badge>
-                </div>
-              ))}
-            </div>
-          </Card>
+          <EmptyState title="Vendor notifications unavailable" description="A vendor-specific notifications API is not currently available." />
         </main>
       </div>
     </SectionShell>
@@ -4475,25 +4312,20 @@ export function VendorReviewsPage() {
 export function VendorSupportTicketsPage() {
   return (
     <SectionShell title="Support tickets" subtitle="Seller cases and issue tracking">
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
-        <p>Case #221 • Buyer request for replacement and refund workflow.</p>
-      </div>
+      <EmptyState title="Vendor support tickets unavailable" description="A vendor-specific support ticket API is not currently available." />
     </SectionShell>
   );
 }
 
 export function VendorReportsPage() {
+  const [auctions, setAuctions] = useState<VendorAuctionApiResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { getVendorAuctions().then(setAuctions).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load vendor reports.')).finally(() => setLoading(false)); }, []);
+
   return (
     <SectionShell title="Reports" subtitle="Performance summaries for management and growth">
-      <div className="grid gap-4 md:grid-cols-3">
-        {vendorAuctions.map((auction) => (
-          <div key={auction.title} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
-            <p className="font-semibold text-white">{auction.title}</p>
-            <p className="mt-2">{auction.bids} bids</p>
-            <p className="mt-2 text-amber-300">{auction.status}</p>
-          </div>
-        ))}
-      </div>
+      {loading ? <p className="text-slate-400">Loading reports...</p> : error ? <ErrorState title="Unable to load vendor reports" description={error} /> : auctions.length === 0 ? <EmptyState title="No vendor report data" description="There are no vendor auction records available right now." /> : <div className="grid gap-4 md:grid-cols-3">{auctions.map((auction) => <div key={auction.id} className="rounded-[20px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300"><p className="font-semibold text-white">{auction.title}</p><p className="mt-2">{auction.status || 'Status unavailable'}</p><p className="mt-2 text-slate-400">{auction.startAt ? new Date(auction.startAt).toLocaleDateString() : 'Date unavailable'}</p></div>)}</div>}
     </SectionShell>
   );
   
