@@ -310,12 +310,6 @@ export const transactions = [
   { id: 'TXN-2026-003', type: 'Order Payment', amount: '₹9,870', status: 'Completed' },
 ];
 
-export const notifications = [
-  { title: 'Outbid on premium watch', time: '2 min ago', unread: true },
-  { title: 'Auction ending soon: classic motorcycle', time: '18 min ago', unread: true },
-  { title: 'Payment cleared for your order', time: '1 hr ago', unread: false },
-];
-
 export const chats = [
   { name: 'Niveda', lastMessage: 'I can ship tomorrow morning.', active: true },
   { name: 'Support', lastMessage: 'Your KYC review is in progress.', active: false },

@@ -4,19 +4,37 @@ import { useEffect, useState } from 'react';
 import { SectionShell } from '../components/SectionShell';
 import { StatisticCard } from '../components/cards/MarketplaceCards';
 import { getCustomerDashboard, type CustomerDashboardResponse } from '../api/customerApi';
+import { getConversations, type ConversationResponse } from '../api/messageApi';
+import { getNotifications, type NotificationResponse } from '../api/notificationApi';
+
+function formatTimestamp(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
 
 export function CustomerDashboardPage() {
   const [dashboardData, setDashboardData] = useState<CustomerDashboardResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationResponse[]>([]);
+  const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
+  const [activityError, setActivityError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadDashboard = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getCustomerDashboard();
-        setDashboardData(data);
+        const [dashboardResult, conversationsResult, notificationsResult] = await Promise.allSettled([getCustomerDashboard(), getConversations(), getNotifications()]);
+        if (dashboardResult.status === 'rejected') throw dashboardResult.reason;
+        setDashboardData(dashboardResult.value);
+        const activityFailures: string[] = [];
+        if (conversationsResult.status === 'fulfilled') setConversations(Array.isArray(conversationsResult.value) ? conversationsResult.value : []);
+        else activityFailures.push('messages');
+        if (notificationsResult.status === 'fulfilled') setNotifications(Array.isArray(notificationsResult.value) ? notificationsResult.value : []);
+        else activityFailures.push('notifications');
+        setActivityError(activityFailures.length > 0 ? `Unable to load ${activityFailures.join(' and ')} right now.` : null);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to load dashboard';
         setError(errorMsg);
@@ -190,6 +208,19 @@ export function CustomerDashboardPage() {
               )}
             </div>
           </div>
+
+          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Messages</p>
+                <h3 className="mt-2 text-xl font-semibold text-white">Recent conversations</h3>
+              </div>
+              <Link to="/customer/messages" className="text-sm text-slate-300 hover:text-white">View all</Link>
+            </div>
+            <div className="mt-4 space-y-3 text-sm">
+              {activityError && conversations.length === 0 ? <p className="text-rose-300">{activityError}</p> : conversations.length === 0 ? <p className="text-slate-400">No conversations yet.</p> : conversations.slice(0, 3).map((conversation) => <Link key={conversation.id} to="/customer/messages" className="block rounded-2xl border border-white/10 bg-white/5 p-3 transition hover:border-blue-400/40"><div className="flex items-center justify-between gap-3"><p className="font-medium text-white">{conversation.participantName}</p>{conversation.unreadCount > 0 ? <span className="rounded-full bg-blue-500/15 px-2 py-1 text-xs text-blue-200">{conversation.unreadCount} unread</span> : null}</div><p className="mt-1 truncate text-slate-400">{conversation.lastMessage || 'No messages yet.'}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(conversation.lastMessageAt || conversation.updatedAt || conversation.createdAt)}</p></Link>)}
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -236,11 +267,11 @@ export function CustomerDashboardPage() {
       <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-3">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">Unread notifications</h3>
+            <h3 className="text-lg font-semibold text-white">Notifications</h3>
             <BellRing className="h-4 w-4 text-amber-300" />
           </div>
-          <div className="mt-4 text-sm text-slate-300">
-            <p className="rounded-2xl border border-white/10 bg-white/5 p-3">{unreadNotificationCount} unread notifications</p>
+          <div className="mt-4 space-y-3 text-sm text-slate-300">
+            {activityError && notifications.length === 0 ? <p className="text-rose-300">{activityError}</p> : notifications.length === 0 ? <p className="text-slate-400">No notifications yet.</p> : notifications.slice(0, 3).map((notification) => <Link key={notification.id} to="/customer/notifications" className={`block rounded-2xl border bg-white/5 p-3 ${notification.isRead ? 'border-white/10' : 'border-blue-500/40'}`}><div className="flex items-start justify-between gap-3"><p className="font-medium text-white">{notification.title}</p>{!notification.isRead ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-400" aria-label="Unread" /> : null}</div><p className="mt-1 line-clamp-2 text-slate-400">{notification.message}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(notification.createdAt)}</p></Link>)}
           </div>
         </div>
 

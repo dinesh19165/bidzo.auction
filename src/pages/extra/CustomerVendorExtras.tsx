@@ -26,7 +26,8 @@ import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
 import { updateVendorProfile, getVendorProfile, getVendorBankRecord, saveVendorBankRecord, type VendorProfileResponse, type VendorBankRecord } from '../../api/vendorApi';
 import { createVendorWithdrawal, getVendorWithdrawalBalance, getVendorWithdrawals, type WithdrawalBalance, type WithdrawalRecord } from '../../api/withdrawalApi';
 import { getProductReviews, getReviews, getReviewEligibility, createReview } from '../../api/reviewApi';
-import { addresses, customerBids, invoices, notifications, popularSearches, recentlyViewed, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorProducts, vendorAuctions, vendorReports, vendorShippingRules, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
+import { addresses, customerBids, invoices, popularSearches, recentlyViewed, savedSearches, supportTickets, transactions, walletActivity, wishlistItems, vendorProducts, vendorAuctions, vendorReports, vendorShippingRules, vendorFeeHistory, vendorMessages, vendorNotifications } from '../../data/mockData';
+import { getConversations, getMessages, sendMessage, type ConversationResponse, type MessageResponse } from '../../api/messageApi';
 
 
 
@@ -1506,31 +1507,46 @@ export function CustomerAddressesPage() {
 }
 
 export function CustomerMessagesPage() {
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<ConversationResponse | null>(null);
   const [messageText, setMessageText] = useState('');
-  const [messages, setMessages] = useState<Array<{ id: string; sender: string; text: string; time: string }>>([
-    { id: '1', sender: 'Nova Tech', text: 'We can arrange a same-day handoff for your MacBook purchase.', time: '2:30 PM' },
-    { id: '2', sender: 'You', text: 'That would be perfect. I can meet anytime after 4 PM today.', time: '2:35 PM' },
-  ]);
+  const [conversations, setConversations] = useState<ConversationResponse[]>([]);
+  const [messages, setMessages] = useState<MessageResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const conversations = [
-    { name: 'Nova Tech', lastMessage: 'We can arrange a same-day handoff...', online: true, unread: 0 },
-    { name: 'Support', lastMessage: 'Your KYC review is in progress...', online: false, unread: 1 },
-    { name: 'Luxury Motors', lastMessage: 'The bike is in excellent condition...', online: true, unread: 0 },
-  ];
+  useEffect(() => {
+    getConversations().then((data) => setConversations(Array.isArray(data) ? data : [])).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load conversations.')).finally(() => setLoading(false));
+  }, []);
 
-  const handleSendMessage = () => {
-    if (messageText.trim()) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(prev.length + 1),
-          sender: 'You',
-          text: messageText,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
+  const selectConversation = async (conversation: ConversationResponse) => {
+    setSelectedConversation(conversation);
+    setMessagesLoading(true);
+    setError(null);
+    try {
+      const data = await getMessages(conversation.id);
+      setMessages(Array.isArray(data) ? data : []);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to load messages.');
+      setMessages([]);
+    } finally {
+      setMessagesLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedConversation || !messageText.trim() || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const sent = await sendMessage(selectedConversation.id, messageText.trim());
+      setMessages((prev) => [...prev, sent]);
       setMessageText('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to send message.');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -1542,21 +1558,22 @@ export function CustomerMessagesPage() {
             <h3 className="text-sm font-semibold text-white">Conversations</h3>
           </div>
           <div className="max-h-96 space-y-1 overflow-y-auto">
-            {conversations.map((conv) => (
+            {loading ? <p className="p-4 text-sm text-slate-400">Loading conversations...</p> : error && !selectedConversation ? <p className="p-4 text-sm text-rose-300">{error}</p> : conversations.length === 0 ? <p className="p-4 text-sm text-slate-400">No conversations yet.</p> : conversations.map((conv) => (
               <button
-                key={conv.name}
-                onClick={() => setSelectedConversation(conv.name)}
+                key={conv.id}
+                onClick={() => void selectConversation(conv)}
                 className={`w-full border-l-2 px-4 py-3 text-left text-sm transition ${
-                  selectedConversation === conv.name
+                  selectedConversation?.id === conv.id
                     ? 'border-blue-500 bg-blue-600/10 text-white'
                     : 'border-transparent text-slate-300 hover:bg-white/5'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">{conv.name}</span>
-                  {conv.online && <span className="h-2 w-2 rounded-full bg-emerald-400" />}
+                  <span className="font-medium">{conv.participantName}</span>
+                  {conv.unreadCount > 0 && <span className="rounded-full bg-blue-500/15 px-2 py-1 text-xs text-blue-200">{conv.unreadCount}</span>}
                 </div>
-                <p className="mt-1 truncate text-xs text-slate-400">{conv.lastMessage}</p>
+                <p className="mt-1 truncate text-xs text-slate-400">{conv.lastMessage || 'No messages yet.'}</p>
+                <p className="mt-1 text-xs text-slate-500">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString() : ''}</p>
               </button>
             ))}
           </div>
@@ -1566,20 +1583,20 @@ export function CustomerMessagesPage() {
           {selectedConversation ? (
             <>
               <div className="border-b border-white/10 p-4">
-                <h3 className="text-sm font-semibold text-white">{selectedConversation}</h3>
+                <h3 className="text-sm font-semibold text-white">{selectedConversation.participantName}</h3>
               </div>
               <div className="flex-1 overflow-y-auto space-y-3 p-4">
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.sender === 'You' ? 'justify-end' : 'justify-start'}`}>
+                {error ? <p className="text-sm text-rose-300">{error}</p> : messagesLoading ? <p className="text-sm text-slate-400">Loading messages...</p> : messages.length === 0 ? <p className="text-sm text-slate-400">No messages in this conversation yet.</p> : messages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.senderName === 'You' ? 'justify-end' : 'justify-start'}`}>
                     <div
-                      className={`rounded-2xl px-4 py-2 text-sm max-w-xs ${
-                        msg.sender === 'You'
+                      className={`max-w-xs rounded-2xl px-4 py-2 text-sm ${
+                        msg.senderName === 'You'
                           ? 'bg-blue-600 text-white'
                           : 'border border-white/10 bg-white/5 text-slate-300'
                       }`}
                     >
-                      <p>{msg.text}</p>
-                      <p className="mt-1 text-xs opacity-70">{msg.time}</p>
+                      <p>{msg.content}</p>
+                      <p className="mt-1 text-xs opacity-70">{new Date(msg.createdAt).toLocaleString()}</p>
                     </div>
                   </div>
                 ))}
@@ -1590,15 +1607,16 @@ export function CustomerMessagesPage() {
                     type="text"
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void handleSendMessage(); }}
                     placeholder="Type a message..."
                     className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
                   />
                   <button
-                    onClick={handleSendMessage}
+                    onClick={() => void handleSendMessage()}
+                    disabled={sending}
                     className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
                   >
-                    Send
+                    {sending ? 'Sending...' : 'Send'}
                   </button>
                 </div>
               </div>
