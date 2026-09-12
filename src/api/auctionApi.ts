@@ -547,8 +547,7 @@ export async function getAuctionRegistrationStatus(
 }
 
 export async function createAuctionRegistrationPayment(
-  auctionId: number,
-  amount: number = 20
+  auctionId: number
 ): Promise<RazorpayOrderResponse> {
   const response = await fetchJson<
     ApiResponse<RazorpayOrderResponse>
@@ -556,7 +555,6 @@ export async function createAuctionRegistrationPayment(
     `/api/auctions/${auctionId}/registration/payment`,
     {
       method: 'POST',
-      body: JSON.stringify({ amount }),
     }
   );
 

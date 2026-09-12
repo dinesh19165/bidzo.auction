@@ -46,29 +46,28 @@ export function Footer() {
         </div>
         <div>
           <p className="text-sm font-semibold text-white">Shopping</p>
-          <ul className="mt-3 space-y-2 text-sm text-slate-400">
-            <li><Link to="/marketplace" className="hover:text-white">Direct Buy</Link></li>
-            <li><Link to="/auctions" className="hover:text-white">Auctions</Link></li>
-            <li><Link to="/wishlist" className="hover:text-white">Wishlist</Link></li>
-            <li><Link to="/blog" className="hover:text-white">Blog</Link></li>
+          <ul className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+            <li><Link to="/marketplace" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Direct Buy</Link></li>
+            <li><Link to="/auctions" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Auctions</Link></li>
+            <li><Link to="/wishlist" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Wishlist</Link></li>
+            <li><Link to="/blog" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Blog</Link></li>
           </ul>
         </div>
         <div>
           <p className="text-sm font-semibold text-white">Support</p>
-          <ul className="mt-3 space-y-2 text-sm text-slate-400">
-            <li><Link to="/help" className="hover:text-white">Help Center</Link></li>
-            <li><Link to="/faq" className="hover:text-white">FAQ</Link></li>
-            <li><Link to="/contact" className="hover:text-white">Contact us</Link></li>
-            <li><Link to="/refund" className="hover:text-white">Refund policy</Link></li>
+          <ul className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+            <li><Link to="/help" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Help Center</Link></li>
+            <li><Link to="/faq" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">FAQ</Link></li>
+            <li><Link to="/contact" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Contact us</Link></li>
+            <li><Link to="/refund" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Refund policy</Link></li>
           </ul>
         </div>
         <div>
           <p className="text-sm font-semibold text-white">Company</p>
-          <ul className="mt-3 space-y-2 text-sm text-slate-400">
-            <li><Link to="/about" className="hover:text-white">About us</Link></li>
-            <li><Link to="/careers" className="hover:text-white">Careers</Link></li>
-            <li><Link to="/privacy" className="hover:text-white">Privacy</Link></li>
-            <li><Link to="/terms" className="hover:text-white">Terms</Link></li>
+          <ul className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+            <li><Link to="/about" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">About us</Link></li>
+            <li><Link to="/privacy" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Privacy</Link></li>
+            <li><Link to="/terms" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Terms</Link></li>
           </ul>
         </div>
         <div>

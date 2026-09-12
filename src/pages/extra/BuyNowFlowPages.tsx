@@ -221,6 +221,9 @@ export function BuyNowPaymentPage() {
       if (!loaded || !window.Razorpay) {
         throw new Error('Razorpay Checkout could not be loaded.');
       }
+      if (!paymentSession.razorpayKeyId || !paymentSession.razorpayOrderId || paymentSession.amount === undefined || paymentSession.currency === undefined) {
+        throw new Error('Payment session did not include complete Razorpay checkout details.');
+      }
 
       const options: RazorpayOptions = {
         key: paymentSession.razorpayKeyId,

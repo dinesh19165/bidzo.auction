@@ -75,3 +75,17 @@ export async function getPublishedTestimonials(): Promise<PublicTestimonial[]> {
   const records = listValue<PublicTestimonial>(value);
   return records.filter((testimonial) => testimonial.status === 'PUBLISHED');
 }
+
+export interface PublicFaq {
+  id: number | string;
+  question: string;
+  answer: string;
+  category?: string | null;
+  displayOrder?: number | null;
+}
+
+export async function getPublishedFaqs(): Promise<PublicFaq[]> {
+  const response = await fetchJson<unknown>('/api/cms/faqs', { method: 'GET' }, false);
+  const value = unwrap(response, 'Failed to load FAQs');
+  return listValue<PublicFaq>(value);
+}

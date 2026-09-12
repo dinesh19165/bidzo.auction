@@ -25,7 +25,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [headerSearch, setHeaderSearch] = useState('');
-  const [headerCategory, setHeaderCategory] = useState('All Categories');
+  const [headerCategory, setHeaderCategory] = useState('');
   const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -83,8 +83,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { to: '/auctions', label: 'Live Auctions' },
     { to: '/marketplace', label: 'Direct Buy' },
     { to: '/login', label: 'Login' },
-    { to: '/register', label: 'Register' },
-    { to: '/register/vendor', label: 'Become Seller' },
     // vendor/admin and other non-essential links intentionally omitted for mobile
   ];
 
@@ -210,22 +208,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
            </Link>
           </div>
 
-          {showMarketplaceControls ? <div className={`hidden min-w-0 flex-1 items-center gap-2 rounded-full px-2 py-1.5 lg:flex transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-900/70' : 'border border-slate-200 bg-white shadow-sm'}`}>
-            <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-              <Search className="h-4 w-4" />
-            </button>
-            <input
-              ref={desktopSearchRef}
-              value={headerSearch}
-              onChange={(event) => setHeaderSearch(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }}
-              placeholder={translate('searchPlaceholder')}
-              className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
-            />
-            <select aria-label="Search category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} title={categoriesError ?? undefined} className={`hidden rounded-full px-2 py-1 text-sm outline-none xl:inline-flex ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300' : 'border border-slate-300 bg-slate-100 text-slate-900'}`}><option value="">All Categories</option>{categoriesLoading ? <option disabled>Loading categories...</option> : marketplaceCategories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}</select>
-            <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex items-center justify-center rounded-full p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-              <Mic className="h-4 w-4" />
-            </button>
+          {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-stretch gap-3 lg:flex">
+            <label className={`flex w-[28%] min-w-[180px] max-w-[260px] flex-col justify-center rounded-2xl border px-3 py-1.5 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
+              <span className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Category</span>
+              <select aria-label="Category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} title={categoriesError ?? undefined} className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+                <option value="">All Categories</option>
+                {categoriesLoading ? <option disabled>Loading categories...</option> : marketplaceCategories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}
+              </select>
+            </label>
+            <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border px-3 py-1.5 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
+              <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+                <Search className="h-4 w-4" />
+              </button>
+              <input
+                ref={desktopSearchRef}
+                value={headerSearch}
+                onChange={(event) => setHeaderSearch(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }}
+                placeholder="Search products, auctions, sellers..."
+                className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
+              />
+              <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+                <Mic className="h-4 w-4" />
+              </button>
+            </div>
           </div> : null}
 
           <div className="hidden items-center gap-3 md:flex">
@@ -242,7 +248,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Link to="/login" className={`inline-flex min-h-[38px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-medium transition ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                   Login
                 </Link>
-                <Link to="/register" className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">Register</Link>
               </>
             ) : (
               <div ref={mobileProfileRef} className="relative">
@@ -274,9 +279,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {showMarketplaceControls && mobileSearchOpen ? (
           <div className={`border-t px-4 py-3 md:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-            <div className={`flex items-center gap-2 rounded-full px-3 py-2 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-950/70' : 'border border-slate-200 bg-slate-100'}`}>
-              <Search className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
-              <input value={headerSearch} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products, auctions, sellers..." className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
+            <div className="space-y-2">
+              <label className={`block rounded-2xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
+                <span className={`block text-[10px] font-semibold uppercase tracking-[0.14em] ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Category</span>
+                <select aria-label="Category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+                  <option value="">All Categories</option>
+                  {categoriesLoading ? <option disabled>Loading categories...</option> : marketplaceCategories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}
+                </select>
+              </label>
+              <div className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
+                <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
+                <input value={headerSearch} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products, auctions, sellers..." className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
+              </div>
             </div>
           </div>
         ) : null}
@@ -426,8 +440,6 @@ function AuthActions() {
       {!user ? (
         <>
           <Link to="/login" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Login</Link>
-          <Link to="/register" className="rounded-full border border-white/10 bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500">Register</Link>
-          <Link to="/register/vendor" className="rounded-full border border-white/10 bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500">Become Seller</Link>
         </>
       ) : (
         <div className="relative">

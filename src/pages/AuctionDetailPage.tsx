@@ -261,7 +261,13 @@ export function AuctionDetailPage() {
   }, [auctionId, authReady, user]);
 
   const isRegistered = registered;
-  const registrationAmountLabel = registrationStatus?.amount ? formatCurrency(registrationStatus.amount) : '₹20';
+  const registrationAmountLabel = (() => {
+    const rawAmount = registrationStatus?.amount;
+    if (rawAmount === null || rawAmount === undefined) return null;
+    const numericAmount = Number(rawAmount);
+    return Number.isFinite(numericAmount) && numericAmount > 0 ? formatCurrency(numericAmount) : null;
+  })();
+  const registrationRequiresPayment = registrationStatus?.paymentRequired === true || (registrationStatus?.paymentRequired !== false && registrationAmountLabel !== null);
 
   const currentBidValue = useMemo(() => {
     if (!auction) return 0;
@@ -318,7 +324,7 @@ export function AuctionDetailPage() {
     }
 
     if (!isRegistered) {
-      setBidError('Pay ₹20 registration fee to bid on this auction.');
+      setBidError('Complete registration to bid on this auction.');
       return;
     }
 
@@ -505,11 +511,34 @@ export function AuctionDetailPage() {
     setIsRegistrationReady(false);
 
     try {
-      const session = await createAuctionRegistrationPayment(auctionId, 20);
+      const session = await createAuctionRegistrationPayment(auctionId);
       if (import.meta.env.DEV) {
         console.debug('AUCTION REGISTRATION PAYMENT INIT', session);
         console.debug('AUCTION REGISTRATION RAZORPAY ORDER ID', session.razorpayOrderId);
       }
+
+      if (session.paymentRequired === false) {
+        markAuctionAsRegistered(auctionId);
+        setRegistered(true);
+        setRegistrationStatus((prev) => ({
+          paid: true,
+          status: 'REGISTERED',
+          amount: prev?.amount ?? null,
+          paymentRequired: false,
+          message: session.message || prev?.message || 'Registration completed successfully.',
+          registrationId: session.registrationId ?? prev?.registrationId,
+        }));
+        setRegistrationSuccessMessage(session.message || 'Registration completed successfully. You may now bid.');
+        setRegistrationErrorAction(null);
+        setIsRegistrationReady(false);
+        setRegistrationPaymentSession(null);
+        return;
+      }
+
+      if (!session.amount || !session.razorpayKeyId || !session.razorpayOrderId) {
+        throw new Error(session.message || 'Registration payment information was not returned by the backend.');
+      }
+
       setRegistrationPaymentSession(session);
       setIsRegistrationReady(true);
 
@@ -521,7 +550,7 @@ export function AuctionDetailPage() {
       const options = {
         key: session.razorpayKeyId,
         amount: session.amount,
-        currency: session.currency,
+        currency: session.currency || 'INR',
         order_id: session.razorpayOrderId,
         name: 'Bidzo',
         description: 'Auction registration fee',
@@ -617,12 +646,21 @@ export function AuctionDetailPage() {
       if (import.meta.env.DEV) console.debug('AUCTION PAYMENT INIT RESPONSE', paymentData);
       const internalOrderId = paymentData.orderId ?? paymentData.internalOrderId;
       if (!internalOrderId) throw new Error('Auction payment did not return an internal order ID.');
+      if (!paymentData.razorpayKeyId || !paymentData.razorpayOrderId || paymentData.amount === undefined || paymentData.currency === undefined) {
+        throw new Error('Auction payment did not return complete Razorpay checkout details.');
+      }
+
+      const razorpayKeyId = paymentData.razorpayKeyId;
+      const razorpayOrderId = paymentData.razorpayOrderId;
+      const amount = paymentData.amount;
+      const currency = paymentData.currency;
+
       saveStoredAuctionOrderId(auctionId, internalOrderId);
       setPaymentSession(paymentData);
       setIsPaymentReady(true);
       const Razorpay = (window as any).Razorpay;
       if (typeof Razorpay !== 'function') throw new Error('Razorpay checkout is unavailable. Please refresh and try again.');
-      const checkout = new Razorpay({ key: paymentData.razorpayKeyId, amount: paymentData.amount, currency: paymentData.currency, order_id: paymentData.razorpayOrderId, name: 'Bidzo', description: 'Auction payment', prefill: { name: user?.name || undefined, email: user?.email || undefined }, handler: (razorpayResponse: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => handlePaymentVerification(razorpayResponse, internalOrderId, paymentData.razorpayOrderId), modal: { ondismiss: () => setPaymentError('Payment was cancelled. Please try again.') }, theme: { color: '#2563eb' } });
+      const checkout = new Razorpay({ key: razorpayKeyId, amount, currency, order_id: razorpayOrderId, name: 'Bidzo', description: 'Auction payment', prefill: { name: user?.name || undefined, email: user?.email || undefined }, handler: (razorpayResponse: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => handlePaymentVerification(razorpayResponse, internalOrderId, razorpayOrderId), modal: { ondismiss: () => setPaymentError('Payment was cancelled. Please try again.') }, theme: { color: '#2563eb' } });
       checkout.open();
     } catch (err: any) {
       setPaymentError(err?.message || 'Unable to initiate payment.');
@@ -801,14 +839,18 @@ export function AuctionDetailPage() {
                     <p>Checking auction registration status…</p>
                   ) : (
                     <div className="space-y-3">
-                      <p>Pay {registrationAmountLabel} registration fee to place bids for this auction.</p>
+                      {registrationRequiresPayment && registrationAmountLabel ? (
+                        <p>Pay {registrationAmountLabel} registration fee to place bids for this auction.</p>
+                      ) : (
+                        <p>Registration is available for this auction without a payment. Complete registration to bid.</p>
+                      )}
                       <button
                         type="button"
                         onClick={handleRegisterNow}
                         disabled={registrationLoadingAction || isRegistrationReady}
                         className="w-full rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {registrationLoadingAction ? 'Preparing registration…' : isRegistrationReady ? 'Opening checkout…' : `Register for ${registrationAmountLabel}`}
+                        {registrationLoadingAction ? 'Preparing registration…' : isRegistrationReady ? 'Opening checkout…' : registrationRequiresPayment && registrationAmountLabel ? `Register for ${registrationAmountLabel}` : 'Register now'}
                       </button>
                       {registrationErrorAction ? <p className="mt-3 text-sm text-rose-300">{registrationErrorAction}</p> : null}
                       {registrationSuccessMessage ? <p className="mt-3 text-sm text-emerald-300">{registrationSuccessMessage}</p> : null}

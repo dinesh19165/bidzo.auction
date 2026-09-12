@@ -241,7 +241,7 @@ export const footerLinks = [
   { title: 'Categories', links: ['Electronics', 'Vehicles', 'Real Estate', 'Fashion', 'Services'] },
   { title: 'Customer Support', links: ['Help center', 'Tracking', 'Returns', 'Payments', 'Buyer protection'] },
   { title: 'Seller Support', links: ['Sell on Bidzo', 'Seller guidelines', 'Shipping policy', 'Payments', 'Resources'] },
-  { title: 'Company', links: ['About us', 'Careers', 'Press', 'Blog', 'Legal'] },
+  { title: 'Company', links: ['About us', 'Press', 'Blog', 'Legal'] },
 ];
 
 export const trendingAuctions = [
@@ -278,12 +278,6 @@ export const faqItems = [
   { question: 'How do I register for auctions?', answer: 'Create an account, complete KYC, and pay the auction registration fee to unlock verified bidding.' },
   { question: 'Can I sell to international buyers?', answer: 'Yes. The marketplace supports international shipping and escrow-style buyer protection flows.' },
   { question: 'How are disputes handled?', answer: 'The admin and support teams review disputes within 24 hours and provide case-based resolution.' },
-];
-
-export const careers = [
-  { title: 'Principal Product Designer', location: 'Remote • India' },
-  { title: 'Senior Frontend Engineer', location: 'Bengaluru • Hybrid' },
-  { title: 'Marketplace Operations Lead', location: 'Mumbai • Onsite' },
 ];
 
 export const auctionItems = [

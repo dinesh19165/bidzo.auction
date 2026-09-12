@@ -53,6 +53,9 @@ export function CustomerCartPage() {
 
       const orderId = payment.orderId ?? payment.internalOrderId;
       if (!orderId) throw new Error('Cart checkout did not return an order ID.');
+      if (!payment.razorpayKeyId || !payment.razorpayOrderId || payment.amount === undefined || payment.currency === undefined) {
+        throw new Error('Cart checkout did not return complete Razorpay payment details.');
+      }
 
       openRazorpayCheckout({
         key: payment.razorpayKeyId,

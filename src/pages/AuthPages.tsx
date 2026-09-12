@@ -149,6 +149,30 @@ function FormField({
   );
 }
 
+function FieldError({ message }: { message?: string | null }) {
+  const { theme } = useThemeContext();
+  if (!message) return null;
+
+  return (
+    <p role="alert" className={`mt-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm leading-5 ${theme === 'dark' ? 'border-rose-400/30 bg-rose-500/10 text-rose-200' : 'border-rose-300 bg-rose-50 text-rose-800'}`}>
+      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>{message}</span>
+    </p>
+  );
+}
+
+function FormError({ message }: { message?: string | null }) {
+  const { theme } = useThemeContext();
+  if (!message) return null;
+
+  return (
+    <div role="alert" className={`mb-4 flex items-start gap-2 rounded-xl border px-3 py-3 text-sm leading-5 ${theme === 'dark' ? 'border-rose-400/30 bg-rose-500/10 text-rose-200' : 'border-rose-300 bg-rose-50 text-rose-800'}`}>
+      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -350,7 +374,7 @@ export function LoginPage() {
                     placeholder="name@company.com or 10-digit phone"
                   />
                 </div>
-                {touched.identifier && errors.identifier ? <p className="mt-2 text-sm text-amber-300">{errors.identifier}</p> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use your registered Bidzo account details.</p>}
+                {touched.identifier && errors.identifier ? <FieldError message={errors.identifier} /> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use your registered Bidzo account details.</p>}
               </label>
 
               <label className="block">
@@ -371,7 +395,7 @@ export function LoginPage() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                {touched.password && errors.password ? <p className="mt-2 text-sm text-amber-300">{errors.password}</p> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use the password from your latest Bidzo account setup.</p>}
+                {touched.password && errors.password ? <FieldError message={errors.password} /> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use the password from your latest Bidzo account setup.</p>}
               </label>
 
               <label className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-sm transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
@@ -525,17 +549,17 @@ export function CustomerRegisterPage() {
           </div>
           <ProgressIndicator activeStep={0} />
           <div className="mt-4 space-y-4">
-            {submitError ? <p className="text-sm text-red-400">{submitError}</p> : null}
+            <FormError message={submitError} />
             <FormField label="Full name" placeholder="As shown on your ID" value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} icon={BadgeCheck} />
-            {errors.name ? <p className="text-sm text-red-400">{errors.name}</p> : null}
+            <FieldError message={errors.name} />
             <FormField label="Email address" placeholder="name@company.com" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} icon={Mail} />
-            {errors.email ? <p className="text-sm text-red-400">{errors.email}</p> : null}
+            <FieldError message={errors.email} />
             <FormField label="Phone number" placeholder="10-digit mobile number" value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} icon={Phone} />
-            {errors.phone ? <p className="text-sm text-red-400">{errors.phone}</p> : null}
+            <FieldError message={errors.phone} />
             <FormField label="Password" placeholder="Create a strong password" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} icon={Lock} type="password" />
-            {errors.password ? <p className="text-sm text-red-400">{errors.password}</p> : null}
+            <FieldError message={errors.password} />
             <FormField label="Confirm password" placeholder="Re-enter your password" value={form.confirmPassword} onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))} icon={Lock} type="password" />
-            {errors.confirmPassword ? <p className="text-sm text-red-400">{errors.confirmPassword}</p> : null}
+            <FieldError message={errors.confirmPassword} />
           </div>
           <div className={`mt-5 flex items-start gap-2 rounded-2xl border p-3 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
             <CircleAlert className="mt-0.5 h-4 w-4 text-amber-300" />
@@ -649,19 +673,19 @@ export function VendorRegisterPage() {
           </div>
           <ProgressIndicator activeStep={0} />
           <div className="mt-4 space-y-4">
-            {submitError ? <p className="text-sm text-red-400">{submitError}</p> : null}
+            <FormError message={submitError} />
             <FormField label="Business name" placeholder="Your registered business" value={form.businessName} onChange={(e) => setForm((s) => ({ ...s, businessName: e.target.value }))} icon={Building2} accent="emerald" />
-            {errors.businessName ? <p className="text-sm text-red-400">{errors.businessName}</p> : null}
+            <FieldError message={errors.businessName} />
             <FormField label="Owner name" placeholder="Legal representative" value={form.ownerName} onChange={(e) => setForm((s) => ({ ...s, ownerName: e.target.value }))} icon={BadgeCheck} accent="emerald" />
-            {errors.ownerName ? <p className="text-sm text-red-400">{errors.ownerName}</p> : null}
+            <FieldError message={errors.ownerName} />
             <FormField label="Email address" placeholder="team@yourbrand.com" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} icon={Mail} accent="emerald" />
-            {errors.email ? <p className="text-sm text-red-400">{errors.email}</p> : null}
+            <FieldError message={errors.email} />
             <FormField label="Phone number" placeholder="Business contact number" value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} icon={Phone} accent="emerald" />
-            {errors.phone ? <p className="text-sm text-red-400">{errors.phone}</p> : null}
+            <FieldError message={errors.phone} />
             <FormField label="Password" placeholder="Create a strong password" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} icon={Lock} type="password" accent="emerald" />
-            {errors.password ? <p className="text-sm text-red-400">{errors.password}</p> : null}
+            <FieldError message={errors.password} />
             <FormField label="Confirm password" placeholder="Re-enter your password" value={form.confirmPassword} onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))} icon={Lock} type="password" accent="emerald" />
-            {errors.confirmPassword ? <p className="text-sm text-red-400">{errors.confirmPassword}</p> : null}
+            <FieldError message={errors.confirmPassword} />
             <FormField label="GST / tax ID (optional)" placeholder="Optional for faster onboarding" value={form.gst} onChange={(e) => setForm((s) => ({ ...s, gst: e.target.value }))} icon={FileCheck2} accent="emerald" />
           </div>
           <div className={`mt-5 flex items-start gap-2 rounded-2xl border p-3 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
@@ -1345,7 +1369,7 @@ export function RegistrationFeePage() {
   ];
 
   return (
-    <SectionShell title="Registration fee" subtitle="Pay ₹20 to activate your account">
+    <SectionShell title="Registration fee" subtitle="Complete registration to activate your account">
       <div className="mb-6 rounded-[24px] border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="font-medium text-white">Step 3 of 6 – Registration Required</p>
@@ -1356,7 +1380,7 @@ export function RegistrationFeePage() {
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-8">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-lg font-semibold text-white">Fee: ₹20</p>
+              <p className="text-lg font-semibold text-white">Fee will be confirmed by the backend</p>
               <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200"><ShieldCheck className="h-3.5 w-3.5" /> Secure</span>
             </div>
             <p className="mt-2">Payment summary: secure verification + bidding access</p>

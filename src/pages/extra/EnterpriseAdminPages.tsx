@@ -1,7 +1,7 @@
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, Bell, Boxes, CheckCircle2, Clock3, CreditCard, Download, FileText, Filter, Gavel, Globe, LayoutGrid, Megaphone, MessageSquare, Plus, Search, Settings2, ShieldCheck, Store, TrendingUp, Truck, Users, Wallet2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Bell, Boxes, CheckCircle2, Clock3, CreditCard, Download, Eye, EyeOff, FileText, Filter, Gavel, Globe, LayoutGrid, Megaphone, MessageSquare, Plus, Search, Settings2, ShieldCheck, Store, TrendingUp, Truck, Users, Wallet2 } from 'lucide-react';
 import { AdminShell } from '../../components/admin/AdminShell';
 import { Card } from '../../components/common/Card';
 import { Badge, PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
@@ -700,6 +700,7 @@ export function AdminLoginPage() {
   const { login, clearSession } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -732,30 +733,52 @@ export function AdminLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.20),_transparent_30%),linear-gradient(135deg,_#020617,_#0f172a)] px-4 py-10 text-slate-100">
-      <div className="w-full max-w-md rounded-[30px] border border-white/10 bg-slate-950/70 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-        <div className="mb-6 flex items-center justify-center">
-          <Link to="/" className="inline-flex items-center"><Logo /></Link>
-        </div>
-        <div className="mb-6 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-300">Super admin</p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">Sign in</h1>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-2 block text-sm text-slate-300">Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-blue-400" placeholder="admin@bidzo.com" />
+    <div className="min-h-screen bg-[var(--app-bg)] px-4 py-8 text-[var(--text-primary)] sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-12">
+      <div className="grid w-full max-w-6xl overflow-hidden rounded-[24px] border border-[var(--border-color)] bg-[var(--surface)] shadow-2xl shadow-[var(--shadow-color)] lg:grid-cols-[0.8fr_1.2fr]">
+        <section className="relative overflow-hidden border-b border-[var(--border-color)] bg-[linear-gradient(145deg,rgba(37,99,235,0.12),transparent_62%)] px-6 py-8 sm:px-10 sm:py-10 lg:border-b-0 lg:border-r lg:px-12 lg:py-14">
+          <div className="relative z-10 flex h-full flex-col justify-between gap-12">
+            <div>
+              <Link to="/" className="inline-flex items-center" aria-label="Bidzo home"><Logo className="w-36 sm:w-40" /></Link>
+              <p className="mt-10 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--accent-strong)]">Bidzo Admin</p>
+              <h2 className="mt-3 max-w-sm text-2xl font-semibold leading-tight text-[var(--text-primary)] sm:text-3xl">One secure workspace for marketplace operations.</h2>
+              <p className="mt-4 max-w-md text-sm leading-7 text-[var(--text-secondary)]">Manage auctions, sellers, customers and platform operations from one secure workspace.</p>
+            </div>
+            <ul className="space-y-3 text-sm text-[var(--text-secondary)]" aria-label="Admin capabilities">
+              {['Manage marketplace', 'Monitor auctions', 'Manage sellers & customers'].map((item) => <li key={item} className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />{item}</li>)}
+            </ul>
           </div>
-          <div>
-            <label className="mb-2 block text-sm text-slate-300">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-blue-400" placeholder="admin123" />
+        </section>
+
+        <section className="bg-[var(--surface-elevated)] px-6 py-8 sm:px-10 sm:py-12 lg:px-16 lg:py-14">
+          <div className="mx-auto w-full max-w-[460px]">
+            <div className="mb-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--accent-strong)]">Super Admin</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--text-primary)]">Welcome back</h1>
+              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Sign in to continue to your admin dashboard.</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label htmlFor="admin-email" className="mb-2 block text-sm font-medium text-[var(--text-primary)]">Email</label>
+                <input id="admin-email" value={email} onChange={(e) => setEmail(e.target.value)} className="min-h-[52px] w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] px-4 text-sm text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" placeholder="admin@bidzo.com" />
+              </div>
+              <div>
+                <label htmlFor="admin-password" className="mb-2 block text-sm font-medium text-[var(--text-primary)]">Password</label>
+                <div className="flex min-h-[52px] items-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/15">
+                  <input id="admin-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="min-h-[50px] min-w-0 flex-1 bg-transparent px-4 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]" placeholder="Enter your password" />
+                  <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((current) => !current)} className="mr-2 inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-[var(--text-muted)] transition hover:bg-[var(--surface-strong)] hover:text-[var(--text-primary)]">
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {error ? <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-3 text-sm leading-6 text-rose-200">{error}</div> : null}
+
+              <PrimaryButton type="submit" fullWidth className="!mt-2 !min-h-[52px] !rounded-xl" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in to Admin Dashboard'}</PrimaryButton>
+            </form>
+            <p className="mt-6 border-t border-[var(--border-color)] pt-5 text-center text-xs text-[var(--text-muted)]">Authorized administrators only</p>
           </div>
-
-          {error ? <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
-
-          <PrimaryButton type="submit" fullWidth className="mt-2" disabled={submitting}>{submitting ? 'Signing in…' : 'Access dashboard'}</PrimaryButton>
-        </form>
+        </section>
       </div>
     </div>
   );

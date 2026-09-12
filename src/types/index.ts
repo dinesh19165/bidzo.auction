@@ -196,12 +196,14 @@ export interface OrderResponseDto {
 export interface RazorpayOrderResponse {
   registrationId?: number;
   paymentId?: number;
-  razorpayKeyId: string;
-  razorpayOrderId: string;
-  amount: number;
-  currency: string;
+  razorpayKeyId?: string;
+  razorpayOrderId?: string;
+  amount?: number;
+  currency?: string;
   orderId?: number;
   internalOrderId?: number;
+  paymentRequired?: boolean;
+  message?: string;
 }
 
 export interface RazorpayVerifyRequestDto {
@@ -213,9 +215,11 @@ export interface RazorpayVerifyRequestDto {
 export interface AuctionRegistrationStatusResponse {
   paid: boolean;
   status?: string;
-  amount?: number;
+  amount?: number | null;
   paidAt?: string;
   registrationId?: number;
+  paymentRequired?: boolean;
+  message?: string;
 }
 
 export interface PaymentResponseDto {

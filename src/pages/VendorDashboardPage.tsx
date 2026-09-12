@@ -449,7 +449,7 @@ export function VendorDashboardPage() {
                     <h3 className="text-lg font-semibold text-white">Quick actions</h3>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {[
-                        { label: 'Inventory', icon: PackageCheck, route: '/products' },
+                        { label: 'Inventory', icon: PackageCheck, route: '/vendor/inventory' },
                         { label: 'Create product', icon: ShoppingBag, route: '/vendor/create-product-wizard' },
                         { label: 'Create auction', icon: BarChart3, route: '/vendor/create-auction-wizard' },
                         { label: 'Create bike auction', icon: Truck, route: '/vendor/create-auction-wizard?type=bike' },

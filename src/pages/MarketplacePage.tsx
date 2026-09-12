@@ -2,7 +2,7 @@ import { SectionShell } from '../components/SectionShell';
 import { Sidebar } from '../components/layout/LayoutComponents';
 import FilterSidebar from '../components/filters/FilterSidebar';
 import { ProductCard } from '../components/cards/MarketplaceCards';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, LayoutGrid, List, Sparkles, X } from 'lucide-react';
 import { useLocaleContext } from '../context/LocaleContext';
 import { useThemeContext } from '../context/ThemeContext';
@@ -10,6 +10,7 @@ import { getCategories, type CategoryRecord } from '../api/categoryApi';
 import { searchMarketplace, type MarketplaceSearchOptions, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../api/apiClient';
 import { getWishlist, type WishlistItemResponse } from '../api/wishlistApi';
+import { getProductById } from '../api/productApi';
 import { useAuth } from '../context/AuthContext';
 import { EmptyState, SkeletonCard, ErrorState } from '../components/loading/LoadingComponents';
 import { useLocation } from 'react-router-dom';
@@ -24,7 +25,8 @@ const DEFAULT_FILTERS: MarketplaceFilters = {
 };
 
 function toCardListing(item: MarketplaceSearchResult) {
-  const isAuction = item.type === 'AUCTION';
+  const sellingType = String(item.sellingType || '').trim().toUpperCase();
+  const isAuction = sellingType === 'AUCTION' || item.type === 'AUCTION';
   const image = item.image && !item.image.includes('placeholder.com') ? item.image : '/logo.png';
   return {
     id: item.id,
@@ -76,6 +78,7 @@ export function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [wishlistByProductId, setWishlistByProductId] = useState<Record<number, WishlistItemResponse>>({});
+  const requestGeneration = useRef(0);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -103,17 +106,35 @@ export function MarketplacePage() {
   }, []);
 
   useEffect(() => {
+    const generation = ++requestGeneration.current;
     let active = true;
+    const requestFilters = { ...appliedFilters };
     setLoading(true);
     setError(null);
-    searchMarketplace({ ...appliedFilters, page, size: PAGE_SIZE }).then((data) => {
-      if (!active) return;
-      const content = appliedFilters.category ? data.content.filter((item) => item.type !== 'VENDOR') : data.content;
+    searchMarketplace({ ...requestFilters, page, size: PAGE_SIZE }).then(async (data) => {
+      if (!active || generation !== requestGeneration.current) return;
+      const enrichedContent = await Promise.all(data.content.map(async (item) => {
+        if (item.type !== 'PRODUCT' || item.sellingType) return item;
+
+        try {
+          const product = await getProductById(item.id);
+          return { ...item, sellingType: product.sellingType || null };
+        } catch {
+          return item;
+        }
+      }));
+      if (!active || generation !== requestGeneration.current) return;
+      const mode = requestFilters.auctionsOnly ? 'AUCTION' : 'DIRECT_BUY';
+      const content = enrichedContent.filter((item) => {
+        if (requestFilters.category && item.type === 'VENDOR') return false;
+        const sellingType = String(item.sellingType || (item.type === 'AUCTION' ? 'AUCTION' : '')).trim().toUpperCase();
+        return sellingType === mode;
+      });
       setResults(content.map(toCardListing));
-      setTotalElements(appliedFilters.category ? content.length : data.totalElements);
-      setTotalPages(appliedFilters.category ? (content.length ? 1 : 0) : data.totalPages);
-    }).catch((err: unknown) => { if (active) setError(appliedFilters.category ? 'Unable to load products for this category.' : (err instanceof Error ? err.message : 'Unable to load marketplace listings')); })
-      .finally(() => { if (active) setLoading(false); });
+      setTotalElements(content.length);
+      setTotalPages(content.length ? 1 : 0);
+    }).catch((err: unknown) => { if (active && generation === requestGeneration.current) setError(requestFilters.category ? 'Unable to load products for this category.' : (err instanceof Error ? err.message : 'Unable to load marketplace listings')); })
+      .finally(() => { if (active && generation === requestGeneration.current) setLoading(false); });
     return () => { active = false; };
   }, [appliedFilters, page]);
 
@@ -159,26 +180,26 @@ export function MarketplacePage() {
     const chips: Array<{ key: string; label: string; onRemove: () => void }> = [];
 
     if (query) {
-      chips.push({ key: 'query', label: `“${query}”`, onRemove: () => setQuery('') });
+      chips.push({ key: 'query', label: `“${query}”`, onRemove: () => { setQuery(''); setAppliedFilters((current) => ({ ...current, query: '' })); setPage(0); } });
     }
     const selectedCategory = categories.find((item) => String(item.id) === category);
     if (selectedCategory) {
       chips.push({ key: 'category', label: selectedCategory.name, onRemove: () => handleCategoryChange(ALL_CATEGORIES) });
     }
     if (seller) {
-      chips.push({ key: 'seller', label: seller, onRemove: () => setSeller('') });
+      chips.push({ key: 'seller', label: seller, onRemove: () => { setSeller(''); setAppliedFilters((current) => ({ ...current, seller: '' })); setPage(0); } });
     }
     if (rating) {
-      chips.push({ key: 'rating', label: `★ ${rating}+`, onRemove: () => setRating('') });
+      chips.push({ key: 'rating', label: `★ ${rating}+`, onRemove: () => { setRating(''); setAppliedFilters((current) => ({ ...current, rating: '' })); setPage(0); } });
     }
     if (verifiedOnly) {
-      chips.push({ key: 'verified', label: translate('verifiedSellersOnly'), onRemove: () => setVerifiedOnly(false) });
+      chips.push({ key: 'verified', label: translate('verifiedSellersOnly'), onRemove: () => { setVerifiedOnly(false); setAppliedFilters((current) => ({ ...current, verifiedSellersOnly: false })); setPage(0); } });
     }
     if (auctionOnly) {
-      chips.push({ key: 'auction', label: translate('liveAuctions'), onRemove: () => setAuctionOnly(false) });
+      chips.push({ key: 'auction', label: translate('liveAuctions'), onRemove: () => { setAuctionOnly(false); setAppliedFilters((current) => ({ ...current, auctionsOnly: false })); setPage(0); } });
     }
     if (buyNowOnly) {
-      chips.push({ key: 'buyNow', label: translate('buyNow'), onRemove: () => setBuyNowOnly(false) });
+      chips.push({ key: 'buyNow', label: translate('buyNow'), onRemove: () => { setBuyNowOnly(false); setAppliedFilters((current) => ({ ...current, buyNowOnly: false })); setPage(0); } });
     }
     if (condition) {
       chips.push({ key: 'condition', label: condition, onRemove: () => setCondition('') });
@@ -188,7 +209,7 @@ export function MarketplacePage() {
     }
     if (minPrice || maxPrice) {
       const priceLabel = minPrice && maxPrice ? `${translate('minPrice')} ${currencySymbol}${minPrice} - ${translate('maxPrice')} ${currencySymbol}${maxPrice}` : minPrice ? `${translate('minPrice')} ${currencySymbol}${minPrice}` : `${translate('maxPrice')} ${currencySymbol}${maxPrice}`;
-      chips.push({ key: 'price', label: priceLabel, onRemove: () => { setMinPrice(''); setMaxPrice(''); } });
+      chips.push({ key: 'price', label: priceLabel, onRemove: () => { setMinPrice(''); setMaxPrice(''); setAppliedFilters((current) => ({ ...current, minPrice: '', maxPrice: '' })); setPage(0); } });
     }
 
     return chips;

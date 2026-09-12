@@ -690,7 +690,7 @@ export function CustomerBidConfirmationPage() {
           <div className="mt-4 space-y-3 text-sm text-slate-300">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Item: {flowState.auctionTitle}</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Bid: ₹{flowState.highestBid.toLocaleString()}</div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Registration fee: ₹20</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Registration fee: Confirmed by the backend</div>
           </div>
           <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">
             Estimated payment: ₹{(flowState.highestBid + 20).toLocaleString()}
@@ -761,7 +761,7 @@ export function CustomerWalletPaymentPage() {
             <p className="mt-3 text-sm text-rose-300">{walletError}</p>
           ) : null}
           <div className="mt-5 space-y-3 text-sm text-slate-300">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Fee due: ₹20</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Fee due: Backend-configured fee</div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Auction balance reserve: ₹2,50,000</div>
           </div>
           <Link to="/customer/payment" className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to payment <ArrowRight className="h-4 w-4" /></Link>

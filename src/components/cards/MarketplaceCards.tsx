@@ -260,25 +260,25 @@ export const ProductCard = memo(function ProductCard({
       <motion.article
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -8, scale: 1.01, boxShadow: '0 34px 80px -24px rgba(59,130,246,0.35)' }}
+      whileHover={{ y: -3 }}
       transition={{ duration: 0.25 }}
-      className="group relative flex h-full w-full max-w-full flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition-all duration-250 hover:border-blue-400/40"
+      className="group relative flex h-full w-full max-w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 shadow-lg shadow-slate-950/20 transition-all duration-200 hover:border-blue-400/40"
     >
       <div className="relative overflow-hidden">
-        <div className={`${compact ? 'h-36 sm:h-40' : 'h-44 sm:h-52'} w-full overflow-hidden rounded-t-[28px]`}>
-          <img src={image} alt={title} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-300 group-hover:scale-[1.06]" />
+        <div className="h-44 w-full overflow-hidden rounded-t-2xl bg-slate-950/40 sm:h-48">
+          <img src={image} alt={title} loading="lazy" decoding="async" className="h-full w-full object-contain p-2 transition-opacity duration-200 group-hover:opacity-95" />
         </div>
-        <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3">
+        <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2">
           {badge ? (
-            <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">{badge}</span>
+            <span className="rounded-md bg-slate-950/75 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200">{badge}</span>
           ) : null}
-          {isAuction ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-200"><Sparkles className="h-3 w-3" /> Live</span> : null}
+          {isAuction ? <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-emerald-200"><Sparkles className="h-3 w-3" /> Live</span> : null}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={toggleFavorite}
               aria-label="Add to Favorites"
-              className={`rounded-full p-2 text-slate-200 transition-all duration-200 transform ${favorited ? 'scale-105' : ''} focus-visible:outline-none`}
+              className={`rounded-lg p-1.5 text-slate-200 transition-colors duration-200 ${favorited ? 'scale-105' : ''} focus-visible:outline-none`}
             >
               <Heart className={`h-4 w-4 transition-all duration-200 ${favorited ? 'text-rose-500 drop-shadow-[0_6px_14px_rgba(220,38,38,0.22)]' : 'text-slate-200 group-hover:text-rose-400'}`} />
             </button>
@@ -287,82 +287,81 @@ export const ProductCard = memo(function ProductCard({
               type="button"
               onClick={openQuickView}
               aria-label="Quick View"
-              className="rounded-full p-2 text-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-500/20 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+              className="rounded-lg p-1.5 text-slate-200 transition-colors duration-200 hover:bg-blue-500/20 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
             >
               <Eye className="h-4 w-4" />
             </button>
           </div>
         </div>
         {verified ? (
-          <div className="absolute left-4 bottom-4 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-emerald-300 shadow-lg shadow-slate-950/40">
+          <div className="absolute bottom-3 left-3 rounded-md bg-slate-950/80 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-emerald-300 shadow-lg shadow-slate-950/40">
             <CheckCircle2 className="mr-1 inline-block h-3.5 w-3.5" /> Verified
           </div>
         ) : null}
       </div>
 
-      <div className={`flex flex-1 flex-col ${compact ? 'p-4' : 'p-5'}`}>
-        <div className={`flex items-center justify-between ${compact ? 'text-[10px]' : 'text-xs'} uppercase tracking-[0.18em] text-slate-400`}>
+      <div className="flex flex-1 flex-col p-4">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-slate-400">
           <span>{category}</span>
           <span>{condition}</span>
         </div>
-        <div className="mt-2 space-y-2">
-          <h3 className="text-lg font-semibold text-white break-words">{title}</h3>
-          <p className="text-sm text-slate-400 line-clamp-2 break-words">{description}</p>
+        <div className="mt-1.5 space-y-1.5">
+          <h3 className="text-base font-semibold leading-5 text-white break-words">{title}</h3>
+          <p className="text-xs leading-5 text-slate-400 line-clamp-2 break-words">{description}</p>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 min-w-0">
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 min-w-0">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
-              <p className={`${compact ? 'text-xl' : 'text-2xl'} font-semibold text-white`}>{priceValue}</p>
+              <p className="text-lg font-semibold text-white">{priceValue}</p>
               {oldPrice ? <p className="text-sm text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
             </div>
-            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{priceLabel}</p>
-            {createdAt ? <p className="mt-1 text-xs text-slate-500">Added {new Date(createdAt).toLocaleDateString('en-IN')}</p> : null}
-            {discount ? <p className="mt-1 text-xs uppercase tracking-[0.18em] text-emerald-300">{discount}</p> : null}
+            <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{priceLabel}</p>
+            {createdAt ? <p className="mt-0.5 text-[10px] text-slate-500">Added {new Date(createdAt).toLocaleDateString('en-IN')}</p> : null}
+            {discount ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-emerald-300">{discount}</p> : null}
           </div>
           {isAuction ? (
-            <div className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs text-blue-200">
-              <Clock3 className="h-3.5 w-3.5" />
+            <div className="inline-flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-1 text-[10px] text-blue-200">
+              <Clock3 className="h-3 w-3" />
               <span>{countdown > 0 ? formatCountdown(countdown) : 'Auction Ended'}</span>
             </div>
           ) : null}
         </div>
 
-        {showSellerMeta && seller ? <div className={`mt-3 rounded-3xl border border-white/10 bg-slate-950/70 ${compact ? 'p-3' : 'p-4'}`}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/15 text-sm font-semibold text-blue-200">
+        {showSellerMeta && seller ? <div className="mt-2.5 rounded-xl border border-white/10 bg-slate-950/70 p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-xs font-semibold text-blue-200">
                 {seller.charAt(0)}
               </div>
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <span>{seller}</span>
-                  {verified ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : null}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1 text-xs font-semibold text-white">
+                  <span className="truncate">{seller}</span>
+                  {verified ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" /> : null}
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                  {rating !== undefined ? <span className="inline-flex items-center gap-1 text-amber-300"><Star className="h-3.5 w-3.5" /> {rating}</span> : null}
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+                  {rating !== undefined ? <span className="inline-flex items-center gap-1 text-amber-300"><Star className="h-3 w-3" /> {rating}</span> : null}
                   {reviews !== undefined ? <span>{reviews} Reviews</span> : null}
                 </div>
               </div>
             </div>
-            {verified ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300">Verified</span> : null}
+            {verified ? <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-emerald-300">Verified</span> : null}
           </div>
         </div> : null}
 
-        <div className="mt-auto pt-3">
+        <div className="mt-auto pt-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 overflow-hidden rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-all duration-250 hover:-translate-y-0.5 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 active:scale-[0.98]">
-              <span className="absolute inset-0 origin-center scale-0 rounded-full bg-white/10 transition-transform duration-300 group-hover/btn:scale-100" />
+            <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-md shadow-blue-600/15 transition-colors duration-200 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60">
               <span className="relative z-10">{isAuction ? translate('watchAuction') : actionLabel || translate('buyNow')}</span>
-              <ArrowRight className="relative z-10 h-3.5 w-3.5" />
+              <ArrowRight className="relative z-10 h-3 w-3" />
             </Link>
-            <button type="button" onClick={handleShare} className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
-              <Share2 className="h-4 w-4" />
+            <button type="button" onClick={handleShare} className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
+              <Share2 className="h-3.5 w-3.5" />
             </button>
-            <button type="button" onClick={toggleFavorite} className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-200 transition-all duration-250 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Favorite listing">
-              <Heart className={`h-4 w-4 transition-all duration-200 ${favorited ? 'text-rose-500' : ''}`} />
+            <button type="button" onClick={toggleFavorite} className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Favorite listing">
+              <Heart className={`h-3.5 w-3.5 transition-colors duration-200 ${favorited ? 'text-rose-500' : ''}`} />
             </button>
-            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60">{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
+            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60">{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
           </div>
         </div>
       </div>

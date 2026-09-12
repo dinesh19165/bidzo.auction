@@ -14,6 +14,7 @@ export interface MarketplaceVendor {
 export interface MarketplaceSearchResult {
   id: number;
   type: MarketplaceResultType;
+  sellingType?: string | null;
   title: string;
   image: string | null;
   price: number | null;

@@ -152,6 +152,28 @@ export async function updateVendorProduct(
   throw new Error('Unable to update vendor product');
 }
 
+export async function updateProductInventory(
+  productId: number,
+  quantity: number
+): Promise<VendorProductApiResponse> {
+  const response = await fetchJson<
+    ApiResponse<VendorProductApiResponse>
+  >(`/api/products/${productId}/inventory`, {
+    method: 'PUT',
+    body: JSON.stringify({ quantity }),
+  });
+
+  if (response?.success && response.data) {
+    return response.data;
+  }
+
+  if (response?.message) {
+    throw new Error(response.message);
+  }
+
+  throw new Error('Unable to update vendor inventory quantity');
+}
+
 export async function deleteVendorProduct(id: number): Promise<void> {
   const response = await fetchJson<ApiResponse<unknown>>(`/api/products/${id}`, {
     method: 'DELETE',

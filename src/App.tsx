@@ -9,8 +9,8 @@ import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { FAQPage } from './pages/FAQPage';
 import { BlogPage } from './pages/BlogPage';
-import { CareersPage } from './pages/CareersPage';
 import { PolicyPage } from './pages/PolicyPage';
+import { HelpCenterPage } from './pages/HelpCenterPage';
 import { MarketplacePage } from './pages/MarketplacePage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { SellerProfilePage } from './pages/SellerProfilePage';
@@ -65,6 +65,7 @@ import { SuperAdminDashboardPage, FranchiseDashboardAdminPage, RolePermissionMat
 import { CustomerProfilePage, CustomerOrdersPage, CustomerAuctionsPage, CustomerBidsPage, CustomerWonAuctionsPage, CustomerRecentlyViewedPage, CustomerWatchlistPage, CustomerSavedSearchesPage, CustomerTransactionsPage, CustomerAddressesPage, CustomerMessagesPage, CustomerReviewsPage, CustomerSupportPage, CustomerInvoicesPage, CustomerSettingsPage, CustomerOrderDetailPage, CustomerAuctionDetailPage, VendorBusinessInfoPage, VendorGstPage, VendorBankPage, VendorIdentityPage, VendorStoreVerificationPage, VendorStoreProfilePage, VendorStoreSettingsPage, VendorSubscriptionPage, VendorWalletPage, VendorWithdrawPage, VendorSalesAnalyticsPage, VendorOrdersPage, VendorCustomersPage, VendorInventoryPage, VendorProductsPage, VendorProductVariantsPage, VendorCreateProductPage, VendorEditProductPage, VendorDeleteProductPage, VendorCreateAuctionPage, VendorEditAuctionPage, VendorAuctionAnalyticsPage, VendorMessagesPage, VendorNotificationsPage, VendorReviewsPage, VendorSupportTicketsPage, VendorReportsPage } from './pages/extra/CustomerVendorExtras';
 import { BuyNowConfirmPage, BuyNowPaymentPage, BuyNowOrderSuccessPage, BuyNowInvoicePage } from './pages/extra/BuyNowFlowPages';
 import { AdminDashboardApiPage, AdminReportApiPage, AdminResourceDetailPage, AdminResourcePage } from './pages/admin/AdminApiPages';
+import { AdminContactMessagesPage } from './pages/admin/AdminContactMessagesPage';
 import { CustomerCartPage } from './pages/CustomerCartPage';
 import { getStoredAuthToken, handleUnauthorized, isJwtExpired } from './api/apiClient';
 import { getVendorVerificationStatus } from './api/vendorVerificationApi';
@@ -194,13 +195,36 @@ function App() {
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/blog" element={<BlogPage />} />
-            <Route path="/careers" element={<CareersPage />} />
-            <Route path="/privacy" element={<PolicyPage title="Privacy Policy" subtitle="How we protect your information" body="Bidzo handles personal data with strict privacy controls, secure storage, and transparent usage guidelines for all users and partners." />} />
-            <Route path="/terms" element={<PolicyPage title="Terms" subtitle="Platform rules and responsibilities" body="All platform participants agree to lawful conduct, accurate listing practices, and respect for the marketplace community and trust standards." />} />
-            <Route path="/refund" element={<PolicyPage title="Refund Policy" subtitle="How purchase disputes are handled" body="Refunds may be issued for cancellations, delivery issues, or platform-mediated disputes by case review and verification." />} />
+            <Route path="/privacy" element={<PolicyPage title="PRIVACY POLICY" subtitle="Your Privacy Matters" intro="Bidzo handles personal information with privacy, security, and responsible-use principles for customers, vendors, and other platform users." sections={[
+              { title: 'Information We Collect', body: 'Bidzo uses information needed for account and transaction functionality, including information associated with accounts, orders, auctions, payments, and support requests.' },
+              { title: 'How Information Is Used', body: 'Information is used for legitimate platform operations such as account management, orders, auctions, payments, customer support, and providing Bidzo services.' },
+              { title: 'Account & Transaction Information', body: 'Information connected with customer accounts and transactions helps Bidzo provide marketplace services and support activity related to those transactions.' },
+              { title: 'Security', body: 'Bidzo maintains appropriate privacy and security controls, including secure storage practices, to help protect platform information.' },
+              { title: 'Third-Party Services', body: 'Bidzo may use integrated third-party services where needed for platform functionality such as payments, communication, or cloud storage. Their use is limited to the applicable service workflow.' },
+              { title: 'Your Privacy Questions', body: 'For privacy-related questions, contact Bidzo through the Contact Us page so the support team can review your question.' },
+            ]} />} />
+            <Route path="/terms" element={<PolicyPage title="TERMS & CONDITIONS" subtitle="Terms of Use" intro="These terms explain the rules and responsibilities for using Bidzo, including marketplace purchases, auctions, payments, and accounts." sections={[
+              { title: 'Using Bidzo', body: 'Customers are responsible for using the Bidzo platform lawfully, accurately, and respectfully while taking part in marketplace activity.' },
+              { title: 'Customer Accounts', body: 'Customers are responsible for the information used to register an account, keeping login credentials under their control, and using the account responsibly.' },
+              { title: 'Direct Buy Products', body: 'Direct Buy purchases follow the applicable product, order, payment, and delivery terms shown through the Bidzo marketplace.' },
+              { title: 'Online Auctions', body: 'Auction participation, bidding, winning bids, and related responsibilities follow the auction rules and transaction terms shown in the application.' },
+              { title: 'Payments', body: 'Customers must complete applicable payments for purchases or winning auction bids according to the applicable transaction terms.' },
+              { title: 'Orders & Delivery', body: 'Orders and delivery are handled through Bidzo’s order and delivery workflow. Customers should review transaction details and raise delivery or order issues with support.' },
+              { title: 'Prohibited Activity', body: 'Users must not misuse the platform or provide misleading or fraudulent listing, account, or transaction information.' },
+              { title: 'Changes to Terms', body: 'Bidzo may update platform terms when applicable to reflect changes to the platform, its services, or its operating policies.' },
+            ]} />} />
+            <Route path="/refund" element={<PolicyPage title="REFUND POLICY" subtitle="Refunds & Cancellations" intro="Refunds and cancellations are handled according to the applicable order, payment, auction, delivery, and dispute policies." sections={[
+              { title: 'When Refunds May Apply', body: 'Refunds may apply to cancellations, delivery issues, or platform-mediated disputes where supported by the applicable transaction policy and review.' },
+              { title: 'Order Cancellation', body: 'Cancellation requests are handled according to the applicable order and payment terms. Contact Bidzo support with the transaction details for assistance.' },
+              { title: 'Delivery Issues', body: 'Customers should raise delivery-related issues with Bidzo support so the order and delivery details can be reviewed.' },
+              { title: 'Auction Purchases', body: 'Auction transactions follow the applicable auction rules and winning-bid terms, which are distinct from the normal Direct Buy purchase flow.' },
+              { title: 'Disputes', body: 'Customers can contact Bidzo regarding transaction disputes so the relevant order, payment, auction, or delivery information can be reviewed.' },
+              { title: 'Refund Processing', body: 'Applicable refund requests are reviewed using the transaction details and relevant policies. This page does not set a fixed processing time or amount.' },
+              { title: 'Contact Support', body: 'Use the Contact Us page for transaction-specific assistance with cancellations, delivery issues, refunds, or disputes.' },
+            ]} />} />
             <Route path="/seller-policy" element={<PolicyPage title="Seller Policy" subtitle="Seller obligations and standards" body="Sellers must maintain accurate listings, fulfill obligations, and abide by the marketplace's quality and conduct guidelines." />} />
             <Route path="/auction-rules" element={<PolicyPage title="Auction Rules" subtitle="Rules governing bidding" body="Users must review reserve prices, bid increments, and auction timing before placing a bid or entering a live auction." />} />
-            <Route path="/help" element={<PolicyPage title="Help Center" subtitle="Support and assistance" body="The help center provides guidance for account setup, order issues, disputes, and seller onboarding." />} />
+            <Route path="/help" element={<HelpCenterPage />} />
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/product/:id" element={<ProductDetailPage />} />
             <Route path="/marketplace/:id" element={<ProductDetailPage />} />
@@ -322,6 +346,7 @@ function App() {
             <Route path="/admin/users" element={<AdminResourcePage resource="users" />} />
             <Route path="/admin/customers" element={<AdminResourcePage resource="customers" />} />
             <Route path="/admin/customers/:id" element={<AdminResourceDetailPage resource="customers" />} />
+            <Route path="/admin/contact" element={<AdminContactMessagesPage />} />
             <Route path="/admin/products" element={<AdminResourcePage resource="products" />} />
             <Route path="/admin/payments" element={<AdminResourcePage resource="payments" />} />
             <Route path="/admin/vendors" element={<AdminResourcePage resource="vendors" />} />
