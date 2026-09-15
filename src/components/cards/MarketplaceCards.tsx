@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, Sparkles, Star, Users } from 'lucide-react';
 import { memo, useEffect, useMemo, useState, useCallback, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react';
 import ReactDOM from 'react-dom';
 import { showToast } from '../ui/toast';
 import { useLocaleContext } from '../../context/LocaleContext';
-import { notifyWishlistChanged, removeFromWishlist, toggleWishlist } from '../../api/wishlistApi';
 import { useCartContext } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
+import { useWishlist } from '../../context/WishlistContext';
 
 interface ProductCardProps {
   id: string | number;
@@ -34,8 +35,6 @@ interface ProductCardProps {
   wishlistItemType?: 'PRODUCT' | 'AUCTION';
   wishlistProductId?: number;
   wishlistAuctionId?: number;
-  wishlistRecordId?: number;
-  initialFavorited?: boolean;
   showAddToCart?: boolean;
 }
 
@@ -90,25 +89,15 @@ export const ProductCard = memo(function ProductCard({
   wishlistItemType,
   wishlistProductId,
   wishlistAuctionId,
-  wishlistRecordId,
-  initialFavorited = false,
   showAddToCart = false,
 }: ProductCardProps) {
-  const [favorited, setFavorited] = useState<boolean>(() => {
-    if (initialFavorited) return true;
-    try {
-      const raw = localStorage.getItem('bidzo_favorites');
-      if (!raw) return false;
-      const list = JSON.parse(raw) as Array<string | number>;
-      return list.includes(id as any);
-    } catch (e) {
-      return false;
-    }
-  });
-  const [savedWishlistId, setSavedWishlistId] = useState<number | undefined>(wishlistRecordId);
-
   const [quickOpen, setQuickOpen] = useState(false);
-  const [favoritePending, setFavoritePending] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isWishlisted, isPending, toggle } = useWishlist();
+  const wishlistParams = wishlistItemType ? { itemType: wishlistItemType, productId: wishlistProductId, auctionId: wishlistAuctionId } : null;
+  const favorited = wishlistParams ? isWishlisted(wishlistParams) : false;
+  const favoritePending = wishlistParams ? isPending(wishlistParams) : false;
   const { addItem } = useCartContext();
   const [cartPending, setCartPending] = useState(false);
 
@@ -125,55 +114,23 @@ export const ProductCard = memo(function ProductCard({
     }
   }, [addItem, cartPending, id, title]);
 
-  const toggleFavorite = useCallback(async () => {
+  const toggleFavorite = useCallback(async (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
     if (favoritePending) return;
-
-    if (wishlistItemType) {
-      setFavoritePending(true);
-      try {
-        if (favorited && savedWishlistId !== undefined) {
-          await removeFromWishlist(savedWishlistId);
-          setFavorited(false);
-          setSavedWishlistId(undefined);
-          notifyWishlistChanged({ productId: wishlistProductId, auctionId: wishlistAuctionId, wishlistId: savedWishlistId, saved: false });
-          showToast('Removed from favourites', 'The listing is no longer in your saved collection.', 'info');
-        } else {
-          const savedItem = await toggleWishlist({
-            itemType: wishlistItemType,
-            productId: wishlistProductId,
-            auctionId: wishlistAuctionId,
-          });
-          setFavorited(true);
-          setSavedWishlistId(savedItem.id);
-          notifyWishlistChanged({ productId: wishlistProductId, auctionId: wishlistAuctionId, wishlistId: savedItem.id, saved: true });
-          showToast('Added to favourites', 'Saved for your next bidding session.', 'success');
-        }
-      } catch (error) {
-        showToast('Unable to update favourites', error instanceof Error ? error.message : 'Please try again.', 'warning');
-      } finally {
-        setFavoritePending(false);
-      }
+    if (!wishlistParams) return;
+    if (!user || (user.type !== 'customer' && user.role !== 'CUSTOMER')) {
+      showToast('Sign in to save items', 'Log in as a customer to use your wishlist.', 'info');
+      navigate('/login');
       return;
     }
-
-    setFavorited((prev) => {
-      const next = !prev;
-      try {
-        const raw = localStorage.getItem('bidzo_favorites');
-        const list = raw ? (JSON.parse(raw) as Array<string | number>) : [];
-        if (next) {
-          if (!list.includes(id as any)) list.push(id as any);
-          localStorage.setItem('bidzo_favorites', JSON.stringify(list));
-          showToast('Added to favourites', 'Saved for your next bidding session.', 'success');
-        } else {
-          const filtered = list.filter((i) => i !== id);
-          localStorage.setItem('bidzo_favorites', JSON.stringify(filtered));
-          showToast('Removed from favourites', 'The listing is no longer in your saved collection.', 'info');
-        }
-      } catch (e) {}
-      return next;
-    });
-  }, [favoritePending, favorited, id, savedWishlistId, wishlistAuctionId, wishlistItemType, wishlistProductId]);
+    try {
+      await toggle(wishlistParams);
+      showToast(favorited ? 'Removed from favourites' : 'Added to favourites', favorited ? 'The listing is no longer in your saved collection.' : 'Saved for your next bidding session.', favorited ? 'info' : 'success');
+    } catch (error) {
+      showToast('Unable to update favourites', error instanceof Error ? error.message : 'Please try again.', 'warning');
+    }
+  }, [favoritePending, favorited, navigate, toggle, user, wishlistParams]);
 
   const openQuickView = useCallback(() => setQuickOpen(true), []);
   const closeQuickView = useCallback(() => setQuickOpen(false), []);
@@ -265,7 +222,7 @@ export const ProductCard = memo(function ProductCard({
       className="group relative flex h-full w-full max-w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 shadow-lg shadow-slate-950/20 transition-all duration-200 hover:border-blue-400/40"
     >
       <div className="relative overflow-hidden">
-        <div className="h-44 w-full overflow-hidden rounded-t-2xl bg-slate-950/40 sm:h-48">
+        <div className="aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-slate-950/40">
           <img src={image} alt={title} loading="lazy" decoding="async" className="h-full w-full object-contain p-2 transition-opacity duration-200 group-hover:opacity-95" />
         </div>
         <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2">
@@ -277,10 +234,11 @@ export const ProductCard = memo(function ProductCard({
             <button
               type="button"
               onClick={toggleFavorite}
+              disabled={favoritePending}
               aria-label="Add to Favorites"
-              className={`rounded-lg p-1.5 text-slate-200 transition-colors duration-200 ${favorited ? 'scale-105' : ''} focus-visible:outline-none`}
+              className={`rounded-lg p-1.5 text-slate-200 transition-colors duration-200 disabled:cursor-wait disabled:opacity-60 ${favorited ? 'scale-105' : ''} focus-visible:outline-none`}
             >
-              <Heart className={`h-4 w-4 transition-all duration-200 ${favorited ? 'text-rose-500 drop-shadow-[0_6px_14px_rgba(220,38,38,0.22)]' : 'text-slate-200 group-hover:text-rose-400'}`} />
+              <Heart className={`h-4 w-4 transition-all duration-200 ${favorited ? 'fill-current text-rose-500 drop-shadow-[0_6px_14px_rgba(220,38,38,0.22)]' : 'text-slate-200 group-hover:text-rose-400'}`} />
             </button>
 
             <button
@@ -300,7 +258,7 @@ export const ProductCard = memo(function ProductCard({
         ) : null}
       </div>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
         <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-slate-400">
           <span>{category}</span>
           <span>{condition}</span>
@@ -358,8 +316,8 @@ export const ProductCard = memo(function ProductCard({
             <button type="button" onClick={handleShare} className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
               <Share2 className="h-3.5 w-3.5" />
             </button>
-            <button type="button" onClick={toggleFavorite} className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Favorite listing">
-              <Heart className={`h-3.5 w-3.5 transition-colors duration-200 ${favorited ? 'text-rose-500' : ''}`} />
+            <button type="button" onClick={toggleFavorite} disabled={favoritePending} className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 disabled:cursor-wait disabled:opacity-60" aria-label="Favorite listing">
+              <Heart className={`h-3.5 w-3.5 transition-colors duration-200 ${favorited ? 'fill-current text-rose-500' : ''}`} />
             </button>
             {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60">{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
           </div>

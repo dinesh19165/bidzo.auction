@@ -112,7 +112,7 @@ a,
 input,
 select,
 textarea {
-  min-height: 48px;
+  min-height: 44px;
 }
 
 button,
@@ -134,6 +134,14 @@ input,
 select,
 textarea {
   width: 100%;
+}
+
+input.sr-only,
+input.peer.sr-only {
+  width: 1px;
+  min-width: 1px;
+  min-height: 1px;
+  height: 1px;
 }
 
 .break-words {

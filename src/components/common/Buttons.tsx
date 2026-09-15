@@ -9,7 +9,7 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'chi
 
 export function PrimaryButton({ children, icon, fullWidth = false, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex min-h-[48px] max-w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 font-medium text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
+    <button className={`inline-flex min-h-[44px] max-w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 font-medium text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
       {icon}
       {children}
     </button>
@@ -18,7 +18,7 @@ export function PrimaryButton({ children, icon, fullWidth = false, className = '
 
 export function SecondaryButton({ children, icon, fullWidth = false, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex min-h-[48px] max-w-full items-center justify-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--surface-muted)] px-4 py-2.5 font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
+    <button className={`inline-flex min-h-[44px] max-w-full items-center justify-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--surface-muted)] px-4 py-2 font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
       {icon}
       {children}
     </button>
@@ -27,7 +27,7 @@ export function SecondaryButton({ children, icon, fullWidth = false, className =
 
 export function IconButton({ children, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex min-h-[48px] min-w-[48px] max-w-full items-center justify-center rounded-full border border-[var(--border-color)] bg-[var(--surface-muted)] p-2.5 text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] ${className}`} {...props}>
+    <button className={`inline-flex min-h-[44px] min-w-[44px] max-w-full items-center justify-center rounded-full border border-[var(--border-color)] bg-[var(--surface-muted)] p-2 text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] ${className}`} {...props}>
       {children}
     </button>
   );

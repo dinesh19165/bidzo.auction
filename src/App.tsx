@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Layout } from './components/Layout';
 import { AuthProvider, getPortalHome, isAdminUser, useAuth, type UserType } from './context/AuthContext';
-import { UserProvider, CartProvider, WalletProvider, NotificationProvider, ThemeProvider, LocaleProvider } from './context';
+import { UserProvider, CartProvider, WalletProvider, NotificationProvider, ThemeProvider, LocaleProvider, WishlistProvider } from './context';
 import { HomePage } from './pages/HomePage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
@@ -21,6 +21,9 @@ import { LoginPage, RegisterPage, CustomerRegisterPage, VendorRegisterPage, OTPP
 import OnboardingWizard from './pages/OnboardingWizard';
 import { CustomerWelcome, VendorWelcome } from './pages/WelcomePages';
 import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
+import { CustomerRewardsPage } from './pages/CustomerRewardsPage';
+import { CustomerWalletPage } from './pages/CustomerWalletPage';
+import { AdminRewardsSettingsPage } from './pages/AdminRewardsSettingsPage';
 import { VendorDashboardPage } from './pages/VendorDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DeliveryPage } from './pages/DeliveryPage';
@@ -134,7 +137,7 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
   const isAuthEntryRoute = ['/login', '/register', '/register/customer', '/register/vendor', '/onboarding'].includes(pathname);
 
   if (isAuthEntryRoute && user) {
-    return <Navigate to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} replace />;
+    return <Navigate to={getPortalHome(user)} replace />;
   }
 
   if (isCustomerRoute) {
@@ -184,8 +187,9 @@ function App() {
       <CartProvider>
         <WalletProvider>
           <NotificationProvider>
-            <LocaleProvider>
-              <ThemeProvider>
+            <WishlistProvider>
+              <LocaleProvider>
+                <ThemeProvider>
                 <Layout>
                 <AnimatePresence mode="wait">
                   <AppRouteGuard>
@@ -257,7 +261,7 @@ function App() {
             <Route path="/customer/auctions/:id/pay" element={<CustomerAuctionDetailPage />} />
             <Route path="/customer/auctions" element={<CustomerAuctionsPage />} />
             <Route path="/customer/auctions/:id" element={<CustomerAuctionDetailPage />} />
-            <Route path="/customer/wallet" element={<WalletPage />} />
+            <Route path="/customer/wallet" element={<CustomerWalletPage />} />
             <Route path="/customer/wallet/transactions" element={<CustomerTransactionsPage />} />
             <Route path="/customer/bids" element={<CustomerBidsPage />} />
             <Route path="/customer/won" element={<CustomerWonAuctionsPage />} />
@@ -268,6 +272,7 @@ function App() {
             <Route path="/customer/addresses" element={<CustomerAddressesPage />} />
             <Route path="/customer/messages" element={<CustomerMessagesPage />} />
             <Route path="/customer/notifications" element={<NotificationsPage />} />
+            <Route path="/customer/rewards" element={<CustomerRewardsPage />} />
             <Route path="/customer/reviews" element={<CustomerReviewsPage />} />
             <Route path="/customer/support" element={<CustomerSupportPage />} />
             <Route path="/customer/invoices" element={<CustomerInvoicesPage />} />
@@ -380,6 +385,7 @@ function App() {
             <Route path="/admin/settings/notification-templates" element={<SettingsNotificationTemplatesPage />} />
             <Route path="/admin/settings/security" element={<SettingsSecurityPage />} />
             <Route path="/admin/settings/localization" element={<SettingsLocalizationPage />} />
+            <Route path="/admin/settings/rewards" element={<AdminRewardsSettingsPage />} />
             <Route path="/admin/approvals" element={<ApprovalCenterPage />} />
             <Route path="/admin/approvals/vendors" element={<ApprovalVendorsPage />} />
             <Route path="/admin/approvals/franchises" element={<ApprovalFranchisesPage />} />
@@ -445,6 +451,7 @@ function App() {
             <Route path="/admin/content/banners" element={<ContentBannersPage />} />
             <Route path="/admin/content/announcements" element={<ContentAnnouncementsPage />} />
             <Route path="/admin/content/notifications" element={<ContentNotificationsPage />} />
+            <Route path="/admin/notifications" element={<ContentNotificationsPage />} />
             <Route path="/admin/content/faq" element={<ContentFaqPage />} />
             <Route path="/admin/content/help" element={<ContentHelpPage />} />
             <Route path="/delivery" element={<DeliveryPage />} />
@@ -478,8 +485,9 @@ function App() {
                   </AppRouteGuard>
                 </AnimatePresence>
                 </Layout>
-              </ThemeProvider>
-            </LocaleProvider>
+                </ThemeProvider>
+              </LocaleProvider>
+            </WishlistProvider>
           </NotificationProvider>
         </WalletProvider>
       </CartProvider>

@@ -5,7 +5,9 @@ import { SectionShell } from '../components/SectionShell';
 import { StatisticCard } from '../components/cards/MarketplaceCards';
 import { getCustomerDashboard, type CustomerDashboardResponse } from '../api/customerApi';
 import { getConversations, type ConversationResponse } from '../api/messageApi';
-import { getNotifications, type NotificationResponse } from '../api/notificationApi';
+import { getRewardsSummary, type RewardsRecord } from '../api/rewardsApi';
+import { useNotificationContext } from '../context/NotificationContext';
+import { NotificationList } from '../components/notifications/NotificationList';
 
 function formatTimestamp(value?: string) {
   if (!value) return '';
@@ -18,22 +20,21 @@ export function CustomerDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationResponse[]>([]);
-  const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [activityError, setActivityError] = useState<string | null>(null);
+  const [rewardsSummary, setRewardsSummary] = useState<RewardsRecord | null>(null);
+  const { items: notifications, unreadCount, error: notificationError } = useNotificationContext();
 
   useEffect(() => {
     const loadDashboard = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const [dashboardResult, conversationsResult, notificationsResult] = await Promise.allSettled([getCustomerDashboard(), getConversations(), getNotifications()]);
+        const [dashboardResult, conversationsResult] = await Promise.allSettled([getCustomerDashboard(), getConversations()]);
         if (dashboardResult.status === 'rejected') throw dashboardResult.reason;
         setDashboardData(dashboardResult.value);
         const activityFailures: string[] = [];
         if (conversationsResult.status === 'fulfilled') setConversations(Array.isArray(conversationsResult.value) ? conversationsResult.value : []);
         else activityFailures.push('messages');
-        if (notificationsResult.status === 'fulfilled') setNotifications(Array.isArray(notificationsResult.value) ? notificationsResult.value : []);
-        else activityFailures.push('notifications');
         setActivityError(activityFailures.length > 0 ? `Unable to load ${activityFailures.join(' and ')} right now.` : null);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to load dashboard';
@@ -46,6 +47,10 @@ export function CustomerDashboardPage() {
     loadDashboard();
   }, []);
 
+  useEffect(() => {
+    getRewardsSummary().then(setRewardsSummary).catch(() => setRewardsSummary(null));
+  }, []);
+
   const profile = dashboardData?.profile ?? null;
   const activeBidsCount = dashboardData?.activeBidsCount ?? 0;
   const wonAuctionsCount = dashboardData?.wonAuctionsCount ?? 0;
@@ -55,10 +60,14 @@ export function CustomerDashboardPage() {
   const recentOrders = Array.isArray(dashboardData?.recentOrders) ? dashboardData.recentOrders : [];
   const profileCompletionPercentage = dashboardData?.profileCompletionPercentage ?? 0;
   const unreadMessageCount = dashboardData?.unreadMessageCount ?? 0;
-  const unreadNotificationCount = dashboardData?.unreadNotificationCount ?? 0;
   const pendingInvoicesCount = dashboardData?.pendingInvoicesCount ?? 0;
 
   const displayName = profile ? [profile.firstName, profile.lastName].filter(Boolean).join(' ') || profile.email || 'Customer' : 'Customer';
+  const rewardValue = (keys: string[]) => keys.map((key) => rewardsSummary?.[key]).find((item) => item !== undefined && item !== null && item !== '');
+  const rewardMoney = (keys: string[]) => {
+    const value = Number(rewardValue(keys));
+    return Number.isFinite(value) ? `₹${value.toLocaleString('en-IN')}` : null;
+  };
 
   const stats = [
     { label: 'Active Bids', value: activeBidsCount.toString() },
@@ -116,6 +125,14 @@ export function CustomerDashboardPage() {
           );
         })}
       </div>
+
+      {(rewardMoney(['walletBalance', 'wallet_balance', 'balance']) || rewardValue(['loyaltyPoints', 'availablePoints', 'points']) !== undefined || rewardMoney(['referralEarnings', 'referral_earnings']) || rewardValue(['referralCode', 'referral_code']) !== undefined) ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {rewardMoney(['walletBalance', 'wallet_balance', 'balance']) ? <Link to="/customer/wallet" className="rounded-xl border border-white/10 bg-slate-900/70 p-3 transition hover:border-blue-400/40"><p className="text-xs text-slate-400">Wallet</p><p className="mt-1 font-semibold text-white">{rewardMoney(['walletBalance', 'wallet_balance', 'balance'])}</p></Link> : null}
+          {rewardValue(['loyaltyPoints', 'availablePoints', 'points']) !== undefined ? <Link to="/customer/rewards#loyalty" className="rounded-xl border border-white/10 bg-slate-900/70 p-3 transition hover:border-blue-400/40"><p className="text-xs text-slate-400">Loyalty points</p><p className="mt-1 font-semibold text-white">{String(rewardValue(['loyaltyPoints', 'availablePoints', 'points']))}</p></Link> : null}
+          {rewardMoney(['referralEarnings', 'referral_earnings']) ? <Link to="/customer/rewards" className="rounded-xl border border-white/10 bg-slate-900/70 p-3 transition hover:border-blue-400/40"><p className="text-xs text-slate-400">Referral earnings</p><p className="mt-1 font-semibold text-white">{rewardMoney(['referralEarnings', 'referral_earnings'])}</p></Link> : null}
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 sm:p-6">
@@ -247,7 +264,7 @@ export function CustomerDashboardPage() {
               {[
                 { label: 'Wishlist', icon: Heart, value: `${wishlistCount} items`, route: '/customer/wishlist' },
                 { label: 'Messages', icon: MessageCircleMore, value: `${unreadMessageCount} unread`, route: '/customer/messages' },
-                { label: 'Notifications', icon: BellRing, value: `${unreadNotificationCount} unread`, route: '/customer/notifications' },
+                { label: 'Notifications', icon: BellRing, value: `${unreadCount} unread`, route: '/customer/notifications' },
                 { label: 'Invoices', icon: ReceiptText, value: `${pendingInvoicesCount} pending`, route: '/customer/invoices' },
               ].map((item) => {
                 const Icon = item.icon;
@@ -271,7 +288,7 @@ export function CustomerDashboardPage() {
             <BellRing className="h-4 w-4 text-amber-300" />
           </div>
           <div className="mt-4 space-y-3 text-sm text-slate-300">
-            {activityError && notifications.length === 0 ? <p className="text-rose-300">{activityError}</p> : notifications.length === 0 ? <p className="text-slate-400">No notifications yet.</p> : notifications.slice(0, 3).map((notification) => <Link key={notification.id} to="/customer/notifications" className={`block rounded-2xl border bg-white/5 p-3 ${notification.isRead ? 'border-white/10' : 'border-blue-500/40'}`}><div className="flex items-start justify-between gap-3"><p className="font-medium text-white">{notification.title}</p>{!notification.isRead ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-400" aria-label="Unread" /> : null}</div><p className="mt-1 line-clamp-2 text-slate-400">{notification.message}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(notification.createdAt)}</p></Link>)}
+            {notificationError ? <p className="text-rose-300">{notificationError}</p> : <NotificationList compact limit={3} />}
           </div>
         </div>
 

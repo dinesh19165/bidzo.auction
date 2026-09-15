@@ -6,7 +6,7 @@ export interface CategoryResponse {
   name: string;
   description?: string;
   parentId?: number | string | null;
-  icon?: string;
+  iconUrl?: string | null;
   count?: number;
 }
 

@@ -17,7 +17,7 @@ export function getPortalHome(user: Pick<User, 'role' | 'type'> | null | undefin
   if (user?.type === 'vendor') return '/dashboards/vendor';
   if (user?.type === 'delivery') return '/delivery';
   if (user?.type === 'support') return '/support-tickets';
-  return '/dashboards/customer';
+  return '/';
 }
 
 type AuthContextType = {

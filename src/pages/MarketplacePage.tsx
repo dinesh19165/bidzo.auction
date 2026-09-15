@@ -9,9 +9,7 @@ import { useThemeContext } from '../context/ThemeContext';
 import { getCategories, type CategoryRecord } from '../api/categoryApi';
 import { searchMarketplace, type MarketplaceSearchOptions, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../api/apiClient';
-import { getWishlist, type WishlistItemResponse } from '../api/wishlistApi';
 import { getProductById } from '../api/productApi';
-import { useAuth } from '../context/AuthContext';
 import { EmptyState, SkeletonCard, ErrorState } from '../components/loading/LoadingComponents';
 import { useLocation } from 'react-router-dom';
 
@@ -77,9 +75,7 @@ export function MarketplacePage() {
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [wishlistByProductId, setWishlistByProductId] = useState<Record<number, WishlistItemResponse>>({});
   const requestGeneration = useRef(0);
-  const { user } = useAuth();
 
   useEffect(() => {
     const params = new URLSearchParams(routeLocation.search);
@@ -137,11 +133,6 @@ export function MarketplacePage() {
       .finally(() => { if (active && generation === requestGeneration.current) setLoading(false); });
     return () => { active = false; };
   }, [appliedFilters, page]);
-
-  useEffect(() => {
-    if (user?.type !== 'customer') return;
-    getWishlist().then((wishlist) => setWishlistByProductId(Object.fromEntries(wishlist.filter((item) => item.itemType !== 'AUCTION').map((item) => [item.productId, item])))).catch(() => setWishlistByProductId({}));
-  }, [user?.type]);
 
   const { translate, currencySymbol } = useLocaleContext();
   const { theme } = useThemeContext();
@@ -329,8 +320,6 @@ export function MarketplacePage() {
                     wishlistItemType={product.isAuction ? 'AUCTION' : 'PRODUCT'}
                     wishlistProductId={product.isAuction ? undefined : product.id}
                     wishlistAuctionId={product.isAuction ? product.auctionId : undefined}
-                    wishlistRecordId={wishlistByProductId[product.isAuction ? (product.auctionId ?? product.id) : product.id]?.id}
-                    initialFavorited={Boolean(wishlistByProductId[product.isAuction ? (product.auctionId ?? product.id) : product.id])}
                     showAddToCart={!product.isAuction}
                   />
                 </div>

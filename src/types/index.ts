@@ -122,6 +122,7 @@ export interface Category {
   name: string;
   slug?: string;
   parentId?: string;
+  iconUrl?: string | null;
 }
 
 export interface Auction {

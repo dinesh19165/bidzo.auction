@@ -1,5 +1,6 @@
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, Bell, Boxes, CheckCircle2, Clock3, CreditCard, Download, Eye, EyeOff, FileText, Filter, Gavel, Globe, LayoutGrid, Megaphone, MessageSquare, Plus, Search, Settings2, ShieldCheck, Store, TrendingUp, Truck, Users, Wallet2 } from 'lucide-react';
 import { AdminShell } from '../../components/admin/AdminShell';
@@ -17,8 +18,10 @@ import { createAdminNotificationTemplate, deleteAdminNotificationTemplate, getAd
 import { createBanner, createBlog, createFaq, createPage, createTestimonial, deleteBanner, deleteBlog, deleteFaq, deletePage, deleteTestimonial, getBanners, getBlogs, getFaq, getPages, getTestimonials, updateBanner, updateBannerStatus, updateBlog, updateBlogStatus, updateCategoryStatus, updateFaq, updateFaqStatus, updatePage, updatePageStatus, updateTestimonial, updateTestimonialStatus } from '../../api/cmsApi';
 import { createCategory, createCategoryField, deleteCategory, deleteCategoryField, getCategories, getCategoryFields, normalizeCategoryStatus, updateCategory, updateCategoryFeatured, updateCategoryField, type CategoryFieldDefinition, type CategoryFieldRequest, type CategoryFieldType, type CategoryRecord, type CategoryStatus } from '../../api/categoryApi';
 import { EmptyState, ErrorState, SkeletonTable } from '../../components/loading/LoadingComponents';
+import { CategoryIcon } from '../../components/categories/CategoryIcon';
 import { showToast } from '../../components/ui/toast';
 import { API_BASE_URL } from '../../api/apiClient';
+import { createAdminNotification, getAdminNotificationsPaginated, type AdminNotificationRecord, type NotificationAudience, type NotificationType } from '../../api/notificationApi';
 
 const maskAccountNumber = (value?: string | number | null) => {
   const raw = String(value ?? '').trim();
@@ -456,6 +459,7 @@ export function SystemSettingsPage() {
     { title: 'Notification Templates', path: '/admin/settings/notification-templates', body: 'In-app, email and alert message patterns.' },
     { title: 'Security', path: '/admin/settings/security', body: 'Access control, encryption and login safeguards.' },
     { title: 'Localization', path: '/admin/settings/localization', body: 'Language, regional formatting and marketplace translations.' },
+    { title: 'Rewards', path: '/admin/settings/rewards', body: 'Referral and loyalty reward configuration.' },
   ];
 
   return (
@@ -1314,7 +1318,7 @@ export function CMSCategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [draft, setDraft] = useState<{ name: string; status: CategoryStatus; featured: boolean; parentId: string }>({ name: '', status: 'DRAFT', featured: false, parentId: '' });
+  const [draft, setDraft] = useState<{ name: string; status: CategoryStatus; featured: boolean; parentId: string; iconUrl: string }>({ name: '', status: 'DRAFT', featured: false, parentId: '', iconUrl: '' });
   const [editingId, setEditingId] = useState<number | string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | CategoryStatus>('ALL');
   const [categoryFields, setCategoryFields] = useState<CategoryFieldDefinition[]>([]);
@@ -1363,12 +1367,12 @@ export function CMSCategoriesPage() {
       return;
     }
     try {
-      const created = await createCategory({ name: draft.name.trim(), status: draft.status, featured: draft.featured, parentId: draft.parentId ? Number(draft.parentId) : null });
+      const created = await createCategory({ name: draft.name.trim(), status: draft.status, featured: draft.featured, parentId: draft.parentId ? Number(draft.parentId) : null, iconUrl: draft.iconUrl.trim() || null });
       if (created.id === undefined || created.id === null || created.id === '') {
         throw new Error('Category was created but the backend did not return a category ID.');
       }
       await loadItems();
-      setDraft({ name: '', status: 'DRAFT', featured: false, parentId: '' });
+      setDraft({ name: '', status: 'DRAFT', featured: false, parentId: '', iconUrl: '' });
       setIsCreating(false);
       showToast('Category created successfully', 'The category was saved successfully.', 'success');
     } catch (saveError) {
@@ -1398,10 +1402,10 @@ export function CMSCategoriesPage() {
     if (editingId === null) return;
     if (import.meta.env.DEV) console.debug('[Bidzo categories] update category', { categoryId: editingId, name: draft.name, parentId: draft.parentId || null });
     try {
-      await updateCategory(editingId, { name: draft.name.trim(), status: draft.status, featured: draft.featured, parentId: draft.parentId ? Number(draft.parentId) : null });
+      await updateCategory(editingId, { name: draft.name.trim(), status: draft.status, featured: draft.featured, parentId: draft.parentId ? Number(draft.parentId) : null, iconUrl: draft.iconUrl.trim() || null });
       await loadItems();
       setEditingId(null);
-      setDraft({ name: '', status: 'DRAFT', featured: false, parentId: '' });
+      setDraft({ name: '', status: 'DRAFT', featured: false, parentId: '', iconUrl: '' });
       showToast('Category updated successfully', 'The category was updated successfully.', 'success');
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Failed to update category';
@@ -1471,6 +1475,14 @@ export function CMSCategoriesPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <LabeledInput label="Name" value={draft.name} onChange={(value) => setDraft((prev) => ({ ...prev, name: value }))} />
                 <div className="space-y-2">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400" htmlFor="category-icon-url">Category Icon</label>
+                  <div className="flex gap-2">
+                    <input id="category-icon-url" type="url" value={draft.iconUrl} onChange={(event) => setDraft((prev) => ({ ...prev, iconUrl: event.target.value }))} placeholder="https://..." className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none" />
+                    {draft.iconUrl ? <button type="button" onClick={() => setDraft((prev) => ({ ...prev, iconUrl: '' }))} className="rounded-2xl border border-white/10 px-3 text-xs text-slate-300 hover:bg-white/5">Clear</button> : null}
+                  </div>
+                  <div className="flex min-h-16 items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/40 px-3 py-2 text-sm text-slate-400"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300"><CategoryIcon iconUrl={draft.iconUrl} className="h-6 w-6" /></span><span>{draft.iconUrl.trim() ? 'Icon preview' : 'Fallback icon preview'}</span></div>
+                </div>
+                <div className="space-y-2">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Parent category</span>
                   <select value={draft.parentId} onChange={(event) => setDraft((prev) => ({ ...prev, parentId: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none">
                     <option value="">Top level</option>
@@ -1526,11 +1538,11 @@ export function CMSCategoriesPage() {
           </div>
           {loading ? <div className="text-sm text-slate-400">Loading categories...</div> : (
             <Table columns={[
-              { key: 'name', label: 'Name', render: (row: CategoryRecord) => <span>{row.parentId ? `- ${row.name}` : row.name}</span> },
+              { key: 'name', label: 'Name', render: (row: CategoryRecord) => <span className="inline-flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-300"><CategoryIcon iconUrl={row.iconUrl} className="h-4 w-4" /></span>{row.parentId ? `- ${row.name}` : row.name}</span> },
               { key: 'parentId', label: 'Parent', render: (row: CategoryRecord) => row.parentId ? items.find((parent) => String(parent.id) === String(row.parentId))?.name ?? String(row.parentId) : 'Top level' },
               { key: 'status', label: 'Status', render: (row: CategoryRecord) => { const status = normalizeCategoryStatus(row.status); return <Badge className={status === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-slate-500/10 text-slate-300'}>{status === 'PUBLISHED' ? 'Published' : 'Draft'}</Badge>; } },
               { key: 'featured', label: 'Featured', render: (row: CategoryRecord) => <button onClick={() => handleFeaturedToggle(row)} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">{row.featured ? 'Featured' : 'Not featured'}</button> },
-              { key: 'actions', label: 'Actions', render: (row: CategoryRecord) => <div className="flex gap-2"><button onClick={() => { setEditingId(row.id); setIsCreating(false); setDraft({ name: row.name, status: normalizeCategoryStatus(row.status), featured: Boolean(row.featured), parentId: row.parentId ? String(row.parentId) : '' }); }} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">Edit</button><button onClick={() => handleDelete(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button></div> },
+              { key: 'actions', label: 'Actions', render: (row: CategoryRecord) => <div className="flex gap-2"><button onClick={() => { setEditingId(row.id); setIsCreating(false); setDraft({ name: row.name, status: normalizeCategoryStatus(row.status), featured: Boolean(row.featured), parentId: row.parentId ? String(row.parentId) : '', iconUrl: row.iconUrl || '' }); }} className="rounded-full bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-200">Edit</button><button onClick={() => handleDelete(row.id)} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Delete</button></div> },
             ]} data={visibleItems} className="p-0" />
           )}
         </Card>
@@ -2716,6 +2728,9 @@ export function SettingsNotificationTemplatesPage() {
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState({ name: '', type: '', subject: '', message: '', status: 'DRAFT' });
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<'name' | 'type' | 'subject' | 'message' | 'status', string>>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -2736,17 +2751,39 @@ export function SettingsNotificationTemplatesPage() {
     void loadTemplates();
   }, []);
 
-  const handleCreateTemplate = async () => {
+  const openCreateTemplate = () => {
+    setForm({ name: '', type: '', subject: '', message: '', status: 'DRAFT' });
+    setFieldErrors({});
+    setError(null);
+    setSuccess(null);
+    setFormOpen(true);
+  };
+
+  const handleCreateTemplate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const values = {
+      name: form.name.trim(),
+      type: form.type.trim(),
+      subject: form.subject.trim(),
+      message: form.message.trim(),
+      status: form.status.trim().toUpperCase(),
+    };
+    const nextErrors: Partial<Record<'name' | 'type' | 'subject' | 'message' | 'status', string>> = {};
+    if (!values.name) nextErrors.name = 'Name is required';
+    if (!values.type) nextErrors.type = 'Type is required';
+    if (!values.subject) nextErrors.subject = 'Subject is required';
+    if (!values.message) nextErrors.message = 'Message is required';
+    if (!values.status) nextErrors.status = 'Status is required';
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
     try {
       setSaving(true);
       setError(null);
       setSuccess(null);
-      const next = await createAdminNotificationTemplate({
-        name: 'New Template',
-        type: 'Email',
-        status: 'Draft',
-      });
+      const next = await createAdminNotificationTemplate(values);
       setTemplates((prev) => [next, ...prev]);
+      setFormOpen(false);
       setSuccess('Template created successfully.');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Failed to create template');
@@ -2771,10 +2808,23 @@ export function SettingsNotificationTemplatesPage() {
   };
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="Notification templates" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Notification templates' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={handleCreateTemplate} disabled={saving || loading} icon={<Megaphone className="h-4 w-4" />}>{saving ? 'Saving...' : 'Add template'}</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Notification templates" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Notification templates' }]} activePath="/admin/settings" actions={<PrimaryButton onClick={openCreateTemplate} disabled={saving || loading} icon={<Megaphone className="h-4 w-4" />}>Add template</PrimaryButton>}>
       <Card className="p-4">
         {error && <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
         {success && <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div>}
+        {formOpen ? <form onSubmit={handleCreateTemplate} className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-white">Add notification template</h2><p className="mt-1 text-sm text-slate-400">All fields are required.</p></div><button type="button" onClick={() => setFormOpen(false)} className="text-sm text-slate-400 hover:text-white">Cancel</button></div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {([
+              ['name', 'Name'],
+              ['type', 'Type'],
+              ['subject', 'Subject'],
+            ] as const).map(([key, label]) => <label key={key} className="text-sm text-slate-300">{label} <span className="text-rose-300">*</span><input required value={form[key]} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white" />{fieldErrors[key] ? <span className="mt-1 block text-xs text-rose-300">{fieldErrors[key]}</span> : null}</label>)}
+            <label className="text-sm text-slate-300">Status <span className="text-rose-300">*</span><select required value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white"><option value="DRAFT">DRAFT</option><option value="ACTIVE">ACTIVE</option></select>{fieldErrors.status ? <span className="mt-1 block text-xs text-rose-300">{fieldErrors.status}</span> : null}</label>
+            <label className="text-sm text-slate-300 md:col-span-2">Message <span className="text-rose-300">*</span><textarea required value={form.message} onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))} rows={5} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white" />{fieldErrors.message ? <span className="mt-1 block text-xs text-rose-300">{fieldErrors.message}</span> : null}</label>
+          </div>
+          <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => setFormOpen(false)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">Cancel</button><PrimaryButton type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save template'}</PrimaryButton></div>
+        </form> : null}
         {loading ? <div className="text-sm text-slate-400">Loading templates...</div> : (
           <Table columns={[
             { key: 'name', label: 'Template' },
@@ -3076,7 +3126,116 @@ export function ReportsCommissionPage() { return <AdminShell title="Enterprise a
 export function ReportsFranchisePage() { return <AdminShell title="Enterprise admin" subtitle="Franchise report" breadcrumbs={[{ label: 'Admin' }, { label: 'Reports', to: '/admin/reports' }, { label: 'Franchise' }]} activePath="/admin/reports" actions={<PrimaryButton icon={<Download className="h-4 w-4" />}>Export</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Active franchises: 24</p><p>Revenue this month: ₹86.3L</p><p>Top performing city: Bengaluru</p></div></Card></AdminShell>; }
 
 export function ContentAnnouncementsPage() { return <AdminShell title="Enterprise admin" subtitle="Announcements" breadcrumbs={[{ label: 'Admin' }, { label: 'Content', to: '/admin/content' }, { label: 'Announcements' }]} activePath="/admin/content" actions={<PrimaryButton icon={<Megaphone className="h-4 w-4" />}>Announce</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'title', label: 'Title' }, { key: 'status', label: 'Status' }]} data={[{title:'New seller onboarding', status:'Published'}, {title:'Festival campaign', status:'Scheduled'}]} className="p-0" /></Card></AdminShell>; }
-export function ContentNotificationsPage() { return <AdminShell title="Enterprise admin" subtitle="Notifications" breadcrumbs={[{ label: 'Admin' }, { label: 'Content', to: '/admin/content' }, { label: 'Notifications' }]} activePath="/admin/content" actions={<PrimaryButton icon={<Bell className="h-4 w-4" />}>Send</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'title', label: 'Title' }, { key: 'status', label: 'Status' }]} data={[{title:'Auction reminder', status:'Active'}, {title:'Platform upgrade', status:'Draft'}]} className="p-0" /></Card></AdminShell>; }
+export function ContentNotificationsPage() {
+  const [history, setHistory] = useState<AdminNotificationRecord[]>([]);
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [form, setForm] = useState<{ title: string; message: string; type: NotificationType; audience: NotificationAudience; scheduledAt: string }>({ title: '', message: '', type: 'SYSTEM', audience: 'ALL_CUSTOMERS', scheduledAt: '' });
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<AdminNotificationRecord | null>(null);
+  const pageSize = 10;
+  const notificationTypes = ['SYSTEM', 'ADMIN_ANNOUNCEMENT', 'ADMIN_OFFER', 'ADMIN_FESTIVAL'] as const;
+
+  const loadHistory = async (nextPage = page) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await getAdminNotificationsPaginated(nextPage, pageSize);
+      setHistory(result.data as AdminNotificationRecord[]);
+      setPage(result.meta.page);
+      setTotal(result.meta.total);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to load notification history.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadHistory(1); }, []);
+
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        setTemplatesLoading(true);
+        setTemplates(await getAdminNotificationTemplates());
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'Unable to load notification templates.');
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
+    void loadTemplates();
+  }, []);
+
+  const selectTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find((item) => String(item.id) === templateId);
+    if (!template) return;
+    const normalizedType = String(template.type || '').trim().toUpperCase();
+    const type = normalizedType === 'FESTIVAL' ? 'ADMIN_FESTIVAL' : notificationTypes.includes(normalizedType as typeof notificationTypes[number]) ? normalizedType as NotificationType : form.type;
+    setForm((current) => ({ ...current, title: String(template.subject || template.name || ''), message: String(template.message || ''), type }));
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const title = form.title.trim();
+    const message = form.message.trim();
+    if (!title || !message) { setError('Title and message are required.'); return; }
+    const scheduledAt = form.scheduledAt.trim();
+    if (scheduledAt) {
+      const scheduledTime = new Date(scheduledAt);
+      if (Number.isNaN(scheduledTime.getTime()) || scheduledTime.getTime() <= Date.now()) {
+        setError('Scheduled time must be in the future.');
+        return;
+      }
+    }
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await createAdminNotification({ title, message, type: form.type, audience: form.audience, ...(scheduledAt ? { scheduledAt: scheduledAt.length === 16 ? `${scheduledAt}:00` : scheduledAt } : {}) });
+      setForm({ title: '', message: '', type: 'SYSTEM', audience: 'ALL_CUSTOMERS', scheduledAt: '' });
+      setSelectedTemplateId('');
+      setSuccess(scheduledAt ? 'Notification scheduled successfully.' : 'Notification sent successfully.');
+      await loadHistory(1);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to create notification.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <AdminShell title="Notifications" subtitle="Send announcements, offers, festival updates and important messages to your users." breadcrumbs={[{ label: 'Admin' }, { label: 'Notifications' }]} activePath="/admin/notifications">
+    <div className="space-y-6">
+      <Card className="p-6">
+        <div><h2 className="text-lg font-semibold text-white">Send Notification</h2><p className="mt-1 text-sm text-slate-400">Send announcements, offers, festival updates and important messages to your users.</p></div>
+        {error ? <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
+        {success ? <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</div> : null}
+        <form onSubmit={submit} className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="text-sm text-slate-300 md:col-span-2">Template (optional)<select value={selectedTemplateId} onChange={(event) => selectTemplate(event.target.value)} disabled={templatesLoading} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white"><option value="">Compose without a template</option>{templates.map((template) => <option key={String(template.id)} value={String(template.id)}>{template.name}</option>)}</select></label>
+          <label className="text-sm text-slate-300">Title / Subject<input required maxLength={200} value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white" /></label>
+          <label className="text-sm text-slate-300">Notification type<select required value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as NotificationType }))} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white">{notificationTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+          <label className="text-sm text-slate-300 md:col-span-2">Message<textarea required maxLength={2000} value={form.message} onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))} rows={4} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white" /></label>
+          <label className="text-sm text-slate-300">Audience<select value={form.audience} onChange={(event) => setForm((current) => ({ ...current, audience: event.target.value as NotificationAudience }))} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white"><option value="ALL_CUSTOMERS">All Customers</option><option value="ALL_VENDORS">All Vendors</option><option value="CUSTOMERS_AND_VENDORS">Customers + Vendors</option></select></label>
+          <label className="text-sm text-slate-300">Scheduled at (optional)<input type="datetime-local" value={form.scheduledAt} onChange={(event) => setForm((current) => ({ ...current, scheduledAt: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-white" /></label>
+          <div><PrimaryButton type="submit" disabled={saving} icon={<Bell className="h-4 w-4" />}>{saving ? 'Sending...' : 'Send notification'}</PrimaryButton></div>
+        </form>
+      </Card>
+      <Card className="p-4">
+        <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold text-white">Notification History</h2><SecondaryButton onClick={() => void loadHistory(page)} disabled={loading}>Refresh</SecondaryButton></div>
+        {loading ? <SkeletonTable /> : history.length === 0 ? <EmptyState title="No notifications yet" description="Created notifications will appear here." /> : <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="text-slate-400"><tr><th className="px-3 py-3">Title</th><th className="px-3 py-3">Type</th><th className="px-3 py-3">Audience</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Scheduled At</th><th className="px-3 py-3">Sent At</th><th className="px-3 py-3">Created At</th><th className="px-3 py-3">Actions</th></tr></thead><tbody className="text-slate-300">{history.map((item) => <tr key={String(item.id)} className="border-t border-white/6"><td className="px-3 py-3"><p className="font-medium text-white">{item.title}</p><p className="mt-1 max-w-sm truncate text-xs text-slate-500">{item.message}</p></td><td className="px-3 py-3">{item.type}</td><td className="px-3 py-3">{item.audience || 'Not provided'}</td><td className="px-3 py-3">{item.status || (item.scheduledAt ? 'Scheduled' : 'Sent')}</td><td className="px-3 py-3">{item.scheduledAt ? new Date(item.scheduledAt).toLocaleString() : 'Not scheduled'}</td><td className="px-3 py-3">{item.sentAt ? new Date(item.sentAt).toLocaleString() : 'Not sent'}</td><td className="px-3 py-3">{item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Not provided'}</td><td className="px-3 py-3"><SecondaryButton className="min-h-0 px-3 py-1.5 text-xs" onClick={() => setSelectedHistoryItem(item)}>View</SecondaryButton></td></tr>)}</tbody></table></div>}
+        {selectedHistoryItem ? <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300"><div className="flex items-start justify-between gap-4"><div><p className="font-semibold text-white">{selectedHistoryItem.title}</p><p className="mt-2 whitespace-pre-wrap">{selectedHistoryItem.message}</p><p className="mt-3 text-xs text-slate-500">{selectedHistoryItem.type} · {selectedHistoryItem.audience || 'Audience unavailable'}</p></div><button type="button" onClick={() => setSelectedHistoryItem(null)} className="text-slate-400 hover:text-white">Close</button></div></div> : null}
+        {total > pageSize ? <div className="mt-4 flex items-center justify-between text-sm text-slate-400"><span>Page {page}</span><div className="flex gap-2"><SecondaryButton disabled={page <= 1 || loading} onClick={() => void loadHistory(page - 1)}>Previous</SecondaryButton><SecondaryButton disabled={page * pageSize >= total || loading} onClick={() => void loadHistory(page + 1)}>Next</SecondaryButton></div></div> : null}
+      </Card>
+    </div>
+  </AdminShell>;
+}
 export function ContentFaqPage() { return <AdminShell title="Enterprise admin" subtitle="Content FAQ" breadcrumbs={[{ label: 'Admin' }, { label: 'Content', to: '/admin/content' }, { label: 'FAQ' }]} activePath="/admin/content" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add FAQ</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'question', label: 'Question' }, { key: 'status', label: 'Status' }]} data={[{question:'How do I sell?', status:'Published'}, {question:'How do I place a bid?', status:'Published'}]} className="p-0" /></Card></AdminShell>; }
 export function ContentHelpPage() { return <AdminShell title="Enterprise admin" subtitle="Help content" breadcrumbs={[{ label: 'Admin' }, { label: 'Content', to: '/admin/content' }, { label: 'Help' }]} activePath="/admin/content" actions={<PrimaryButton icon={<FileText className="h-4 w-4" />}>Publish</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'title', label: 'Title' }, { key: 'status', label: 'Status' }]} data={[{title:'Seller onboarding', status:'Published'}, {title:'Wallet help', status:'Draft'}]} className="p-0" /></Card></AdminShell>; }
 

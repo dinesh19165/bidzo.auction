@@ -212,10 +212,12 @@ export async function getProductById(id: number): Promise<ProductListItem> {
   }
 }
 
-export async function createBuyNowOrder(productId: number, addressId: number): Promise<any> {
+export async function createBuyNowOrder(productId: number, addressId: number, walletUsage?: number): Promise<any> {
+  const body: { quantity: number; addressId: number; walletUsage?: number } = { quantity: 1, addressId };
+  if (walletUsage !== undefined) body.walletUsage = walletUsage;
   const response = await fetchJson<ApiResponse<any>>(`/api/products/${productId}/buy-now`, {
     method: 'POST',
-    body: JSON.stringify({ quantity: 1, addressId }),
+    body: JSON.stringify(body),
   });
   
   // Handle different response structures

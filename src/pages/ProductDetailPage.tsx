@@ -5,11 +5,12 @@ import { SectionShell } from '../components/SectionShell';
 import { ProductCard } from '../components/cards/MarketplaceCards';
 import { getProductById, getProducts, type ProductListItem } from '../api/productApi';
 import { getProductReviews, type ReviewResponse } from '../api/reviewApi';
-import { getWishlist, notifyWishlistChanged, removeFromWishlist, toggleWishlist, type WishlistItemResponse } from '../api/wishlistApi';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
 import { ProductSpecification } from '../components/marketplace/MarketplaceComponents';
 import { showToast } from '../components/ui/toast';
 import { initializeBuyNowFlow } from '../utils/auctionFlowState';
+import { useAuth } from '../context/AuthContext';
+import { useWishlist } from '../context/WishlistContext';
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -21,8 +22,8 @@ export function ProductDetailPage() {
   const [reviews, setReviews] = useState<ReviewResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [wishlistByProductId, setWishlistByProductId] = useState<Record<number, WishlistItemResponse>>({});
-  const [favoritePending, setFavoritePending] = useState(false);
+  const { user } = useAuth();
+  const { getItem, isPending, toggle } = useWishlist();
 
   useEffect(() => {
     const idNum = Number(id);
@@ -55,78 +56,23 @@ export function ProductDetailPage() {
     loadProduct();
   }, [id]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    getWishlist()
-      .then((wishlist) => {
-        if (!isMounted) return;
-        setWishlistByProductId(
-          Object.fromEntries(
-            wishlist.map((item) => {
-              const key = item.itemType === 'AUCTION' ? (item.auctionId ?? item.productId) : item.productId;
-              return [key, item];
-            }),
-          ),
-        );
-      })
-      .catch(() => {
-        if (isMounted) {
-          setWishlistByProductId({});
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const currentProductWishlistItem = product
-    ? wishlistByProductId[product.isAuction ? (product.auctionId ?? product.id) : product.id]
-    : undefined;
+  const productWishlistParams = product ? { itemType: product.isAuction ? 'AUCTION' as const : 'PRODUCT' as const, productId: product.isAuction ? undefined : product.id, auctionId: product.isAuction ? product.auctionId : undefined } : null;
+  const currentProductWishlistItem = productWishlistParams ? getItem(productWishlistParams) : undefined;
+  const favoritePending = productWishlistParams ? isPending(productWishlistParams) : false;
 
   const toggleProductFavorite = async () => {
     if (!product || favoritePending) return;
 
-    setFavoritePending(true);
-
+    if (!user || (user.type !== 'customer' && user.role !== 'CUSTOMER')) {
+      navigate('/login');
+      return;
+    }
+    if (!productWishlistParams) return;
     try {
-      if (currentProductWishlistItem?.id) {
-        await removeFromWishlist(currentProductWishlistItem.id);
-        setWishlistByProductId((prev) => {
-          const next = { ...prev };
-          const key = product.isAuction ? (product.auctionId ?? product.id) : product.id;
-          delete next[key];
-          return next;
-        });
-        notifyWishlistChanged({
-          productId: product.isAuction ? undefined : product.id,
-          auctionId: product.isAuction ? product.auctionId : undefined,
-          wishlistId: currentProductWishlistItem.id,
-          saved: false,
-        });
-        showToast('Removed from favourites', 'The listing is no longer in your saved collection.', 'info');
-      } else {
-        const savedItem = await toggleWishlist({
-          itemType: product.isAuction ? 'AUCTION' : 'PRODUCT',
-          productId: product.isAuction ? undefined : product.id,
-          auctionId: product.isAuction ? product.auctionId : undefined,
-        });
-
-        const key = product.isAuction ? (product.auctionId ?? product.id) : product.id;
-        setWishlistByProductId((prev) => ({ ...prev, [key]: savedItem }));
-        notifyWishlistChanged({
-          productId: product.isAuction ? undefined : product.id,
-          auctionId: product.isAuction ? product.auctionId : undefined,
-          wishlistId: savedItem.id,
-          saved: true,
-        });
-        showToast('Added to favourites', 'Saved for your next bidding session.', 'success');
-      }
+      await toggle(productWishlistParams);
+      showToast(currentProductWishlistItem ? 'Removed from favourites' : 'Added to favourites', currentProductWishlistItem ? 'The listing is no longer in your saved collection.' : 'Saved for your next bidding session.', currentProductWishlistItem ? 'info' : 'success');
     } catch (error) {
       showToast('Unable to update favourites', error instanceof Error ? error.message : 'Please try again.', 'warning');
-    } finally {
-      setFavoritePending(false);
     }
   };
 
@@ -171,7 +117,7 @@ export function ProductDetailPage() {
   const handleBuyNow = () => {
     if (!product) return;
     const priceNum = Number(product.price.replace(/[^0-9.-]/g, '')) || 0;
-    initializeBuyNowFlow(product.id, product.title, priceNum);
+    initializeBuyNowFlow(product.id, product.title, priceNum, product.image);
     navigate('/customer/buynow-confirm');
   };
 
@@ -215,11 +161,11 @@ export function ProductDetailPage() {
                 decoding="async"
                 onMouseEnter={() => setZoom(true)}
                 onMouseLeave={() => setZoom(false)}
-                className={`h-72 w-full max-w-full rounded-[24px] object-cover transition-transform sm:h-96 ${zoom ? 'scale-105' : ''}`}
+                className={`aspect-[4/3] max-h-[420px] w-full max-w-full rounded-[24px] object-contain transition-transform ${zoom ? 'scale-105' : ''}`}
               />
               <div className="absolute right-4 top-4 inline-flex gap-2">
-                <button type="button" onClick={toggleProductFavorite} className="rounded-full bg-slate-950/75 p-2 text-slate-200 transition hover:bg-slate-900/90" aria-label="Toggle favorite">
-                  <Heart className={`h-4 w-4 transition ${currentProductWishlistItem ? 'text-rose-500' : ''}`} />
+                <button type="button" onClick={() => void toggleProductFavorite()} disabled={favoritePending} className="rounded-full bg-slate-950/75 p-2 text-slate-200 transition hover:bg-slate-900/90 disabled:cursor-wait disabled:opacity-60" aria-label="Toggle favorite" aria-busy={favoritePending}>
+                  <Heart className={`h-4 w-4 transition ${currentProductWishlistItem ? 'fill-current text-rose-500' : ''}`} />
                 </button>
                 <button type="button" onClick={handleShareProduct} className="rounded-full bg-slate-950/75 p-2 text-slate-200 transition hover:bg-slate-900/90" aria-label="Share product">
                   <Share2 className="h-4 w-4" />
@@ -239,8 +185,6 @@ export function ProductDetailPage() {
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button onClick={handleBuyNow} className="w-full rounded-full bg-blue-600 px-5 py-2.5 text-center text-sm font-medium text-white sm:w-auto hover:bg-blue-700">Buy now</button>
-            <Link to="/customer/wishlist" className="w-full rounded-full border border-white/10 px-5 py-2.5 text-center text-sm font-medium text-slate-200 sm:w-auto">Add to wishlist</Link>
-            <button className="w-full rounded-full border border-white/10 px-5 py-2.5 text-sm font-medium text-slate-200 sm:w-auto">Compare</button>
           </div>
 
           <div className="mt-6 grid gap-3 grid-cols-1 sm:grid-cols-3">
@@ -251,14 +195,14 @@ export function ProductDetailPage() {
         </div>
 
         <div className="w-full space-y-4">
-          <div className="rounded-[28px] border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/30">
+          <div className="rounded-[28px] border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-slate-950/30">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">{product.category}</p>
               <div className="rounded-full bg-amber-500/10 px-3 py-1 text-sm text-amber-300">★ {product.rating}</div>
             </div>
-            <h3 className="mt-3 text-3xl font-semibold text-white">{product.price}</h3>
+            <h3 className="mt-3 text-2xl font-semibold text-white">{product.price}</h3>
             <p className="mt-3 text-sm text-slate-300">{product.description}</p>
-            <div className="mt-5 grid gap-3 text-sm text-slate-300">
+            <div className="mt-4 grid gap-2 text-sm text-slate-300">
               <p><span className="text-slate-500">Seller:</span> {product.seller} {product.verified ? <span className="ml-2 inline-flex items-center gap-1 text-emerald-300">(Verified)</span> : null}</p>
               <p><span className="text-slate-500">Location:</span> {product.location}</p>
               <p><span className="text-slate-500">Condition:</span> {product.condition}</p>
@@ -324,9 +268,6 @@ export function ProductDetailPage() {
             <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">No similar products available.</div>
           ) : (
             similarProducts.map((item) => {
-              const wishlistKey = item.isAuction ? (item.auctionId ?? item.id) : item.id;
-              const wishlistEntry = wishlistByProductId[wishlistKey];
-
               return (
                 <ProductCard
                   key={item.id}
@@ -347,8 +288,6 @@ export function ProductDetailPage() {
                   wishlistItemType={item.isAuction ? 'AUCTION' : 'PRODUCT'}
                   wishlistProductId={item.isAuction ? undefined : item.id}
                   wishlistAuctionId={item.isAuction ? item.auctionId : undefined}
-                  wishlistRecordId={wishlistEntry?.id}
-                  initialFavorited={Boolean(wishlistEntry)}
                 />
               );
             })

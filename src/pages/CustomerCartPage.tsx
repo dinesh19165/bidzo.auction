@@ -90,12 +90,12 @@ export function CustomerCartPage() {
   return (
     <SectionShell title="Cart" subtitle="Review your Direct Buy items before checkout">
       {isLoading ? <p className="py-12 text-center text-slate-400">Loading your cart...</p> : error ? <p className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-5 text-rose-200">{error}</p> : cart.items.length === 0 ? (
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-12 text-center text-slate-400"><ShoppingBag className="mx-auto mb-4 h-10 w-10 text-slate-600" /><p>Your cart is empty</p></div>
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-8 text-center text-slate-400"><ShoppingBag className="mx-auto mb-3 h-10 w-10 text-slate-600" /><p>Your cart is empty</p></div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div className="space-y-4">
             {cart.items.map((item) => (
-              <div key={item.id} className="flex flex-wrap items-center gap-4 rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
+              <div key={item.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
                 <img src={item.productImageUrl || '/logo.png'} alt={item.productName} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/logo.png'; }} className="h-24 w-24 rounded-2xl object-cover" />
                 <div className="min-w-0 flex-1"><h3 className="font-semibold text-white">{item.productName}</h3><p className="mt-1 text-sm text-slate-400">₹{item.unitPrice.toLocaleString()} each</p></div>
                 <div className="flex items-center gap-2"><button type="button" aria-label="Decrease quantity" disabled={pendingItemId === item.id || item.quantity <= 1} onClick={() => handleQuantity(item.id, item.quantity - 1)} className="rounded-full border border-white/10 p-2 text-slate-200 disabled:opacity-40"><Minus className="h-4 w-4" /></button><span className="min-w-8 text-center text-white">{item.quantity}</span><button type="button" aria-label="Increase quantity" disabled={pendingItemId === item.id} onClick={() => handleQuantity(item.id, item.quantity + 1)} className="rounded-full border border-white/10 p-2 text-slate-200 disabled:opacity-40"><Plus className="h-4 w-4" /></button></div>
@@ -104,9 +104,9 @@ export function CustomerCartPage() {
               </div>
             ))}
           </div>
-          <aside className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <h2 className="text-lg font-semibold text-white">Cart summary</h2><div className="mt-5 flex justify-between text-sm text-slate-300"><span>Total</span><span className="text-xl font-semibold text-white">₹{cart.total.toLocaleString()}</span></div>
-            <div className="mt-6"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id} onSelect={setSelectedAddress} /></div>
+          <aside className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+            <h2 className="text-lg font-semibold text-white">Cart summary</h2><div className="mt-4 flex justify-between text-sm text-slate-300"><span>Total</span><span className="text-xl font-semibold text-white">₹{cart.total.toLocaleString()}</span></div>
+            <div className="mt-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id} onSelect={setSelectedAddress} /></div>
             {checkoutError ? <p className="mt-4 text-sm text-rose-200">{checkoutError}</p> : null}
             <button type="button" disabled={checkoutLoading} onClick={handleCheckout} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">{checkoutLoading ? 'Preparing payment...' : 'Checkout with Razorpay'}<ArrowRight className="h-4 w-4" /></button>
           </aside>

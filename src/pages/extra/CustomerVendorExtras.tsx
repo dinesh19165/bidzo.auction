@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
-import { BadgeCheck, BellRing, CreditCard, Heart, MapPin, MessageCircleMore, PackageCheck, ReceiptText, Search, Settings, ShieldCheck, Sparkles, Store, Wallet2, ChevronLeft, X, Check, Clock, Eye, MessageSquare } from 'lucide-react';
+import { ArrowRight, BadgeCheck, BellRing, CreditCard, Heart, MapPin, MessageCircleMore, PackageCheck, ReceiptText, Search, Settings, ShieldCheck, Sparkles, Store, Wallet2, ChevronLeft, X, Check, Clock, Eye, MessageSquare } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { Card } from '../../components/common/Card';
 import { Table } from '../../components/common/Table';
@@ -29,8 +29,10 @@ import { getProductReviews, getReviews, getReviewEligibility, createReview } fro
 import { getTransactions, type TransactionResponse } from '../../api/walletApi';
 import { getInvoices, type InvoiceResponse } from '../../api/invoiceApi';
 import { createSupportTicket, getSupportTickets, type SupportTicketResponse } from '../../api/supportApi';
-import { getWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
+import { WishlistPage } from '../WishlistPage';
 import { getConversations, getMessages, sendMessage, type ConversationResponse, type MessageResponse } from '../../api/messageApi';
+import { NotificationList } from '../../components/notifications/NotificationList';
+import { useNotificationContext } from '../../context/NotificationContext';
 
 
 
@@ -338,6 +340,21 @@ export function CustomerOrdersPage() {
     return filtered;
   }, [orders, filterStatus, searchTerm]);
 
+  const formatOrderDate = (order: OrderResponseDto) => {
+    const rawDate = order.orderDate || order.createdAt;
+    if (!rawDate) return null;
+    const date = new Date(rawDate);
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const statusClasses = (status: string | undefined) => {
+    const normalized = status?.toLowerCase();
+    if (normalized === 'delivered' || normalized === 'completed' || normalized === 'paid') return 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200';
+    if (normalized === 'cancelled' || normalized === 'failed') return 'border-rose-400/20 bg-rose-500/10 text-rose-200';
+    if (normalized === 'shipped' || normalized === 'out_for_delivery') return 'border-sky-400/20 bg-sky-500/10 text-sky-200';
+    return 'border-amber-400/20 bg-amber-500/10 text-amber-200';
+  };
+
   if (loading) {
     return (
       <SectionShell title="My orders" subtitle="Your shipment and delivery history">
@@ -356,19 +373,19 @@ export function CustomerOrdersPage() {
 
   return (
     <SectionShell title="My orders" subtitle="Your shipment and delivery history">
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="mx-auto w-full max-w-5xl space-y-4">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
           <input
             type="text"
             placeholder="Search orders..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+            className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3.5 text-sm text-white outline-none transition focus:border-blue-400/40 sm:max-w-md"
           />
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-blue-400/40"
+            className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3.5 text-sm text-white outline-none transition focus:border-blue-400/40 sm:w-auto sm:min-w-36"
           >
             <option value="all">All orders</option>
             <option value="pending">Pending</option>
@@ -381,20 +398,24 @@ export function CustomerOrdersPage() {
         {filteredOrders.length === 0 ? (
           <EmptyState title="No orders found" description="Your orders will appear here once you make a purchase." />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {filteredOrders.map((order) => (
               <Link
                 key={order.id}
                 to={`/customer/orders/${order.id}`}
-                className="flex flex-wrap items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-4 text-sm text-slate-300 transition hover:border-blue-400/40 hover:bg-slate-900/90"
+                className="grid gap-3 rounded-xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300 transition hover:border-blue-400/40 hover:bg-slate-900/90 sm:grid-cols-[minmax(0,1.25fr)_minmax(150px,0.75fr)_auto] sm:items-center"
               >
-                <div>
-                  <p className="font-semibold text-white">{order.orderNumber || `Order #${order.id}`}</p>
-                  <p className="mt-1 text-slate-400">{order.items?.length ? `${order.items.length} item${order.items.length > 1 ? 's' : ''}` : 'No items'}</p>
+                <div className="min-w-0">
+                  <p className="break-words font-semibold text-white">{formatOrderNumber(order)}</p>
+                  <p className="mt-1 text-xs text-slate-400">{order.items?.length ? `${order.items.length} item${order.items.length > 1 ? 's' : ''}` : 'No items'}</p>
+                  {order.items?.[0] ? <p className="mt-2 truncate text-xs text-slate-300">{getOrderProductName(order)}{order.items.length > 1 ? ` + ${order.items.length - 1} more` : ''}</p> : null}
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-white">₹{Number(order.totalAmount).toLocaleString()}</p>
-                  <p className="text-emerald-300">{order.orderStatus}</p>
+                <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
+                  <div><p className="font-semibold text-white">{getOrderTotal(order)}</p>{formatOrderDate(order) ? <p className="mt-1 text-xs text-slate-400">{formatOrderDate(order)}</p> : null}</div>
+                  <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusClasses(order.orderStatus)}`}>{order.orderStatus || 'N/A'}</span>
+                </div>
+                <div className="flex items-center justify-end border-t border-white/10 pt-3 sm:border-0 sm:pt-0">
+                  <span className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-sky-300">View Order <ArrowRight className="h-4 w-4" /></span>
                 </div>
               </Link>
             ))}
@@ -1046,16 +1067,7 @@ export function CustomerRecentlyViewedPage() {
 }
 
 export function CustomerWatchlistPage() {
-  const [items, setItems] = useState<WishlistItemResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => { getWishlist().then(setItems).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load watchlist.')).finally(() => setLoading(false)); }, []);
-
-  return (
-    <SectionShell title="Wishlist" subtitle="Items you want to track for future deals">
-      {loading ? <p className="text-slate-400">Loading watchlist...</p> : error ? <ErrorState title="Unable to load watchlist" description={error} /> : items.length === 0 ? <EmptyState title="Watchlist is empty" description="Add items to your watchlist to save them for later." /> : <div className="grid gap-4 md:grid-cols-2">{items.map((item) => <div key={item.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-6"><p className="font-semibold text-white">{item.title || item.product?.name || 'Saved item'}</p><p className="mt-2 text-sm text-slate-400">{item.description || item.product?.description || 'Saved marketplace item'}</p></div>)}</div>}
-    </SectionShell>
-  );
+  return <WishlistPage />;
 }
 
 export function CustomerSavedSearchesPage() {
@@ -4289,12 +4301,14 @@ export function VendorMessagesPage() {
 }
 
 export function VendorNotificationsPage() {
+  const { markAllRead } = useNotificationContext();
   return (
     <SectionShell title="Notifications" subtitle="Alerts for bids, order updates and payments" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Notifications' }]}>
       <div className="lg:flex lg:gap-6">
         <VendorSidebar />
         <main className="flex-1">
-          <EmptyState title="Vendor notifications unavailable" description="A vendor-specific notifications API is not currently available." />
+          <div className="mb-4 flex justify-end"><button type="button" onClick={() => void markAllRead()} className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">Mark all as read</button></div>
+          <NotificationList />
         </main>
       </div>
     </SectionShell>

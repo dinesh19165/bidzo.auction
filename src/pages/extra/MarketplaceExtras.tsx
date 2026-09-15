@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
+import { CategoryIcon } from '../../components/categories/CategoryIcon';
 import { categoryLabel, getCategories, type CategoryRecord } from '../../api/categoryApi';
 import { deduplicateMarketplaceResults, searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../../api/apiClient';
@@ -16,7 +17,7 @@ export function CategoriesPage() {
 
   return (
     <SectionShell title="Categories" subtitle="Browse by vertical and intent">
-      {loading ? <p className="py-8 text-center text-slate-400">Loading categories...</p> : error ? <ErrorState title="Unable to load categories" description={error} /> : categories.length === 0 ? <EmptyState title="No categories found" description="Categories will appear here when they are available." /> : <div className="grid gap-4 md:grid-cols-3">{categories.map((category) => <div key={category.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">{categoryLabel(category)}</div>)}</div>}
+      {loading ? <p className="py-4 text-center text-sm text-slate-400">Loading categories...</p> : error ? <ErrorState title="Unable to load categories" description={error} /> : categories.length === 0 ? <EmptyState title="No categories found" description="Categories will appear here when they are available." /> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">{categories.map((category) => <Link key={category.id} to={`/search?categoryId=${encodeURIComponent(String(category.id))}`} className="flex min-w-0 flex-col items-center gap-2 rounded-xl border border-white/10 bg-slate-900/70 p-3 text-center text-slate-300 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-slate-900 sm:p-4"><span className="flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-sky-200 sm:h-24 sm:w-24"><CategoryIcon iconUrl={category.iconUrl} className="h-14 w-14 sm:h-[72px] sm:w-[72px]" imageClassName="p-1" /></span><span className="line-clamp-2 min-h-10 w-full text-base font-semibold leading-5 text-white">{category.name}</span>{category.count !== undefined && category.count !== null ? <span className="text-xs text-slate-400">{String(category.count)} products</span> : null}</Link>)}</div>}
     </SectionShell>
   );
 }
@@ -31,7 +32,7 @@ export function SubCategoriesPage() {
 
   return (
     <SectionShell title="Sub categories" subtitle="Details for niche discovery">
-      {loading ? <p className="py-8 text-center text-slate-400">Loading sub categories...</p> : error ? <ErrorState title="Unable to load sub categories" description={error} /> : subCategories.length === 0 ? <EmptyState title="No sub categories found" description="Sub categories will appear here when they are available." /> : <div className="grid gap-4 md:grid-cols-3">{subCategories.map((category) => <div key={category.id} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">{categoryLabel(category)}</div>)}</div>}
+      {loading ? <p className="py-8 text-center text-slate-400">Loading sub categories...</p> : error ? <ErrorState title="Unable to load sub categories" description={error} /> : subCategories.length === 0 ? <EmptyState title="No sub categories found" description="Sub categories will appear here when they are available." /> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 lg:gap-4">{subCategories.map((category) => <Link key={category.id} to={`/search?categoryId=${encodeURIComponent(String(category.id))}`} className="flex min-h-[88px] items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-left text-slate-300 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-slate-900 sm:px-5"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-white">{category.name}</span>{category.count !== undefined && category.count !== null ? <span className="mt-1 block text-xs text-slate-400">{String(category.count)} products</span> : null}</span><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300"><CategoryIcon iconUrl={category.iconUrl} className="h-8 w-8" /></span></Link>)}</div>}
     </SectionShell>
   );
 }

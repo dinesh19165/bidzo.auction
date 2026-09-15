@@ -20,6 +20,20 @@ export interface SmsSettings {
   enabled: boolean;
 }
 
+export interface RewardsSettings {
+  referralEnabled?: boolean;
+  referrerRewardAmount?: number | string | null;
+  referredRewardAmount?: number | string | null;
+  loyaltyEnabled?: boolean;
+  loyaltyPointsPerAmount?: number | string | null;
+  loyaltyAmountUnit?: number | string | null;
+  loyaltyRedemptionEnabled?: boolean;
+  loyaltyPointsPerCurrency?: number | string | null;
+  enabled?: boolean;
+  settingsType?: string | null;
+}
+
+
 export type OtpDeliveryChannel = 'EMAIL' | 'SMS';
 
 export function normalizeOtpDeliveryChannel(value: unknown): OtpDeliveryChannel {
@@ -126,6 +140,23 @@ export async function updateAdminSmsSettings(payload: SmsSettings): Promise<SmsS
 export const getAdminSecuritySettings = () => getSetting('/api/admin/settings/getsecurity');
 export const updateAdminSecuritySettings = (payload: AdminSettingRecord) => updateSetting('/api/admin/settings/security', payload);
 
+export async function getAdminRewardsSettings(): Promise<RewardsSettings> {
+  const response = await fetchJson<ApiEnvelope<RewardsSettings>>('/api/admin/settings/get-rewards', { method: 'GET' });
+  const settings = unwrap(response, 'Failed to load rewards settings');
+  if (!settings || typeof settings !== 'object') throw new Error('Failed to load rewards settings');
+  return settings;
+}
+
+export async function updateAdminRewardsSettings(payload: RewardsSettings): Promise<RewardsSettings> {
+  const response = await fetchJson<ApiEnvelope<RewardsSettings>>('/api/admin/settings/rewards', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  const settings = unwrap(response, 'Failed to update rewards settings');
+  if (!settings || typeof settings !== 'object') throw new Error('Failed to update rewards settings');
+  return settings;
+}
+
 export const getAdminLocalizationSettings = () => getSetting('/api/admin/settings/getlocalization');
 export const updateAdminLocalizationSettings = (payload: AdminSettingRecord) => updateSetting('/api/admin/settings/localization', payload);
 
@@ -158,6 +189,8 @@ export interface NotificationTemplate {
   id: number | string;
   name: string;
   type: string;
+  subject: string;
+  message: string;
   status: 'Active' | 'Draft' | string;
   [key: string]: unknown;
 }
@@ -165,6 +198,8 @@ export interface NotificationTemplate {
 export interface NotificationTemplateRequest {
   name: string;
   type: string;
+  subject: string;
+  message: string;
   status: string;
   [key: string]: unknown;
 }

@@ -285,6 +285,7 @@ export type BuyNowFlowState = {
   flowStage: 'CONFIRM' | 'PAYMENT' | 'ORDER_SUCCESS' | 'INVOICE';
   productTitle: string;
   productPrice: number;
+  productImageUrl?: string;
   orderId?: number;
   addressId?: number;
   deliveryAddress?: string;
@@ -312,12 +313,13 @@ export function writeBuyNowFlowState(state: BuyNowFlowState) {
   window.localStorage.setItem(BUYNOW_FLOW_STORAGE_KEY, JSON.stringify(state));
 }
 
-export function initializeBuyNowFlow(productId: number, productTitle: string, productPrice: number): BuyNowFlowState {
+export function initializeBuyNowFlow(productId: number, productTitle: string, productPrice: number, productImageUrl?: string): BuyNowFlowState {
   const state: BuyNowFlowState = {
     productId,
     flowStage: 'CONFIRM',
     productTitle,
     productPrice,
+    productImageUrl,
   };
   writeBuyNowFlowState(state);
   return state;

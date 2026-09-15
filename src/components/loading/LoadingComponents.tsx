@@ -11,7 +11,7 @@ export function SkeletonDashboard() {
 }
 
 export function EmptyState({ title, description }: { title: string; description: string }) {
-  return <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-10 text-center"><p className="font-semibold text-white">{title}</p><p className="mt-2 text-sm text-slate-400">{description}</p></div>;
+  return <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center"><p className="font-semibold text-white">{title}</p><p className="mt-2 text-sm text-slate-400">{description}</p></div>;
 }
 
 export function ErrorState({ title, description }: { title: string; description: string }) {

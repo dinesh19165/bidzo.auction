@@ -9,6 +9,8 @@ export interface CategoryRecord {
   slug?: string;
   parentId?: number | string | null;
   status: CategoryStatus;
+  iconUrl?: string | null;
+  count?: number;
   featured?: boolean;
   description?: string;
   fields?: CategoryFieldDefinition[];
@@ -39,6 +41,7 @@ export interface CategoryCreateRequest {
   name: string;
   parentId?: number | string | null;
   status?: CategoryStatus;
+  iconUrl?: string | null;
   featured?: boolean;
 }
 
@@ -46,6 +49,7 @@ export interface CategoryUpdateRequest {
   name?: string;
   parentId?: number | string | null;
   status?: CategoryStatus;
+  iconUrl?: string | null;
   featured?: boolean;
 }
 
@@ -88,6 +92,7 @@ function normalizeCategories(value: unknown): CategoryRecord[] {
     ...category,
     name: String(category.name ?? category.title ?? '').trim(),
     status: normalizeCategoryStatus(category.status),
+    iconUrl: typeof category.iconUrl === 'string' ? category.iconUrl.trim() || null : null,
     fields: Array.isArray(category.fields) ? category.fields.map(normalizeCategoryField) : undefined,
   })).filter((category) => {
     const name = category.name;

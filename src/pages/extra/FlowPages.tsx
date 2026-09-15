@@ -17,7 +17,7 @@ import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } fro
 import { createVendorProduct, getVendorProducts, updateVendorProduct, type SellingType } from '../../api/vendorProductApi';
 import { createProductImage, createBuyNowOrder, getProducts, getProductById, type ProductListItem } from '../../api/productApi';
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
-import { getWishlist, notifyWishlistChanged, removeFromWishlist, type WishlistItemResponse } from '../../api/wishlistApi';
+import { WishlistPage } from '../WishlistPage';
 import { createAuction, getAuctions } from '../../api/auctionApi';
 import { getVendorProfile } from '../../api/vendorApi';
 import { getVendorAuctions } from '../../api/vendorAuctionApi';
@@ -219,10 +219,9 @@ export function CustomerProductPage() {
       <FlowBreadcrumbs steps={[{ label: 'Search', to: '/customer/search-products' }, { label: 'Category', to: '/customer/category' }, { label: 'Product', to: `/customer/product/${product.id}` }, { label: 'Seller', to: '/customer/seller/1' }]} />
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
-          <img src={product.image} alt={product.title} className="h-80 w-full rounded-[20px] object-cover" />
+          <img src={product.image} alt={product.title} className="aspect-[4/3] max-h-64 w-full rounded-[20px] object-contain" />
           <div className="mt-4 flex flex-wrap gap-3">
             <Link to="/customer/seller/1" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">View seller</Link>
-            <Link to="/customer/wishlist" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Add to wishlist</Link>
             <Link to="/customer/watch-auction" className="rounded-full bg-amber-500 px-4 py-2 text-sm font-medium text-slate-950">Watch auction</Link>
             <Link to="/customer/place-bid" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Place bid</Link>
           </div>
@@ -265,116 +264,7 @@ export function CustomerSellerPage() {
 }
 
 export function CustomerWishlistPage() {
-  const [wishlist, setWishlist] = useState<WishlistItemResponse[]>([]);
-  const [productsById, setProductsById] = useState<Record<number, ProductListItem>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadWishlist = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await getWishlist();
-        setWishlist(data);
-
-        try {
-          const products = await getProducts();
-          setProductsById(Object.fromEntries(products.map((product) => [product.id, product])));
-        } catch {
-          setProductsById({});
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load wishlist');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadWishlist();
-  }, []);
-
-  useEffect(() => {
-    const handleWishlistChanged = (event: Event) => {
-      const detail = (event as CustomEvent<{ wishlistId?: number; productId?: number; saved: boolean }>).detail;
-      if (!detail.saved) {
-        setWishlist((current) => current.filter((item) => item.id !== detail.wishlistId && item.productId !== detail.productId));
-      }
-    };
-    window.addEventListener('bidzo:wishlist-changed', handleWishlistChanged);
-    return () => window.removeEventListener('bidzo:wishlist-changed', handleWishlistChanged);
-  }, []);
-
-  const items = wishlist;
-
-  if (isLoading) {
-    return (
-      <SectionShell title="Wishlist" subtitle="Saved products and auctions you want to follow">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-600 border-t-blue-500"></div>
-            <p className="mt-4 text-slate-400">Loading your wishlist...</p>
-          </div>
-        </div>
-      </SectionShell>
-    );
-  }
-
-  if (error) {
-    return (
-      <SectionShell title="Wishlist" subtitle="Saved products and auctions you want to follow">
-        <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-6 text-slate-300">
-          <p className="text-sm font-medium text-rose-200">Wishlist Error</p>
-          <p className="mt-2">{error}</p>
-        </div>
-      </SectionShell>
-    );
-  }
-
-  return (
-    <SectionShell title="Wishlist" subtitle="Saved products and auctions you want to follow">
-      <FlowBreadcrumbs steps={[{ label: 'Product', to: '/customer/product/1' }, { label: 'Wishlist', to: '/customer/wishlist' }, { label: 'Auction', to: '/customer/watch-auction' }]} />
-      {items && items.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {items.map((item) => {
-            const catalogProduct = productsById[item.productId];
-            const wishlistProduct = item.product;
-            const productId = catalogProduct?.id ?? wishlistProduct?.id;
-            const title = catalogProduct?.title || wishlistProduct?.name || item.title || 'Wishlist item';
-            const description = catalogProduct?.description || wishlistProduct?.description || item.description || 'Saved item';
-            const price = Number(catalogProduct?.price ?? wishlistProduct?.price ?? item.price ?? 0);
-            const image = catalogProduct?.image || item.imageUrl || wishlistProduct?.imageUrl || wishlistProduct?.image || '/logo.png';
-
-            return (
-              <div key={item.id || productId || title} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
-                <img src={image} alt={title} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/logo.png'; }} className="mb-4 h-40 w-full rounded-[20px] object-cover" />
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-white">{title}</p>
-                  <button type="button" onClick={async () => {
-                    await removeFromWishlist(item.id);
-                    setWishlist((current) => current.filter((candidate) => candidate.id !== item.id));
-                    notifyWishlistChanged({ productId: item.productId, auctionId: item.auctionId, wishlistId: item.id, saved: false });
-                  }} aria-label="Remove from wishlist">
-                    <Heart className="h-4 w-4 text-amber-300" />
-                  </button>
-                </div>
-                <p className="mt-2 text-sm text-slate-400">{description}</p>
-                <p className="mt-4 text-lg font-semibold text-white">₹{price.toLocaleString()}</p>
-                <div className="mt-4 flex gap-3">
-                  <Link to="/customer/watch-auction" className="rounded-full bg-amber-500 px-4 py-2 text-sm font-medium text-slate-950">Watch</Link>
-                  <Link to="/customer/place-bid" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Bid</Link>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-12 text-center">
-          <Heart className="mx-auto h-12 w-12 text-slate-600" />
-          <p className="mt-4 text-slate-400">Your wishlist is empty</p>
-        </div>
-      )}
-    </SectionShell>
-  );
+  return <WishlistPage />;
 }
 
 export function CustomerWatchAuctionPage() {
@@ -519,7 +409,7 @@ export function CustomerWatchAuctionPage() {
     <SectionShell title="Watch auction" subtitle="Follow live bidding events and be ready to act">
       <FlowBreadcrumbs steps={[{ label: 'Wishlist', to: '/customer/wishlist' }, { label: 'Watch', to: '/customer/watch-auction' }, { label: 'Bid', to: '/customer/place-bid' }]} />
       <AuctionFlowProgress currentStep="details" statusMessage="Step 1 of 6 – Review Details" />
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+      <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.24em] text-amber-300">Live countdown</p>
@@ -1340,7 +1230,7 @@ export function CustomerCheckoutPage() {
     <SectionShell title="Checkout" subtitle="Complete your purchase with address, shipping and payment steps">
       <FlowBreadcrumbs steps={[{ label: 'Winner', to: '/customer/winner' }, { label: 'Checkout', to: '/customer/checkout' }, { label: 'Address', to: '/customer/address' }]} />
       <AuctionFlowProgress currentStep="payment" statusMessage="Step 6 of 6 – Payment Required" />
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+      <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
         <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
           <div>
             <p className="font-semibold text-white">{flowState.auctionTitle || 'Auction item unavailable'}</p>
@@ -1348,7 +1238,7 @@ export function CustomerCheckoutPage() {
           </div>
           <span className="text-white">{flowState.highestBid > 0 ? `₹${flowState.highestBid.toLocaleString()}` : 'Not available'}</span>
         </div>
-        <div className="mt-5 flex flex-wrap gap-3">
+        <div className="mt-4 flex flex-wrap gap-3">
           <Link to="/customer/address" className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue</Link>
         </div>
       </div>
@@ -1381,7 +1271,7 @@ export function CustomerAddressPage() {
   return (
     <SectionShell title="Address" subtitle="Choose where your order should be delivered">
       <FlowBreadcrumbs steps={[{ label: 'Checkout', to: '/customer/checkout' }, { label: 'Address', to: '/customer/address' }, { label: 'Shipping', to: '/customer/shipping' }]} />
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={setSelectedAddress} /></div>
+      <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={setSelectedAddress} /></div>
       {!selectedAddress ? <p className="mt-4 text-sm text-amber-300">Please select a delivery address before continuing to payment.</p> : null}
       <button type="button" disabled={!selectedAddress} onClick={() => { const next = writeAuctionFlowState({ ...readAuctionFlowState(), addressId: selectedAddress!.id }); navigate('/customer/shipping'); }} className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">Continue to shipping <ArrowRight className="h-4 w-4" /></button>
     </SectionShell>
@@ -1407,7 +1297,7 @@ export function CustomerShippingPage() {
   return (
     <SectionShell title="Shipping method" subtitle="Choose an express or standard delivery mode">
       <FlowBreadcrumbs steps={[{ label: 'Address', to: '/customer/address' }, { label: 'Shipping', to: '/customer/shipping' }, { label: 'Payment', to: '/customer/payment' }]} />
-      <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-6 text-center text-slate-400">Shipping calculated at checkout.</div>
+      <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-center text-slate-400">Shipping calculated at checkout.</div>
       <button type="button" onClick={continueToPayment} className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Continue to payment <ArrowRight className="h-4 w-4" /></button>
     </SectionShell>
   );
@@ -1649,7 +1539,7 @@ export function CustomerPaymentPage() {
   return (
     <SectionShell title="Payment" subtitle="Choose a secure payment method for your order">
       <FlowBreadcrumbs steps={[{ label: 'Shipping', to: '/customer/shipping' }, { label: 'Payment', to: '/customer/payment' }, { label: 'Success', to: '/customer/order-success' }]} />
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-slate-300">
+      <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-slate-300">
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-4">
           <div>
             <p className="text-sm text-slate-400">Order</p>
@@ -1664,16 +1554,16 @@ export function CustomerPaymentPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3 mt-6">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
           <p className="font-semibold text-white">UPI • Razorpay</p>
           <p className="mt-3 text-slate-400">Pay securely through Razorpay with your preferred UPI app.</p>
         </div>
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
           <p className="font-semibold text-white">Order ID</p>
           <p className="mt-3 text-slate-400">{paymentData?.razorpayOrderId || 'Preparing...'}</p>
         </div>
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300">
           <p className="font-semibold text-white">Payment processor</p>
           <p className="mt-3 text-slate-400">Razorpay Checkout</p>
         </div>
@@ -1681,7 +1571,7 @@ export function CustomerPaymentPage() {
 
       {error && (
         <div className="mt-6">
-          <div className="rounded-[24px] border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-200">
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
             <p className="font-semibold">Payment error</p>
             <p className="mt-1 text-red-300">{error}</p>
           </div>
@@ -1692,7 +1582,7 @@ export function CustomerPaymentPage() {
         type="button"
         onClick={openRazorpayCheckout}
         disabled={!paymentData || processing}
-        className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-600"
+        className="mt-4 inline-flex min-h-[46px] items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-600"
       >
         {processing ? 'Processing payment...' : 'Pay with Razorpay'}
         <ArrowRight className="h-4 w-4" />

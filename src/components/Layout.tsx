@@ -3,12 +3,15 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
+import { Bell, Check, ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
 import { Footer } from './Footer';
+import { CategoryIcon } from './categories/CategoryIcon';
 import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
+import { NotificationList } from './notifications/NotificationList';
+import { useNotificationContext } from '../context/NotificationContext';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -19,6 +22,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const headerDropdownsRef = useRef<HTMLDivElement>(null);
   const mobileProfileRef = useRef<HTMLDivElement>(null);
+  const categoryMenuRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useThemeContext();
   const { language, currency, languageLabel, currencyLabel, setLanguage, setCurrency, translate, formatCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
@@ -26,6 +30,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [headerSearch, setHeaderSearch] = useState('');
   const [headerCategory, setHeaderCategory] = useState('');
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -87,22 +92,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   useEffect(() => {
-    if (!languageMenuOpen && !currencyMenuOpen && !mobileProfileOpen) {
+    if (!languageMenuOpen && !currencyMenuOpen && !mobileProfileOpen && !categoryMenuOpen) {
       return;
     }
 
     const handleOutsidePointer = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!headerDropdownsRef.current?.contains(target) && !mobileProfileRef.current?.contains(target)) {
+      if (!headerDropdownsRef.current?.contains(target) && !mobileProfileRef.current?.contains(target) && !categoryMenuRef.current?.contains(target)) {
         setLanguageMenuOpen(false);
         setCurrencyMenuOpen(false);
         setMobileProfileOpen(false);
+        setCategoryMenuOpen(false);
       }
     };
 
     document.addEventListener('pointerdown', handleOutsidePointer);
     return () => document.removeEventListener('pointerdown', handleOutsidePointer);
-  }, [languageMenuOpen, currencyMenuOpen, mobileProfileOpen]);
+  }, [languageMenuOpen, currencyMenuOpen, mobileProfileOpen, categoryMenuOpen]);
 
   return (
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
@@ -209,15 +215,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-stretch gap-3 lg:flex">
-            <label className={`flex w-[28%] min-w-[180px] max-w-[260px] flex-col justify-center rounded-2xl border px-3 py-1.5 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
-              <span className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Category</span>
-              <select aria-label="Category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} title={categoriesError ?? undefined} className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
-                <option value="">All Categories</option>
-                {categoriesLoading ? <option disabled>Loading categories...</option> : marketplaceCategories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}
-              </select>
-            </label>
-            <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-2xl border px-3 py-1.5 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
-              <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+            <div ref={categoryMenuRef} className="relative min-w-0 flex-1 basis-[360px]">
+              <button type="button" aria-label="Category" aria-haspopup="listbox" aria-expanded={categoryMenuOpen} onClick={() => setCategoryMenuOpen((value) => !value)} onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCategoryMenuOpen(true); } }} title={categoriesError ?? undefined} className={`flex h-[60px] min-h-[60px] max-h-[60px] w-full items-center justify-between gap-2 rounded-2xl border px-3 text-left transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-100' : 'border-slate-200 bg-white text-slate-900 shadow-sm'}`}>
+                <span className="flex min-w-0 items-center gap-2"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-700'}`}><CategoryIcon iconUrl={marketplaceCategories.find((item) => String(item.id) === headerCategory)?.iconUrl} className="h-7 w-7" imageClassName="h-8 w-8 p-0" /></span><span className="truncate text-sm">{marketplaceCategories.find((item) => String(item.id) === headerCategory)?.name || 'All Categories'}</span></span><ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+              </button>
+              {categoryMenuOpen ? <div role="listbox" aria-label="Categories" onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); }} className={`absolute left-0 top-full z-[60] mt-2 max-h-80 w-full overflow-y-auto overflow-x-hidden rounded-2xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'}`}>
+                <button type="button" role="option" aria-selected={!headerCategory} onClick={() => { setHeaderCategory(''); setCategoryMenuOpen(false); }} className={`flex min-h-[60px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${!headerCategory ? 'bg-blue-500/10 text-blue-200' : theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"><CategoryIcon className="h-9 w-9" /></span><span className="truncate">All Categories</span></button>
+                {categoriesLoading ? <p className="px-3 py-2 text-xs text-slate-400">Loading categories...</p> : marketplaceCategories.map((item) => <button key={item.id} type="button" role="option" aria-selected={String(item.id) === headerCategory} onClick={() => { setHeaderCategory(String(item.id)); setCategoryMenuOpen(false); }} className={`flex min-h-[60px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${String(item.id) === headerCategory ? 'bg-blue-500/10 text-blue-200' : theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"><CategoryIcon iconUrl={item.iconUrl} className="h-9 w-9" imageClassName="h-10 w-10 p-0" /></span><span className="truncate">{item.name}</span></button>)}
+              </div> : null}
+            </div>
+            <div className={`flex h-[60px] min-h-[60px] max-h-[60px] min-w-0 flex-1 basis-[360px] items-center gap-2 rounded-2xl border px-3 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
+              <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex h-12 min-h-0 w-12 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                 <Search className="h-4 w-4" />
               </button>
               <input
@@ -228,7 +236,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 placeholder="Search products, auctions, sellers..."
                 className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
               />
-              <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+              <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex h-12 min-h-0 w-12 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                 <Mic className="h-4 w-4" />
               </button>
             </div>
@@ -295,16 +303,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        {showMarketplaceControls ? <nav className={`border-t px-4 py-1 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
-          <div className="mx-auto flex flex-wrap items-center gap-2 sm:flex-row">
-            <Link to="/auctions" className={`inline-flex min-h-[34px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-semibold transition ${isLiveAuctionsPage
+        {showMarketplaceControls ? <nav className={`border-t px-4 py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
+          <div className="mx-auto flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+            <Link to="/auctions" className={`inline-flex min-h-[44px] items-center justify-center whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm lg:px-5 ${isLiveAuctionsPage
               ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
               : theme === 'dark'
                 ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
                 : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
               Live Auctions
             </Link>
-            <Link to="/marketplace" className={`inline-flex min-h-[34px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-semibold transition ${isDirectBuyPage
+            <Link to="/marketplace" className={`inline-flex min-h-[44px] items-center justify-center whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm lg:px-5 ${isDirectBuyPage
               ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
               : theme === 'dark'
                 ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
@@ -369,10 +377,16 @@ function AuthActions() {
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const notificationTriggerRef = useRef<HTMLDivElement>(null);
+  const notificationPanelRef = useRef<HTMLDivElement>(null);
+  const [notificationPosition, setNotificationPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const displayName = user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || 'User';
   const initials = user ? displayName.split(/\s+/).map((s) => s[0]).slice(0, 2).join('').toUpperCase() : '';
   const isAdmin = isAdminUser(user);
   const isCustomer = user?.type === 'customer' || user?.role === 'CUSTOMER';
+  const isNotificationUser = user?.type === 'customer' || user?.type === 'vendor';
+  const { unreadCount, items, loading, error, refresh, markRead } = useNotificationContext();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -389,6 +403,52 @@ function AuthActions() {
     document.addEventListener('pointerdown', handleOutsidePointer);
     return () => document.removeEventListener('pointerdown', handleOutsidePointer);
   }, [open]);
+
+  useEffect(() => {
+    if (!notificationsOpen) {
+      return;
+    }
+
+    const handleOutsideNotificationPointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!notificationTriggerRef.current?.contains(target) && !notificationPanelRef.current?.contains(target)) {
+        setNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsideNotificationPointer);
+    return () => document.removeEventListener('pointerdown', handleOutsideNotificationPointer);
+  }, [notificationsOpen]);
+
+  useLayoutEffect(() => {
+    if (!notificationsOpen || !notificationTriggerRef.current) {
+      return;
+    }
+
+    const updateNotificationPosition = () => {
+      const triggerRect = notificationTriggerRef.current?.getBoundingClientRect();
+      if (!triggerRect) {
+        return;
+      }
+
+      const safeMargin = 12;
+      const viewportWidth = document.documentElement.clientWidth;
+      const width = Math.min(380, Math.max(0, viewportWidth - safeMargin * 2));
+      const left = Math.min(
+        Math.max(safeMargin, triggerRect.right - width),
+        Math.max(safeMargin, viewportWidth - safeMargin - width),
+      );
+      setNotificationPosition({ top: triggerRect.bottom + 8, left, width });
+    };
+
+    updateNotificationPosition();
+    window.addEventListener('resize', updateNotificationPosition);
+    window.addEventListener('scroll', updateNotificationPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateNotificationPosition);
+      window.removeEventListener('scroll', updateNotificationPosition, true);
+    };
+  }, [notificationsOpen]);
 
   useLayoutEffect(() => {
     if (!open || !profileRef.current || !menuRef.current) {
@@ -432,6 +492,55 @@ function AuthActions() {
 
   return (
     <div ref={profileRef} className="flex items-center gap-3">
+      {isNotificationUser ? <div ref={notificationTriggerRef} className="relative">
+        <button type="button" aria-label="Notifications" onClick={() => { setNotificationsOpen((value) => !value); if (!notificationsOpen) void refresh(); }} className="relative inline-flex items-center justify-center rounded-full border border-white/10 bg-slate-900/80 p-2 text-slate-200 hover:bg-white/10">
+          <Bell className="h-4 w-4" />
+          {unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
+        </button>
+        {notificationsOpen ? createPortal(
+          <div
+            ref={notificationPanelRef}
+            style={{
+              position: 'fixed',
+              top: notificationPosition?.top ?? 12,
+              left: notificationPosition?.left ?? 12,
+              width: notificationPosition?.width ?? 380,
+              maxWidth: 'calc(100vw - 24px)',
+              visibility: notificationPosition ? 'visible' : 'hidden',
+            }}
+            className="z-[60] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <p className="text-sm font-semibold text-white">Notifications</p>
+              <Link to={user?.type === 'vendor' ? '/vendor/notifications' : '/customer/notifications'} onClick={() => setNotificationsOpen(false)} className="text-xs font-medium text-blue-300 hover:text-blue-200">View all</Link>
+            </div>
+            {loading ? (
+              <div className="flex h-28 items-center justify-center px-4 text-sm text-slate-400">Loading notifications...</div>
+            ) : error ? (
+              <div className="px-4 py-5 text-sm text-rose-200"><p className="break-words">{error}</p><button type="button" onClick={() => void refresh()} className="mt-3 text-xs font-medium text-blue-300 hover:text-blue-200">Retry</button></div>
+            ) : items.length === 0 ? (
+              <div className="flex h-36 flex-col items-center justify-center px-4 text-center"><Bell className="mb-2 h-6 w-6 text-slate-500" /><p className="text-sm font-medium text-slate-300">No notifications yet.</p><p className="mt-1 text-xs text-slate-500">You're all caught up.</p></div>
+            ) : (
+              <div className="max-h-[420px] overflow-y-auto overflow-x-hidden p-2">
+                {items.slice(0, 5).map((item) => (
+                  <button key={String(item.id)} type="button" onClick={() => void markRead(item)} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:bg-white/10 ${item.isRead ? 'border-transparent bg-white/[0.03]' : 'border-blue-400/20 bg-blue-500/[0.09]'}`}>
+                    <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${item.isRead ? 'bg-white/10 text-slate-400' : 'bg-blue-400/15 text-blue-300'}`}><Bell className="h-4 w-4" /></span>
+                    <span className="min-w-0 flex-1" style={{ wordBreak: 'normal', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
+                      <span className="block text-sm font-medium text-white" style={{ wordBreak: 'normal', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{item.title}</span>
+                      <span className="mt-1 block line-clamp-2 text-xs leading-5 text-slate-400" style={{ wordBreak: 'normal', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{item.message}</span>
+                      <span className="mt-2 block text-[11px] text-slate-500">{item.type} <span aria-hidden="true">•</span> {new Date(item.createdAt).toLocaleString()}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-white/10 px-4 py-3">
+              <Link to={user?.type === 'vendor' ? '/vendor/notifications' : '/customer/notifications'} onClick={() => setNotificationsOpen(false)} className="flex items-center justify-center text-xs font-medium text-blue-300 hover:text-blue-200">View all notifications <span aria-hidden="true" className="ml-1">→</span></Link>
+            </div>
+          </div>,
+          document.body,
+        ) : null}
+      </div> : null}
       {user && isCustomer ? (
         <Link to="/customer/cart" className="inline-flex items-center justify-center rounded-full bg-blue-600 p-2 text-white transition hover:bg-blue-500">
           <ShoppingBag className="h-4 w-4" />
@@ -468,7 +577,8 @@ function AuthActions() {
                     <>
                       <Link to="/customer/orders" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>
                       <Link to="/customer/wishlist" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wishlist</Link>
-                      <Link to="/wallet" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
+                      <Link to="/customer/wallet" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
+                      <Link to="/customer/rewards" className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Rewards / Referral &amp; Earn</Link>
                     </>
                   ) : null}
                 </>

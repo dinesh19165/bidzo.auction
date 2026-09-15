@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle2, CreditCard, Download, Loader2, Printer } from 'lucide-react';
+import { CheckCircle2, CreditCard, Download, Info, Loader2, MapPin, PackageCheck, Printer, ShieldCheck } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { useAuth } from '../../context/AuthContext';
 import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentApi';
@@ -9,6 +9,7 @@ import { createProductImage, createBuyNowOrder } from '../../api/productApi';
 import { getOrderById } from '../../api/orderApi';
 import { readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 import { loadRazorpay, type RazorpayInstance, type RazorpayOptions, type RazorpayPaymentResponse } from '../../utils/razorpay';
+import { getWalletLedger } from '../../api/customerWalletApi';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
 import type { AddressResponse } from '../../api/addressApi';
 
@@ -20,7 +21,7 @@ function FlowTransitionScreen({ heading, message, detail }: { heading: string; m
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.35 }}
-        className="mx-auto mt-10 flex max-w-3xl flex-col items-center justify-center gap-4 rounded-[24px] border border-white/10 bg-slate-900/70 p-10 text-center text-slate-300"
+        className="mx-auto mt-6 flex max-w-3xl flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-6 text-center text-slate-300"
       >
         <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-slate-950/60">
           <Loader2 className="h-10 w-10 animate-spin text-blue-300" />
@@ -41,6 +42,19 @@ export function BuyNowConfirmPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [useWallet, setUseWallet] = useState(false);
+  const [walletUsage, setWalletUsage] = useState('');
+
+  useEffect(() => {
+    getWalletLedger().then((ledger) => {
+      const balance = Number(ledger.balance);
+      if (Number.isFinite(balance)) {
+        setWalletBalance(balance);
+        setWalletUsage(String(balance));
+      }
+    }).catch(() => setWalletBalance(null));
+  }, []);
 
   if (!flowState.productId) {
     return <Navigate to="/marketplace" replace />;
@@ -62,7 +76,8 @@ export function BuyNowConfirmPage() {
 
     try {
       // Create order via buy-now endpoint
-      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id);
+      const requestedWalletUsage = useWallet && walletUsage.trim() ? Number(walletUsage) : undefined;
+      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id, requestedWalletUsage);
       
       if (!orderData) {
         setError('No order data returned from server');
@@ -74,6 +89,13 @@ export function BuyNowConfirmPage() {
         console.error('Order data received but missing id:', orderData);
         setError('Failed to retrieve order ID from response');
         setLoading(false);
+        return;
+      }
+
+      if (orderData.paymentRequired === false) {
+        markBuyNowOrderConfirmed(orderData.id, orderData.deliveryAddress);
+        writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress });
+        navigate('/customer/buynow-success');
         return;
       }
 
@@ -92,57 +114,53 @@ export function BuyNowConfirmPage() {
   };
 
   return (
-    <SectionShell title="Confirm Order" subtitle={`Review your purchase`}>
-      <div className="mx-auto max-w-2xl">
+    <SectionShell title="Order summary" subtitle="Review your purchase">
+      <div className="mx-auto w-full max-w-[1240px]">
+        <div className="mb-3 flex items-center justify-between gap-2 border-b border-white/10 px-1 pb-3 sm:px-2">
+          {[['Address', true], ['Order Summary', true], ['Payment', false]].map(([label, current], index) => (
+            <div key={label as string} className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${current ? 'bg-sky-400 text-slate-950' : 'border border-white/20 text-slate-500'}`}>{current ? '✓' : index + 1}</div>
+              <span className={`truncate text-xs font-semibold sm:text-sm ${current ? 'text-white' : 'text-slate-500'}`}>{label}</span>
+              {index < 2 ? <span className="ml-auto h-px flex-1 bg-white/10" /> : null}
+            </div>
+          ))}
+        </div>
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8"
+          className="w-full"
         >
-          <div className="space-y-6">
-            {/* Product Summary */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h3 className="text-xl font-semibold text-white">{flowState.productTitle}</h3>
-              <div className="mt-4 flex items-baseline gap-2">
-                <span className="text-4xl font-bold text-emerald-400">₹{flowState.productPrice.toLocaleString()}</span>
-              </div>
-              <p className="mt-2 text-sm text-slate-400">Direct purchase - No bidding required</p>
+          <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,7.2fr)_minmax(280px,2.8fr)]">
+            <div className="min-w-0 space-y-3">
+              <section className="border-b border-white/10 px-1 py-2.5 sm:px-2 sm:py-3">
+                <div className="mb-1.5 flex items-center gap-2"><MapPin className="h-4 w-4 text-sky-300" /><h3 className="text-sm font-bold text-white">Delivery address</h3></div>
+                <DeliveryAddressSelector compact selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={(address) => { setSelectedAddress(address); setError(null); }} />
+              </section>
+
+              {walletBalance !== null ? <section className="rounded-lg border border-white/10 bg-slate-900/70 p-3"><div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-white">Wallet</h3><p className="mt-1 text-xs text-slate-400">Balance: ₹{walletBalance.toLocaleString('en-IN')}</p></div><label className="flex items-center gap-2 text-sm text-slate-200"><input type="checkbox" checked={useWallet} onChange={(event) => setUseWallet(event.target.checked)} /> Use wallet</label></div>{useWallet ? <label className="mt-2 block text-sm text-slate-300">Wallet usage<input inputMode="decimal" value={walletUsage} onChange={(event) => setWalletUsage(event.target.value.replace(/[^0-9.]/g, ''))} className="mt-1 h-9 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-white outline-none focus:border-blue-400/40" /></label> : null}<p className="mt-2 text-xs text-slate-500">The backend validates usage and calculates remaining payment.</p></section> : null}
+
+              <section className="border-b border-white/10 px-1 py-2.5 sm:px-2 sm:py-3">
+                <div className="mb-1.5 flex items-center gap-2"><PackageCheck className="h-4 w-4 text-sky-300" /><h3 className="text-sm font-bold text-white">Product details</h3></div>
+                <div className="flex min-w-0 gap-4">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-950/50">
+                    <img src={flowState.productImageUrl || '/logo.png'} alt={flowState.productTitle} className="h-full w-full object-contain p-2" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/logo.png'; }} />
+                  </div>
+                  <div className="min-w-0 flex-1"><h3 className="break-words text-base font-semibold leading-snug text-white sm:text-lg">{flowState.productTitle}</h3><div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"><span className="text-slate-400">Quantity: 1</span><span className="font-bold text-white">₹{flowState.productPrice.toLocaleString('en-IN')}</span></div></div>
+                </div>
+              </section>
+
+              <section className="flex items-start gap-2 rounded-lg border border-white/10 bg-slate-900/50 p-3 text-xs text-slate-400"><Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><p>Delivery and applicable charges are handled by the existing order calculation.</p></section>
             </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <h4 className="font-semibold text-white">Delivery Address</h4>
-                <div className="mt-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={setSelectedAddress} /></div>
-              </div>
-
-            {/* Buyer Info */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h4 className="font-semibold text-white">Buyer Information</h4>
-              <div className="mt-3 space-y-2 text-sm text-slate-300">
-                <p>Name: {user?.name || 'Not provided'}</p>
-                <p>Email: {user?.email || 'Not provided'}</p>
-                <p>Phone: {user?.phone || 'Not provided'}</p>
-              </div>
-            </div>
-
-            {/* Order Summary */}
-            <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">Subtotal</span>
-                <span className="text-white">₹{flowState.productPrice.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">Shipping</span>
-                <span className="text-white">Calculated at checkout</span>
-              </div>
-              <div className="border-t border-white/10 pt-2"></div>
-              <div className="flex justify-between font-semibold">
-                <span className="text-white">Total</span>
-                <span className="text-emerald-400">₹{flowState.productPrice.toLocaleString()}</span>
-              </div>
-            </div>
+            <aside className="h-fit rounded-lg border border-white/10 bg-slate-900/70 p-3 sm:p-4 lg:sticky lg:top-4">
+              <h2 className="text-base font-bold text-white">Price details</h2>
+              <div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-4 text-slate-400"><span>Subtotal</span><span className="shrink-0 text-white">₹{flowState.productPrice.toLocaleString('en-IN')}</span></div><div className="border-t border-white/10 pt-2"><div className="flex justify-between gap-4 text-base font-bold"><span className="text-white">Total amount</span><span className="shrink-0 text-emerald-300">₹{flowState.productPrice.toLocaleString('en-IN')}</span></div></div></div>
+              <div className="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />Secure payment through Razorpay</div>
+            </aside>
+          </div>
 
             {/* Terms */}
-            <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="mt-3 flex items-start gap-2 text-xs text-slate-300">
               <input 
                 type="checkbox" 
                 id="terms" 
@@ -159,24 +177,24 @@ export function BuyNowConfirmPage() {
             </div>
 
             {error && (
-              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-200">
+              <div className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-200">
                 {error}
               </div>
             )}
 
             {/* Actions */}
-            <div className="flex gap-3">
+            <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 onClick={() => navigate('/marketplace')}
                 disabled={loading}
-                className="flex-1 rounded-full border border-white/10 px-4 py-3 font-medium text-white transition hover:bg-white/5 disabled:opacity-50"
+                className="inline-flex min-h-[46px] items-center justify-center whitespace-nowrap rounded-full border border-white/10 px-5 py-2 font-medium text-white transition hover:bg-white/5 disabled:opacity-50 sm:min-w-28"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmAndPay}
                 disabled={loading || !termsAccepted}
-                className="flex-1 rounded-full bg-blue-600 px-4 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex min-h-[46px] items-center justify-center whitespace-nowrap rounded-full bg-blue-600 px-5 py-2 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-48"
               >
                 {loading ? (
                   <>
@@ -191,7 +209,6 @@ export function BuyNowConfirmPage() {
                 )}
               </button>
             </div>
-          </div>
         </motion.div>
       </div>
     </SectionShell>
@@ -278,13 +295,13 @@ export function BuyNowPaymentPage() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8"
+          className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 sm:p-5"
         >
-          <div className="space-y-6">
+          <div className="space-y-3">
             {/* Order Summary */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <h3 className="font-semibold text-white">Order Summary</h3>
-              <div className="mt-4 space-y-2">
+              <div className="mt-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">{flowState.productTitle}</span>
                   <span className="text-white">₹{flowState.productPrice.toLocaleString()}</span>
@@ -299,7 +316,7 @@ export function BuyNowPaymentPage() {
             </div>
 
             {/* Payment Method */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <h3 className="font-semibold text-white">Payment Method</h3>
               <p className="mt-2 text-sm text-slate-400">You will be redirected to Razorpay to complete payment securely.</p>
             </div>
@@ -311,18 +328,18 @@ export function BuyNowPaymentPage() {
             )}
 
             {/* Actions */}
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-2.5 sm:flex-row">
               <button
                 onClick={() => navigate('/marketplace')}
                 disabled={loading}
-                className="flex-1 rounded-full border border-white/10 px-4 py-3 font-medium text-white transition hover:bg-white/5 disabled:opacity-50"
+                className="min-h-[46px] flex-1 rounded-full border border-white/10 px-4 py-2 font-medium text-white transition hover:bg-white/5 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handlePayment}
                 disabled={loading}
-                className="flex-1 rounded-full bg-emerald-600 px-4 py-3 font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                className="min-h-[46px] flex-1 rounded-full bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
               >
                 {loading ? (
                   <>
