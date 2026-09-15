@@ -13,5 +13,5 @@ export function CategoryIcon({ iconUrl, className = 'h-8 w-8', imageClassName = 
     return <LayoutGrid aria-hidden="true" className={className} />;
   }
 
-  return <img src={source} alt="" aria-hidden="true" onError={() => setImageFailed(true)} className={`${className} h-full w-full p-1 object-contain ${imageClassName}`} />;
+  return <img src={source} alt="" aria-hidden="true" onError={() => setImageFailed(true)} className={`${className} object-contain p-0 ${imageClassName}`} />;
 }
