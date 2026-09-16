@@ -12,6 +12,7 @@ export interface AuthRegisterDto {
   password: string;
   role: 'CUSTOMER' | 'VENDOR';
   phoneNumber: string;
+  referralCode?: string;
 }
 
 export interface AuthLoginResponse {

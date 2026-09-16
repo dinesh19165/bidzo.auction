@@ -91,6 +91,7 @@ export function CustomerRewardsPage() {
   const loyaltyEnabled = value(summary, ['loyaltyEnabled', 'loyalty_enabled']);
   const referralCode = value(summary, ['referralCode', 'referral_code']);
   const walletBalance = formatMoney(value(summary, ['walletBalance', 'wallet_balance'])) || formatMoney(value(summary, ['balance'])) || formatMoney(walletLedger?.balance);
+  const referralCashBalance = formatMoney(value(summary, ['availableBalance'])) || '₹0';
   const loyaltyPoints = value(summary, ['loyaltyPoints', 'availablePoints', 'points']);
   const referralReward = formatMoney(value(summary, ['referrerRewardAmount', 'referralReward', 'referrerReward'])) || formatMoney(value(summary, ['referralEarnings', 'referral_earnings']));
   const loyaltyStatus = value(summary, ['loyaltyStatus', 'loyalty_status']);
@@ -102,6 +103,7 @@ export function CustomerRewardsPage() {
         {message ? <p className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{message}</p> : null}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {walletBalance !== null ? <Link to="/customer/wallet" className="rounded-xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-blue-400/40"><WalletCards className="h-5 w-5 text-sky-300" /><p className="mt-3 text-xs uppercase tracking-wide text-slate-400">Wallet balance</p><p className="mt-1 text-xl font-semibold text-white">{walletBalance}</p></Link> : null}
+          <Link to="/customer/wallet" className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4 transition hover:border-emerald-300/50"><Gift className="h-5 w-5 text-emerald-300" /><p className="mt-3 text-xs uppercase tracking-wide text-emerald-200">Referral reward</p><p className="mt-1 text-xl font-semibold text-white">{referralCashBalance}</p><p className="mt-1 text-xs text-slate-400">Cash added to your wallet</p></Link>
           {loyaltyPoints !== undefined ? <a href="#loyalty" className="rounded-xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-blue-400/40"><Sparkles className="h-5 w-5 text-amber-300" /><p className="mt-3 text-xs uppercase tracking-wide text-slate-400">Loyalty points</p><p className="mt-1 text-xl font-semibold text-white">{String(loyaltyPoints)}</p></a> : null}
           {referralReward !== null ? <div className="rounded-xl border border-white/10 bg-slate-900/70 p-4"><Gift className="h-5 w-5 text-emerald-300" /><p className="mt-3 text-xs uppercase tracking-wide text-slate-400">Referral reward</p><p className="mt-1 text-xl font-semibold text-white">{referralReward}</p></div> : null}
         </div>

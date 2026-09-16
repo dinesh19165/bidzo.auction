@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Check, ChevronDown, Globe, Menu, Mic, Search, ShoppingBag, Store, X } from 'lucide-react';
+import { Bell, Camera, Check, ChevronDown, Gavel, Globe, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -12,6 +12,7 @@ import { CategoryIcon } from './categories/CategoryIcon';
 import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
 import { NotificationList } from './notifications/NotificationList';
 import { useNotificationContext } from '../context/NotificationContext';
+import { useCartContext } from '../context/CartContext';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,6 +31,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [headerSearch, setHeaderSearch] = useState('');
   const [headerCategory, setHeaderCategory] = useState('');
+  const [headerLocation, setHeaderLocation] = useState('Hyderabad');
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -204,7 +206,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-<div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-4 py-1 sm:px-6 lg:px-8">
+<div className="mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
           <div>
             {/* Shared header: logo always shown and links to home */}
@@ -214,9 +216,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
            </Link>
           </div>
 
-          {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-stretch gap-3 lg:flex">
-            <div ref={categoryMenuRef} className="relative min-w-0 flex-1 basis-[360px]">
-              <button type="button" aria-label="Category" aria-haspopup="listbox" aria-expanded={categoryMenuOpen} onClick={() => setCategoryMenuOpen((value) => !value)} onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCategoryMenuOpen(true); } }} title={categoriesError ?? undefined} className={`flex h-[60px] min-h-[60px] max-h-[60px] w-full items-center justify-between gap-2 rounded-2xl border px-3 text-left transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-100' : 'border-slate-200 bg-white text-slate-900 shadow-sm'}`}>
+          {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
+            <label className={`inline-flex h-12 w-[160px] shrink-0 items-center gap-2 rounded-2xl border px-3 text-sm ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-100' : 'border-slate-200 bg-white text-slate-900 shadow-sm'}`}><MapPin className="h-4 w-4 text-blue-500" /><select aria-label="Location" value={headerLocation} onChange={(event) => setHeaderLocation(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none"><option>Hyderabad</option><option>Bengaluru</option><option>Mumbai</option><option>Delhi</option></select></label>
+            <div ref={categoryMenuRef} className="relative min-w-0 w-[220px] shrink-0">
+              <button type="button" aria-label="Category" aria-haspopup="listbox" aria-expanded={categoryMenuOpen} onClick={() => setCategoryMenuOpen((value) => !value)} onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCategoryMenuOpen(true); } }} title={categoriesError ?? undefined} className="flex h-12 min-h-12 max-h-12 w-full items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-900 px-3 text-left text-white shadow-sm transition hover:bg-slate-800">
                 <span className="flex min-w-0 items-center gap-2"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-700'}`}><CategoryIcon iconUrl={marketplaceCategories.find((item) => String(item.id) === headerCategory)?.iconUrl} className="h-7 w-7" imageClassName="h-8 w-8 p-0" /></span><span className="truncate text-sm">{marketplaceCategories.find((item) => String(item.id) === headerCategory)?.name || 'All Categories'}</span></span><ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
               </button>
               {categoryMenuOpen ? <div role="listbox" aria-label="Categories" onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); }} className={`absolute left-0 top-full z-[60] mt-2 max-h-80 w-full overflow-y-auto overflow-x-hidden rounded-2xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'}`}>
@@ -224,8 +227,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {categoriesLoading ? <p className="px-3 py-2 text-xs text-slate-400">Loading categories...</p> : marketplaceCategories.map((item) => <button key={item.id} type="button" role="option" aria-selected={String(item.id) === headerCategory} onClick={() => { setHeaderCategory(String(item.id)); setCategoryMenuOpen(false); }} className={`flex min-h-[60px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${String(item.id) === headerCategory ? 'bg-blue-500/10 text-blue-200' : theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"><CategoryIcon iconUrl={item.iconUrl} className="h-9 w-9" imageClassName="h-10 w-10 p-0" /></span><span className="truncate">{item.name}</span></button>)}
               </div> : null}
             </div>
-            <div className={`flex h-[60px] min-h-[60px] max-h-[60px] min-w-0 flex-1 basis-[360px] items-center gap-2 rounded-2xl border px-3 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
-              <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex h-12 min-h-0 w-12 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+            <div className={`flex h-12 min-w-0 flex-1 items-center gap-2 rounded-2xl border px-3 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
+              <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                 <Search className="h-4 w-4" />
               </button>
               <input
@@ -236,7 +239,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 placeholder="Search products, auctions, sellers..."
                 className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
               />
-              <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex h-12 min-h-0 w-12 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+              <button type="button" aria-label="Visual search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}><Camera className="h-4 w-4" /></button>
+              <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                 <Mic className="h-4 w-4" />
               </button>
             </div>
@@ -305,19 +309,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {showMarketplaceControls ? <nav className={`border-t px-4 py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
           <div className="mx-auto flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-            <Link to="/auctions" className={`inline-flex min-h-[44px] items-center justify-center whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm lg:px-5 ${isLiveAuctionsPage
-              ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
-              : theme === 'dark'
-                ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
-                : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-              Live Auctions
+            <Link to="/auctions" className={`inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-4 py-2 text-xs font-semibold text-white shadow-lg transition hover:-translate-y-0.5 sm:px-5 sm:text-sm ${isLiveAuctionsPage ? 'border-blue-200/50 bg-blue-500 shadow-blue-500/25' : 'border-blue-500/40 bg-blue-600 hover:bg-blue-500'}`}>
+              <Gavel className="h-4 w-4" /> Live Auctions
             </Link>
-            <Link to="/marketplace" className={`inline-flex min-h-[44px] items-center justify-center whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition sm:px-4 sm:text-sm lg:px-5 ${isDirectBuyPage
-              ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
-              : theme === 'dark'
-                ? 'border-white/10 bg-slate-900/80 text-slate-200 hover:bg-slate-900'
-                : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-              Direct Buy
+            <Link to="/marketplace" className={`inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-4 py-2 text-xs font-semibold text-white shadow-lg transition hover:-translate-y-0.5 sm:px-5 sm:text-sm ${isDirectBuyPage ? 'border-red-200/50 bg-red-500 shadow-red-500/25' : 'border-red-500/40 bg-red-600 hover:bg-red-500'}`}>
+              <ShoppingBag className="h-4 w-4" /> Buy
+            </Link>
+            <Link to="/register/vendor" className="inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200/40 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-500 sm:px-5 sm:text-sm">
+              <Tag className="h-4 w-4" /> Sell
             </Link>
           </div>
         </nav> : null}
@@ -373,6 +372,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 function AuthActions() {
   const { user, logout } = useAuth();
+  const { cart } = useCartContext();
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -380,10 +380,9 @@ function AuthActions() {
   const notificationTriggerRef = useRef<HTMLDivElement>(null);
   const notificationPanelRef = useRef<HTMLDivElement>(null);
   const [notificationPosition, setNotificationPosition] = useState<{ top: number; left: number; width: number } | null>(null);
-  const displayName = user?.name?.trim() || user?.username?.trim() || user?.email?.trim() || 'User';
-  const initials = user ? displayName.split(/\s+/).map((s) => s[0]).slice(0, 2).join('').toUpperCase() : '';
   const isAdmin = isAdminUser(user);
   const isCustomer = user?.type === 'customer' || user?.role === 'CUSTOMER';
+  const cartItemCount = cart.items.reduce((total, item) => total + Math.max(0, Number(item.quantity) || 0), 0);
   const isNotificationUser = user?.type === 'customer' || user?.type === 'vendor';
   const { unreadCount, items, loading, error, refresh, markRead } = useNotificationContext();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -493,7 +492,7 @@ function AuthActions() {
   return (
     <div ref={profileRef} className="flex items-center gap-3">
       {isNotificationUser ? <div ref={notificationTriggerRef} className="relative">
-        <button type="button" aria-label="Notifications" onClick={() => { setNotificationsOpen((value) => !value); if (!notificationsOpen) void refresh(); }} className="relative inline-flex items-center justify-center rounded-full border border-white/10 bg-slate-900/80 p-2 text-slate-200 hover:bg-white/10">
+        <button type="button" aria-label="Notifications" onClick={() => { setNotificationsOpen((value) => !value); if (!notificationsOpen) void refresh(); }} className="relative inline-flex items-center justify-center rounded-xl border border-white/10 bg-slate-900/80 p-2 text-xs text-slate-200 hover:bg-white/10">
           <Bell className="h-4 w-4" />
           {unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
         </button>
@@ -542,20 +541,21 @@ function AuthActions() {
         ) : null}
       </div> : null}
       {user && isCustomer ? (
-        <Link to="/customer/cart" className="inline-flex items-center justify-center rounded-full bg-blue-600 p-2 text-white transition hover:bg-blue-500">
-          <ShoppingBag className="h-4 w-4" />
+        <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} className="relative inline-flex items-center justify-center rounded-xl bg-blue-600 p-2 text-xs text-white transition hover:bg-blue-500">
+          <ShoppingCart className="h-4 w-4" />
+          {cartItemCount > 0 ? <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border-2 border-slate-950 bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">{cartItemCount}</span> : null}
         </Link>
       ) : null}
+      {user && isCustomer ? <Link to="/marketplace" className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-2.5 py-2 text-xs text-rose-100 transition hover:bg-rose-500/20"><Tag className="h-4 w-4" /><span className="hidden xl:inline">Offers</span></Link> : null}
       {!user ? (
         <>
           <Link to="/login" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Login</Link>
         </>
       ) : (
         <div className="relative">
-          <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-slate-200">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">{initials}</div>
-            <span className="hidden sm:inline">{displayName}</span>
-            <ChevronDown className="h-4 w-4" />
+          <button onClick={() => setOpen((v) => !v)} className="inline-flex flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1 text-xs text-slate-200 transition hover:bg-white/10">
+            <UserRound className="h-5 w-5" />
+            <span>Account</span>
           </button>
           {open ? createPortal(
             <div

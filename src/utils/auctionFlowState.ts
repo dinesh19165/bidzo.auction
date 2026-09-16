@@ -286,6 +286,13 @@ export type BuyNowFlowState = {
   productTitle: string;
   productPrice: number;
   productImageUrl?: string;
+  orderSubtotal?: number;
+  orderTotal?: number;
+  loyaltyDiscount?: number;
+  loyaltyPointsRedeemed?: number;
+  walletAmount?: number;
+  finalPayable?: number;
+  remainingAmount?: number;
   orderId?: number;
   addressId?: number;
   deliveryAddress?: string;
@@ -325,10 +332,11 @@ export function initializeBuyNowFlow(productId: number, productTitle: string, pr
   return state;
 }
 
-export function startBuyNowPayment(): BuyNowFlowState {
+export function startBuyNowPayment(patch: Partial<BuyNowFlowState> = {}): BuyNowFlowState {
   const current = readBuyNowFlowState();
   const next: BuyNowFlowState = {
     ...current,
+    ...patch,
     flowStage: 'PAYMENT',
   };
   writeBuyNowFlowState(next);

@@ -44,6 +44,7 @@ function toCardListing(item: MarketplaceSearchResult) {
     actionLabel: isAuction ? 'Watch Auction' : item.type === 'VENDOR' ? 'View Seller' : 'Buy Now',
     currentBid: item.currentBid === null ? undefined : String(item.currentBid),
     endsIn: item.auctionEndsAt || undefined,
+    availableQuantity: item.availableQuantity,
     isAuction,
     auctionId: isAuction ? item.id : undefined,
   };
@@ -317,6 +318,7 @@ export function MarketplacePage() {
                     actionLabel={product.actionLabel}
                     currentBid={product.currentBid || (product.isAuction ? product.price : undefined)}
                     endsIn={product.endsIn}
+                    availableQuantity={product.availableQuantity}
                     wishlistItemType={product.isAuction ? 'AUCTION' : 'PRODUCT'}
                     wishlistProductId={product.isAuction ? undefined : product.id}
                     wishlistAuctionId={product.isAuction ? product.auctionId : undefined}

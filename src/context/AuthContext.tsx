@@ -4,6 +4,14 @@ import type { User } from '../types';
 import { login as loginApi, authMe, register as registerApi, getStoredVendorProfileId, resolveVendorProfileId, setStoredVendorProfileId } from '../api/authApi';
 import { getStoredAuthToken, handleUnauthorized, isJwtExpired, resetAuthExpirationHandling } from '../api/apiClient';
 
+type CustomerRegistrationData = {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  referralCode?: string;
+};
+
 export type UserType = 'customer' | 'vendor' | 'admin' | 'delivery' | 'support';
 
 export const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'] as const;
@@ -27,7 +35,7 @@ type AuthContextType = {
   login: (identifier: string, password?: string, selectedRole?: UserType) => Promise<User>;
   logout: () => void;
   clearSession: () => void;
-  registerCustomer: (data: any, selectedRole?: UserType) => Promise<any>;
+  registerCustomer: (data: CustomerRegistrationData, selectedRole?: UserType) => Promise<any>;
   registerVendor: (data: any, selectedRole?: UserType) => Promise<any>;
   clearPendingRole: () => void;
 };
@@ -159,7 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate(destination, { replace: true });
   };
 
-  const registerCustomer = async (data: any, selectedRole: UserType = 'customer') => {
+  const registerCustomer = async (data: CustomerRegistrationData, selectedRole: UserType = 'customer') => {
     setPendingRole('customer');
     if (!data?.name || !data?.email || !data?.password || !data?.phone) {
       throw new Error('Name, email, password, and phone number are required');
@@ -171,6 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password: data.password,
       role: 'CUSTOMER',
       phoneNumber: data.phone,
+      ...(data.referralCode?.trim() ? { referralCode: data.referralCode.trim() } : {}),
     });
   };
 

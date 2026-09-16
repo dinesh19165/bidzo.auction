@@ -66,6 +66,29 @@ export interface ProductListItem {
   endsIn?: string;
 }
 
+export interface BuyNowOrderRequest {
+  quantity: number;
+  addressId: number;
+  walletAmountToUse?: number;
+  redeemLoyaltyPoints?: number;
+}
+
+export interface BuyNowOrderResponse {
+  id: number;
+  orderId?: number;
+  subtotal?: number;
+  totalAmount: number;
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscount?: number;
+  walletAmount?: number;
+  finalPayable?: number;
+  remainingAmount?: number;
+  razorpayAmount?: number;
+  razorpayOrderId?: string;
+  paymentRequired?: boolean;
+  deliveryAddress?: string;
+}
+
 const DEFAULT_PRODUCT_IMAGE = '/logo.png';
 
 function formatPrice(value: string | number): string {
@@ -212,29 +235,34 @@ export async function getProductById(id: number): Promise<ProductListItem> {
   }
 }
 
-export async function createBuyNowOrder(productId: number, addressId: number, walletUsage?: number): Promise<any> {
-  const body: { quantity: number; addressId: number; walletUsage?: number } = { quantity: 1, addressId };
-  if (walletUsage !== undefined) body.walletUsage = walletUsage;
-  const response = await fetchJson<ApiResponse<any>>(`/api/products/${productId}/buy-now`, {
+export async function createBuyNowOrder(productId: number, addressId: number, walletAmountToUse?: number, redeemLoyaltyPoints?: number): Promise<BuyNowOrderResponse> {
+  const body: BuyNowOrderRequest = {
+    quantity: 1,
+    addressId,
+    ...(redeemLoyaltyPoints !== undefined && redeemLoyaltyPoints > 0 ? { redeemLoyaltyPoints } : {}),
+  };
+  if (walletAmountToUse !== undefined && walletAmountToUse > 0) body.walletAmountToUse = walletAmountToUse;
+  const response = await fetchJson<ApiResponse<BuyNowOrderResponse>>(`/api/products/${productId}/buy-now`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
   
   // Handle different response structures
-  const orderData = response?.data || (response as any);
+  const orderData = response?.data;
   
   if (!orderData) {
-    throw new Error((response as any)?.message || 'Failed to create buy-now order');
+    throw new Error(response?.message || 'Failed to create buy-now order');
   }
   
   // Ensure we have an order ID
-  if (!orderData.id && !orderData.orderId) {
+  const normalizedOrderId = orderData.id ?? orderData.orderId;
+  if (normalizedOrderId === undefined || normalizedOrderId === null) {
     throw new Error('Invalid order response: missing order ID');
   }
   
   // Normalize the response to have an 'id' field
   return {
     ...orderData,
-    id: orderData.id || orderData.orderId,
+    id: normalizedOrderId,
   };
 }

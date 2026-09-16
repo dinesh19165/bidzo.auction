@@ -23,6 +23,7 @@ export interface MarketplaceSearchResult {
   vendor: MarketplaceVendor | null;
   auctionStatus: string | null;
   auctionEndsAt: string | null;
+  availableQuantity?: number | null;
 }
 
 export interface MarketplaceSearchPage {

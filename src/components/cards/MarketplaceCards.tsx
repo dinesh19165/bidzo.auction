@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, Sparkles, Star, Users } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, ShoppingCart, Sparkles, Star, Users, Zap } from 'lucide-react';
 import { memo, useEffect, useMemo, useState, useCallback, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react';
 import ReactDOM from 'react-dom';
 import { showToast } from '../ui/toast';
@@ -36,6 +36,7 @@ interface ProductCardProps {
   wishlistProductId?: number;
   wishlistAuctionId?: number;
   showAddToCart?: boolean;
+  availableQuantity?: number | null;
 }
 
 function parseCountdown(value?: string) {
@@ -90,6 +91,7 @@ export const ProductCard = memo(function ProductCard({
   wishlistProductId,
   wishlistAuctionId,
   showAddToCart = false,
+  availableQuantity,
 }: ProductCardProps) {
   const [quickOpen, setQuickOpen] = useState(false);
   const navigate = useNavigate();
@@ -277,6 +279,7 @@ export const ProductCard = memo(function ProductCard({
             <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{priceLabel}</p>
             {createdAt ? <p className="mt-0.5 text-[10px] text-slate-500">Added {new Date(createdAt).toLocaleDateString('en-IN')}</p> : null}
             {discount ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-emerald-300">{discount}</p> : null}
+            {!isAuction && showAddToCart && availableQuantity !== null && availableQuantity !== undefined ? <p className={`mt-1 inline-flex items-center gap-1 text-xs font-semibold ${availableQuantity === 0 ? 'text-rose-300' : availableQuantity === 1 ? 'text-amber-300' : 'text-emerald-300'}`}>{availableQuantity === 0 ? 'Out of stock' : availableQuantity === 1 ? <><Zap className="h-3.5 w-3.5" /> 1 left</> : <><CheckCircle2 className="h-3.5 w-3.5" /> {availableQuantity} available</>}</p> : null}
           </div>
           {isAuction ? (
             <div className="inline-flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-1 text-[10px] text-blue-200">
@@ -319,7 +322,7 @@ export const ProductCard = memo(function ProductCard({
             <button type="button" onClick={toggleFavorite} disabled={favoritePending} className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 disabled:cursor-wait disabled:opacity-60" aria-label="Favorite listing">
               <Heart className={`h-3.5 w-3.5 transition-colors duration-200 ${favorited ? 'fill-current text-rose-500' : ''}`} />
             </button>
-            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60">{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
+            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"><ShoppingCart className="h-3.5 w-3.5" />{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
           </div>
         </div>
       </div>

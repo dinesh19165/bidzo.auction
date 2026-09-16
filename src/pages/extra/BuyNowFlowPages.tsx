@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle2, CreditCard, Download, Info, Loader2, MapPin, PackageCheck, Printer, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, CreditCard, Download, Info, Loader2, MapPin, PackageCheck, Printer, ShieldCheck, Star, WalletCards } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { useAuth } from '../../context/AuthContext';
 import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentApi';
 import { createProductImage, createBuyNowOrder } from '../../api/productApi';
+import { getLoyaltyBalance, getLoyaltyRedeemQuote, type LoyaltyBalanceResponse, type LoyaltyRedeemQuoteResponse } from '../../api/loyaltyApi';
+import { getRewardsSummary } from '../../api/rewardsApi';
 import { getOrderById } from '../../api/orderApi';
 import { readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 import { loadRazorpay, type RazorpayInstance, type RazorpayOptions, type RazorpayPaymentResponse } from '../../utils/razorpay';
-import { getWalletLedger } from '../../api/customerWalletApi';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
 import type { AddressResponse } from '../../api/addressApi';
 
@@ -43,18 +44,52 @@ export function BuyNowConfirmPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [walletError, setWalletError] = useState<string | null>(null);
   const [useWallet, setUseWallet] = useState(false);
   const [walletUsage, setWalletUsage] = useState('');
+  const [loyaltyBalance, setLoyaltyBalance] = useState<LoyaltyBalanceResponse | null>(null);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(true);
+  const [loyaltyPoints, setLoyaltyPoints] = useState('');
+  const [loyaltyQuote, setLoyaltyQuote] = useState<LoyaltyRedeemQuoteResponse | null>(null);
+  const [loyaltyError, setLoyaltyError] = useState<string | null>(null);
+  const subtotal = Number(flowState.productPrice);
 
   useEffect(() => {
-    getWalletLedger().then((ledger) => {
-      const balance = Number(ledger.balance);
-      if (Number.isFinite(balance)) {
-        setWalletBalance(balance);
-        setWalletUsage(String(balance));
-      }
-    }).catch(() => setWalletBalance(null));
+    getRewardsSummary().then((summary) => {
+      const rawBalance = summary.availableBalance;
+      const parsedBalance = Number(rawBalance);
+      if (!Number.isFinite(parsedBalance)) throw new Error('Rewards summary did not include a valid availableBalance.');
+      setWalletBalance(parsedBalance);
+      setWalletError(null);
+    }).catch((reason: unknown) => {
+      setWalletBalance(null);
+      setWalletError(reason instanceof Error ? reason.message : 'Unable to load wallet balance.');
+    });
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    setLoyaltyLoading(true);
+    setLoyaltyError(null);
+    setLoyaltyQuote(null);
+    setLoyaltyPoints('');
+    getLoyaltyBalance(subtotal).then((balance) => {
+      if (active) setLoyaltyBalance(balance);
+    }).catch(() => {
+      if (active) setLoyaltyError('Unable to load loyalty points.');
+    }).finally(() => {
+      if (active) setLoyaltyLoading(false);
+    });
+    return () => { active = false; };
+  }, [selectedAddress?.id, subtotal]);
+
+  const loyaltyDiscountPreview = loyaltyQuote?.discountAmount ?? 0;
+  const walletMaximum = Math.max(0, Math.min(walletBalance ?? 0, subtotal - loyaltyDiscountPreview));
+
+  useEffect(() => {
+    if (!useWallet) return;
+    setWalletUsage(walletMaximum > 0 ? String(walletMaximum) : '');
+  }, [useWallet, walletMaximum]);
 
   if (!flowState.productId) {
     return <Navigate to="/marketplace" replace />;
@@ -76,8 +111,9 @@ export function BuyNowConfirmPage() {
 
     try {
       // Create order via buy-now endpoint
-      const requestedWalletUsage = useWallet && walletUsage.trim() ? Number(walletUsage) : undefined;
-      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id, requestedWalletUsage);
+      const requestedWalletAmount = useWallet && walletUsage.trim() ? Math.min(Math.max(0, Number(walletUsage)), walletMaximum) : undefined;
+      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id, requestedWalletAmount, loyaltyQuote?.acceptedPoints);
+      console.log('[BUY NOW CREATE RESPONSE]', orderData);
       
       if (!orderData) {
         setError('No order data returned from server');
@@ -92,26 +128,70 @@ export function BuyNowConfirmPage() {
         return;
       }
 
-      if (orderData.paymentRequired === false) {
+      if (orderData.paymentRequired === false || orderData.finalPayable === 0) {
         markBuyNowOrderConfirmed(orderData.id, orderData.deliveryAddress);
-        writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress });
+        writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress, orderSubtotal: orderData.subtotal, orderTotal: orderData.totalAmount, loyaltyDiscount: orderData.loyaltyDiscount, loyaltyPointsRedeemed: orderData.loyaltyPointsRedeemed, walletAmount: orderData.walletAmount, finalPayable: orderData.finalPayable, remainingAmount: orderData.remainingAmount });
         navigate('/customer/buynow-success');
         return;
       }
 
-      // Update flow state with order ID and move to payment
-      markBuyNowOrderConfirmed(orderData.id, orderData.deliveryAddress);
-      writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress });
-      startBuyNowPayment();
+      const navigationState = {
+        orderId: orderData.id,
+        addressId: selectedAddress.id,
+        deliveryAddress: orderData.deliveryAddress,
+        orderSubtotal: orderData.subtotal,
+        orderTotal: orderData.totalAmount,
+        loyaltyDiscount: orderData.loyaltyDiscount,
+        loyaltyPointsRedeemed: orderData.loyaltyPointsRedeemed,
+        walletAmount: orderData.walletAmount,
+        finalPayable: orderData.finalPayable,
+        remainingAmount: orderData.remainingAmount,
+      };
+      console.log('[BUY NOW NAVIGATION STATE]', navigationState);
+      startBuyNowPayment(navigationState);
       
       navigate('/customer/buynow-payment');
-    } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to create order. Please try again.';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create order. Please try again.';
       setError(errorMessage);
       console.error('Failed to create buy-now order:', err);
       setLoading(false);
     }
   };
+
+  const applyLoyaltyPoints = async () => {
+    setLoyaltyError(null);
+    const points = Number(loyaltyPoints);
+    const available = loyaltyBalance?.availablePoints ?? 0;
+    const maximum = loyaltyBalance?.maximumRedeemablePoints ?? available;
+    if (!Number.isInteger(points) || points <= 0) {
+      setLoyaltyError('Enter a valid number of points.');
+      return;
+    }
+    if (points > available || points > maximum) {
+      setLoyaltyError('Insufficient loyalty points.');
+      return;
+    }
+    if (!loyaltyBalance?.redemptionEnabled) {
+      setLoyaltyError('Loyalty point redemption is currently unavailable.');
+      return;
+    }
+    try {
+      const quote = await getLoyaltyRedeemQuote({ points, orderAmount: subtotal });
+      setLoyaltyQuote(quote);
+    } catch {
+      setLoyaltyError('Unable to apply loyalty points. Please try again.');
+    }
+  };
+
+  const removeLoyaltyPoints = () => {
+    setLoyaltyQuote(null);
+    setLoyaltyPoints('');
+    setLoyaltyError(null);
+  };
+
+  const availableLoyaltyPoints = loyaltyBalance?.availablePoints ?? 0;
+  const pointsToCurrencyConversion = loyaltyBalance?.pointsToCurrencyConversion ?? 0;
 
   return (
     <SectionShell title="Order summary" subtitle="Review your purchase">
@@ -137,8 +217,6 @@ export function BuyNowConfirmPage() {
                 <DeliveryAddressSelector compact selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={(address) => { setSelectedAddress(address); setError(null); }} />
               </section>
 
-              {walletBalance !== null ? <section className="rounded-lg border border-white/10 bg-slate-900/70 p-3"><div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-white">Wallet</h3><p className="mt-1 text-xs text-slate-400">Balance: ₹{walletBalance.toLocaleString('en-IN')}</p></div><label className="flex items-center gap-2 text-sm text-slate-200"><input type="checkbox" checked={useWallet} onChange={(event) => setUseWallet(event.target.checked)} /> Use wallet</label></div>{useWallet ? <label className="mt-2 block text-sm text-slate-300">Wallet usage<input inputMode="decimal" value={walletUsage} onChange={(event) => setWalletUsage(event.target.value.replace(/[^0-9.]/g, ''))} className="mt-1 h-9 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-white outline-none focus:border-blue-400/40" /></label> : null}<p className="mt-2 text-xs text-slate-500">The backend validates usage and calculates remaining payment.</p></section> : null}
-
               <section className="border-b border-white/10 px-1 py-2.5 sm:px-2 sm:py-3">
                 <div className="mb-1.5 flex items-center gap-2"><PackageCheck className="h-4 w-4 text-sky-300" /><h3 className="text-sm font-bold text-white">Product details</h3></div>
                 <div className="flex min-w-0 gap-4">
@@ -153,8 +231,17 @@ export function BuyNowConfirmPage() {
             </div>
 
             <aside className="h-fit rounded-lg border border-white/10 bg-slate-900/70 p-3 sm:p-4 lg:sticky lg:top-4">
+              <section className="mb-4 rounded-lg border border-amber-400/20 bg-amber-500/5 p-3">
+                <div className="flex items-center gap-2"><Star className="h-4 w-4 text-amber-300" /><h3 className="text-sm font-bold text-white">Use your loyalty points</h3></div>
+                {loyaltyLoading ? <p className="mt-3 text-sm text-slate-400">Checking loyalty points...</p> : loyaltyQuote ? <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-400/20 bg-emerald-500/10 p-3"><p className="text-sm font-semibold text-emerald-200">✓ {loyaltyQuote.acceptedPoints} points applied</p><button type="button" onClick={removeLoyaltyPoints} className="text-xs font-semibold text-slate-300 underline hover:text-white">Remove</button></div> : availableLoyaltyPoints <= 0 ? <p className="mt-3 text-sm text-slate-400">You don't have any loyalty points available.</p> : <><p className="mt-3 text-sm text-slate-300">Available points: <span className="font-semibold text-white">{availableLoyaltyPoints}</span></p><p className="mt-1 text-xs text-slate-400">{pointsToCurrencyConversion} points = ₹1</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><input inputMode="numeric" value={loyaltyPoints} onChange={(event) => setLoyaltyPoints(event.target.value.replace(/\D/g, ''))} placeholder="Enter points" className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none focus:border-amber-400/50" /><button type="button" onClick={applyLoyaltyPoints} className="h-10 rounded-lg bg-amber-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-400">Apply Points</button></div><button type="button" onClick={() => { setLoyaltyPoints(String(availableLoyaltyPoints)); }} className="mt-2 text-xs font-semibold text-amber-200 hover:text-amber-100">Use all {availableLoyaltyPoints} points</button></>}
+                {loyaltyError ? <p className="mt-2 text-xs text-rose-300">{loyaltyError}</p> : null}
+              </section>
+              <section className="mb-4 rounded-lg border border-sky-400/20 bg-sky-500/5 p-3">
+                <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-white">Wallet Balance</h3><p className="mt-1 text-xs text-slate-400">₹{(walletBalance ?? 0).toLocaleString('en-IN')} available</p></div><WalletCards className="h-4 w-4 text-sky-300" /></div>
+                {walletError ? <p className="mt-3 text-sm text-rose-300">{walletError}</p> : walletBalance === null ? <p className="mt-3 text-sm text-slate-400">Checking wallet balance...</p> : walletBalance <= 0 ? <p className="mt-3 text-sm text-slate-400">No wallet balance available.</p> : <><label className="mt-3 flex items-center gap-2 text-sm text-slate-200"><input type="checkbox" checked={useWallet} onChange={(event) => { setUseWallet(event.target.checked); if (!event.target.checked) setWalletUsage(''); }} /> Use wallet balance</label>{useWallet ? <label className="mt-2 block text-xs text-slate-400">Wallet amount to use<input inputMode="decimal" min="0" max={walletMaximum} value={walletUsage} onChange={(event) => { const value = Number(event.target.value.replace(/[^0-9.]/g, '')); setWalletUsage(Number.isFinite(value) ? String(Math.min(Math.max(0, value), walletMaximum)) : ''); }} className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none focus:border-sky-400/50" /></label> : null}<p className="mt-2 text-xs text-slate-500">Maximum available for this order: ₹{walletMaximum.toLocaleString('en-IN')}</p></>}
+              </section>
               <h2 className="text-base font-bold text-white">Price details</h2>
-              <div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-4 text-slate-400"><span>Subtotal</span><span className="shrink-0 text-white">₹{flowState.productPrice.toLocaleString('en-IN')}</span></div><div className="border-t border-white/10 pt-2"><div className="flex justify-between gap-4 text-base font-bold"><span className="text-white">Total amount</span><span className="shrink-0 text-emerald-300">₹{flowState.productPrice.toLocaleString('en-IN')}</span></div></div></div>
+              <div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-4 text-slate-400"><span>Subtotal</span><span className="shrink-0 text-white">₹{subtotal.toLocaleString('en-IN')}</span></div><div className="flex justify-between gap-4 text-emerald-300"><span>Loyalty discount</span><span className="shrink-0">-₹{(loyaltyQuote?.discountAmount ?? 0).toLocaleString('en-IN')}</span></div><div className="flex justify-between gap-4 text-sky-300"><span>Wallet used</span><span className="shrink-0">-₹{(useWallet ? Number(walletUsage) || 0 : 0).toLocaleString('en-IN')}</span></div><div className="border-t border-white/10 pt-2"><div className="flex justify-between gap-4 text-base font-bold"><span className="text-white">Estimated payable</span><span className="shrink-0 text-emerald-300">₹{Math.max(0, subtotal - (loyaltyQuote?.discountAmount ?? 0) - (useWallet ? Number(walletUsage) || 0 : 0)).toLocaleString('en-IN')}</span></div></div></div>
               <div className="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />Secure payment through Razorpay</div>
             </aside>
           </div>
@@ -221,7 +308,13 @@ export function BuyNowPaymentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flowState = readBuyNowFlowState();
+  const serverOrderSubtotal = flowState.orderSubtotal ?? flowState.productPrice;
+  const serverOrderTotal = flowState.finalPayable ?? flowState.orderTotal ?? flowState.productPrice;
+  const serverLoyaltyDiscount = flowState.loyaltyDiscount ?? 0;
+  const serverWalletAmount = flowState.walletAmount ?? 0;
   const rzpRef = useRef<RazorpayInstance | null>(null);
+
+  console.log('[BUY NOW PAYMENT STATE]', flowState);
 
   if (!flowState.orderId || flowState.flowStage !== 'PAYMENT') {
     return <Navigate to="/marketplace" replace />;
@@ -304,13 +397,21 @@ export function BuyNowPaymentPage() {
               <div className="mt-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">{flowState.productTitle}</span>
-                  <span className="text-white">₹{flowState.productPrice.toLocaleString()}</span>
+                  <span className="text-white">₹{serverOrderSubtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Loyalty discount</span>
+                  <span className="text-emerald-300">-₹{serverLoyaltyDiscount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Wallet used</span>
+                  <span className="text-sky-300">-₹{serverWalletAmount.toLocaleString()}</span>
                 </div>
                 <div className="border-t border-white/10 pt-2"></div>
                 <div className="text-sm text-slate-300">Delivery address: {flowState.deliveryAddress || 'Selected address on order'}</div>
                 <div className="flex justify-between font-semibold">
                   <span className="text-white">Total Amount</span>
-                  <span className="text-emerald-400">₹{flowState.productPrice.toLocaleString()}</span>
+                  <span className="text-emerald-400">₹{serverOrderTotal.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -349,7 +450,7 @@ export function BuyNowPaymentPage() {
                 ) : (
                   <>
                     <CreditCard className="inline-block h-4 w-4 mr-2" />
-                    Pay ₹{flowState.productPrice.toLocaleString()}
+                    Pay ₹{serverOrderTotal.toLocaleString()}
                   </>
                 )}
               </button>

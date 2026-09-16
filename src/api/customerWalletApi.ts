@@ -5,6 +5,7 @@ type ApiEnvelope<T> = { data?: T; content?: T; success?: boolean; message?: stri
 
 export interface CustomerWalletLedger {
   balance?: number | string;
+  availableBalance?: number | string;
   transactions: TransactionResponse[];
   page?: number;
   pageSize?: number;
@@ -36,8 +37,11 @@ export async function getWalletLedger(page?: number, pageSize?: number): Promise
   const response = await fetchJson<unknown>(`/api/customer/wallet/ledger${query}`, { method: 'GET' });
   const result = unwrap(response, 'Failed to load wallet ledger');
   const source = result && typeof result === 'object' ? result as Record<string, unknown> : {};
+  const availableBalance = typeof source.availableBalance === 'number' || typeof source.availableBalance === 'string' ? source.availableBalance : undefined;
+  const balance = typeof source.balance === 'number' || typeof source.balance === 'string' ? source.balance : availableBalance;
   return {
-    balance: typeof source.balance === 'number' || typeof source.balance === 'string' ? source.balance : undefined,
+    balance,
+    availableBalance,
     transactions: getList(result),
     page: typeof source.page === 'number' ? source.page : undefined,
     pageSize: typeof source.pageSize === 'number' ? source.pageSize : undefined,

@@ -10,6 +10,7 @@ import {
   Clock3,
   CreditCard,
   FileCheck2,
+  Gift,
   Landmark,
   LoaderCircle,
   Lock,
@@ -498,13 +499,13 @@ export function CustomerRegisterPage() {
   const navigate = useNavigate();
   const { registerCustomer } = useAuth();
   const { theme } = useThemeContext();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
-  const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string }>({});
+  const [form, setForm] = useState({ name: '', email: '', phone: '', referralCode: '', password: '', confirmPassword: '' });
+  const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string; referralCode?: string; password?: string; confirmPassword?: string }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validate = () => {
-    const nextErrors: { name?: string; email?: string; phone?: string; password?: string; confirmPassword?: string } = {};
+    const nextErrors: { name?: string; email?: string; phone?: string; referralCode?: string; password?: string; confirmPassword?: string } = {};
     if (!form.name.trim()) nextErrors.name = 'Full name is required.';
     if (!form.email.trim()) nextErrors.email = 'Email is required.';
     if (!form.phone.trim()) nextErrors.phone = 'Phone number is required.';
@@ -534,7 +535,12 @@ export function CustomerRegisterPage() {
       await registerCustomer(form, 'customer');
       navigate('/otp', { replace: true, state: { role: 'customer', email: form.email, phone: form.phone, registrationData: { phone: form.phone } } });
     } catch (error: any) {
-      setSubmitError(friendlyAuthError(error, "We couldn't complete your request right now. Please try again."));
+      const message = friendlyAuthError(error, "We couldn't complete your request right now. Please try again.");
+      if (form.referralCode.trim() && /referral/i.test(message)) {
+        setErrors((current) => ({ ...current, referralCode: message }));
+      } else {
+        setSubmitError(message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -556,6 +562,11 @@ export function CustomerRegisterPage() {
             <FieldError message={errors.email} />
             <FormField label="Phone number" placeholder="10-digit mobile number" value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} icon={Phone} />
             <FieldError message={errors.phone} />
+            <div>
+              <FormField label="Referral Code" placeholder="Enter referral code" value={form.referralCode} onChange={(e) => setForm((s) => ({ ...s, referralCode: e.target.value }))} icon={Gift} />
+              <p className="mt-1 text-xs text-slate-400">Have a referral code? Enter it to earn your welcome reward.</p>
+            </div>
+            <FieldError message={errors.referralCode} />
             <FormField label="Password" placeholder="Create a strong password" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} icon={Lock} type="password" />
             <FieldError message={errors.password} />
             <FormField label="Confirm password" placeholder="Re-enter your password" value={form.confirmPassword} onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))} icon={Lock} type="password" />
