@@ -38,6 +38,18 @@ function numberText(value: unknown): string {
   return Number.isFinite(numeric) ? String(numeric) : '';
 }
 
+type HomeTestimonial = {
+  id: number | string;
+  quote?: string;
+  author: string;
+  rating: number;
+  imageUrl?: string;
+  title?: string;
+  productName?: string;
+  productImageUrl?: string;
+  createdAt?: string | null;
+};
+
 function countdown(endAt?: string | null): string {
   if (!endAt) return 'End time unavailable';
   const end = new Date(endAt).getTime();
@@ -58,6 +70,88 @@ function productCategory(product: ProductResponse, categories: CategoryResponse[
 
 function sellerName(value: ProductResponse | AuctionResponse): string {
   return text(value.vendorName || value.seller, 'Seller unavailable');
+}
+
+function TestimonialsCarousel({ testimonials }: { testimonials: HomeTestimonial[] }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return undefined;
+    const updateActiveIndex = () => {
+      const firstCard = track.firstElementChild as HTMLElement | null;
+      if (!firstCard) return;
+      const gap = Number.parseFloat(getComputedStyle(track).columnGap || '0');
+      const step = firstCard.offsetWidth + gap;
+      if (step > 0) setActiveIndex(Math.max(0, Math.round(track.scrollLeft / step)));
+    };
+    track.addEventListener('scroll', updateActiveIndex, { passive: true });
+    window.addEventListener('resize', updateActiveIndex);
+    updateActiveIndex();
+    return () => {
+      track.removeEventListener('scroll', updateActiveIndex);
+      window.removeEventListener('resize', updateActiveIndex);
+    };
+  }, [testimonials.length]);
+
+  const scrollByCard = (direction: -1 | 1) => {
+    const track = trackRef.current;
+    const firstCard = track?.firstElementChild as HTMLElement | null;
+    if (!track || !firstCard) return;
+    const gap = Number.parseFloat(getComputedStyle(track).columnGap || '0');
+    track.scrollBy({ left: direction * (firstCard.offsetWidth + gap), behavior: 'smooth' });
+  };
+
+  const pageCount = Math.max(1, testimonials.length);
+
+  return (
+    <section aria-labelledby="customer-testimonials-heading" className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-4 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Community</p>
+          <h2 id="customer-testimonials-heading" className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">What Our Customers Say</h2>
+        </div>
+        {testimonials.length > 1 ? (
+          <div className="hidden gap-2 sm:flex">
+            <button type="button" aria-label="Previous testimonial" onClick={() => scrollByCard(-1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-300 hover:text-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-300">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button type="button" aria-label="Next testimonial" onClick={() => scrollByCard(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-300 hover:text-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-300">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div ref={trackRef} className="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-300/80 [scrollbar-width:thin]">
+        {testimonials.map((review, index) => (
+          <div key={`${review.id}-${index}`} className="w-full min-w-0 shrink-0 snap-start sm:w-[calc((100%-0.75rem)/2)] xl:w-[calc((100%-1.5rem)/3)]">
+            <ReviewCard
+              quote={review.quote}
+              author={review.author}
+              rating={review.rating}
+              imageUrl={review.imageUrl}
+              title={review.title}
+              productName={review.productName}
+              productImageUrl={review.productImageUrl}
+              createdAt={review.createdAt}
+            />
+          </div>
+        ))}
+      </div>
+      {testimonials.length > 1 ? (
+        <div className="mt-3 flex justify-center gap-1.5" aria-label="Testimonial slides">
+          {Array.from({ length: pageCount }, (_, index) => (
+            <button key={index} type="button" aria-label={`Go to testimonial ${index + 1}`} aria-current={activeIndex === index ? 'true' : undefined} onClick={() => {
+              const track = trackRef.current;
+              const card = track?.children[index] as HTMLElement | undefined;
+              card?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+            }} className={`h-1.5 rounded-full transition-all ${activeIndex === index ? 'w-5 bg-sky-500' : 'w-1.5 bg-slate-300 hover:bg-slate-400'}`} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function PromotionCarousel({ title, eyebrow, items, kind }: { title: string; eyebrow: string; items: Array<ProductResponse | AuctionResponse>; kind: 'auction' | 'product' }) {
@@ -493,58 +587,7 @@ export function HomePage() {
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Act soon</p><h2 className="mt-2 text-2xl font-semibold text-white">Ending soon</h2></div>{endingSoon.length === 0 ? <EmptyState title="No auctions ending soon" description="There are no ending-soon auctions right now." /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{endingSoon.map((auction) => <AuctionTile key={auction.id} auction={auction} status="RUNNING" />)}</div>}</section>
     <ProductSection title="Recently added" products={recent} categories={categories} emptyTitle="No recently added products" emptyDescription="New products will appear here when available." />
     <ProductSection title="Popular products" products={popular} categories={categories} emptyTitle="No popular products yet" emptyDescription="Popularity information will appear here when available." />
-    {testimonials.length > 0 ? (
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <style>{`
-          @keyframes bidzo-reviews-marquee {
-            from { transform: translateX(0); }
-            to { transform: translateX(-50%); }
-          }
-
-          .bidzo-reviews-track {
-            animation: bidzo-reviews-marquee 36s linear infinite;
-          }
-
-          .bidzo-reviews-track:hover {
-            animation-play-state: paused;
-          }
-
-          @media (prefers-reduced-motion: reduce) {
-            .bidzo-reviews-track {
-              animation: none !important;
-            }
-          }
-        `}</style>
-
-        <div className="mb-6">
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Community</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">What Our Customers Say</h2>
-        </div>
-
-        <div className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/60 p-3 shadow-xl shadow-slate-950/20">
-          <div className="overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-600/70">
-            <div
-              className="bidzo-reviews-track flex min-w-max items-stretch gap-5"
-              style={reducedMotion ? { animation: 'none' } : undefined}
-            >
-              {testimonials.map((review, index) => (
-                <ReviewCard
-                  key={`${review.id}-${index}`}
-                  quote={review.quote}
-                  author={review.author}
-                  rating={review.rating}
-                  imageUrl={review.imageUrl}
-                  title={review.title}
-                  productName={review.productName}
-                  productImageUrl={review.productImageUrl}
-                  createdAt={review.createdAt}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-    ) : null}
+    {testimonials.length > 0 ? <TestimonialsCarousel testimonials={testimonials} /> : null}
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Trusted sellers</p><h2 className="mt-2 text-2xl font-semibold text-white">Verified sellers</h2></div>{sellers.length === 0 ? <EmptyState title="No verified sellers available" description="Verified sellers will appear here when available." /> : <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{sellers.map((seller, index) => { const name = text(seller.name || seller.vendorName || seller.storeName, 'Seller unavailable'); const sellerId = seller.id || seller.vendorId; return <Link key={String(sellerId || index)} to={sellerId ? `/seller/${sellerId}` : '/marketplace'} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 transition hover:border-emerald-400/40"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold text-white">{name}</p>{seller.productCount !== undefined && seller.productCount !== null ? <p className="mt-1 text-sm text-slate-400">{String(seller.productCount)} products</p> : null}</div><CheckCircle2 className="h-5 w-5 text-emerald-300" /></div></Link>; })}</div>}</section>
   </>;
 }

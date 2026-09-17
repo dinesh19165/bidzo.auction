@@ -499,26 +499,26 @@ export function ReviewCard({
   const formattedDate = createdAt ? new Date(createdAt).toLocaleDateString() : null;
 
   return (
-    <div className="w-full max-w-[360px] rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30 transition duration-300">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-white">{author}</p>
-          <p className="mt-1 text-amber-300">{'★'.repeat(safeRating)}</p>
+    <article className="flex h-full min-w-0 w-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_8px_22px_rgba(15,23,42,0.09)] sm:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-950">{author}</p>
+          <p className="mt-1 text-sm leading-none text-amber-500" aria-label={`${safeRating} out of 5 stars`}>{'★'.repeat(safeRating)}</p>
         </div>
-        {imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 rounded-full object-cover ring-1 ring-white/10" /> : null}
+        {imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200" /> : null}
       </div>
 
-      {formattedDate ? <p className="mt-3 text-xs text-slate-400">{formattedDate}</p> : null}
-      {title ? <p className="mt-3 text-base font-semibold text-white">{title}</p> : null}
-      {quote ? <p className="mt-3 text-sm leading-6 text-slate-300">“{quote}”</p> : null}
+      {formattedDate ? <p className="mt-2 text-xs text-slate-500">{formattedDate}</p> : null}
+      {title ? <p className="mt-3 break-words text-sm font-semibold leading-5 text-slate-900">{title}</p> : null}
+      {quote ? <p className="mt-3 break-words text-sm leading-6 text-slate-600">“{quote}”</p> : null}
 
       {(productName || productImageUrl) ? (
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-          {productImageUrl ? <img src={productImageUrl} alt={productName || 'Product'} className="h-10 w-10 rounded-xl object-cover" /> : null}
-          <p className="text-xs text-slate-300">{productName || 'Product review'}</p>
+        <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-slate-100 pt-3">
+          {productImageUrl ? <img src={productImageUrl} alt={productName || 'Product'} className="h-9 w-9 shrink-0 rounded-lg object-cover" /> : null}
+          <p className="min-w-0 truncate text-xs font-medium text-slate-600">{productName || 'Product review'}</p>
         </div>
       ) : null}
-    </div>
+    </article>
   );
 }
 
