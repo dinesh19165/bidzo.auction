@@ -83,13 +83,51 @@ type Envelope<T> = ApiResponse<T> & { content?: T; items?: T };
 function unwrap<T>(response: Envelope<T> | T, fallback: string): T {
   if (response && typeof response === 'object') {
     const record = response as Envelope<T>;
-    if (record.success === false) throw new Error(record.message || fallback);
+    if (record.success === false) throw new Error(backendErrorMessage(record) || fallback);
     if (record.data !== undefined) return record.data as T;
     if (record.content !== undefined) return record.content as T;
     if (record.items !== undefined) return record.items as T;
   }
   if (response === undefined || response === null) throw new Error(fallback);
   return response as T;
+}
+
+function backendErrorMessage(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  for (const key of ['message', 'error', 'detail', 'title']) {
+    if (typeof record[key] === 'string' && record[key].trim()) return record[key] as string;
+  }
+  if (Array.isArray(record.errors)) {
+    const messages = record.errors.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+    if (messages.length > 0) return messages.join(', ');
+  }
+  return null;
+}
+
+function toIndiaOffsetDateTime(value?: string | null): string | null | undefined {
+  if (!value) return value;
+  const displayValue = value.match(/^(\d{2})-(\d{2})-(\d{4}) (\d{2}):(\d{2})$/);
+  if (displayValue) {
+    const [, day, month, year, hour, minute] = displayValue;
+    return `${year}-${month}-${day}T${hour}:${minute}:00+05:30`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+    return `${value}:00+05:30`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}:\d{2}$/.test(value)) {
+    return value;
+  }
+  return value;
+}
+
+function normalizeOfferRequest(request: OfferRequest): OfferRequest {
+  return {
+    ...request,
+    startAt: toIndiaOffsetDateTime(request.startAt),
+    endAt: toIndiaOffsetDateTime(request.endAt),
+  };
 }
 
 function listValue<T>(value: unknown): T[] {
@@ -156,7 +194,9 @@ export async function getAdminOffers(): Promise<Offer[]> {
 
 export async function getAdminOffer(id: number | string): Promise<Offer> {
   const response = await fetchJson<unknown>(`/api/admin/offers/${encodeURIComponent(id)}`);
-  return unwrap<Offer>(response as Envelope<Offer>, 'Failed to load offer');
+  const offer = unwrap<Offer>(response as Envelope<Offer>, backendErrorMessage(response) || 'Failed to load offer');
+  if (!offer || typeof offer !== 'object') throw new Error('Failed to load offer: the server returned no offer details.');
+  return offer;
 }
 
 export async function getAdminOfferProducts(search = ''): Promise<AdminOfferProduct[]> {
@@ -171,12 +211,12 @@ export async function getAdminOfferCategories(): Promise<AdminOfferCategory[]> {
 }
 
 export async function createOffer(request: OfferRequest): Promise<Offer> {
-  const response = await fetchJson<unknown>('/api/admin/offers', { method: 'POST', body: JSON.stringify(request) });
+  const response = await fetchJson<unknown>('/api/admin/offers', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(normalizeOfferRequest(request)) });
   return unwrap<Offer>(response as Envelope<Offer>, 'Failed to create offer');
 }
 
 export async function updateOffer(id: number | string, request: OfferRequest): Promise<Offer> {
-  const response = await fetchJson<unknown>(`/api/admin/offers/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(request) });
+  const response = await fetchJson<unknown>(`/api/admin/offers/${encodeURIComponent(id)}`, { method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(normalizeOfferRequest(request)) });
   return unwrap<Offer>(response as Envelope<Offer>, 'Failed to update offer');
 }
 

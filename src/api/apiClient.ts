@@ -126,6 +126,20 @@ function applyAuthHeaders(headers: Headers, token?: string | null) {
   return headers;
 }
 
+function getResponseErrorMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === 'object') {
+    const record = body as Record<string, unknown>;
+    for (const key of ['message', 'error', 'detail', 'title']) {
+      if (typeof record[key] === 'string' && record[key].trim()) return record[key] as string;
+    }
+    if (Array.isArray(record.errors)) {
+      const messages = record.errors.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+      if (messages.length > 0) return messages.join(', ');
+    }
+  }
+  return fallback;
+}
+
 export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth = true): Promise<T> {
   if (useAuth && sessionExpirationHandled) {
     throw new ApiError(401, 'Unauthorized');
@@ -156,12 +170,12 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth
   }
   if (response.status === 403) {
     const body = (await response.json().catch(() => null)) as any;
-    throw new ApiError(response.status, body?.message || "You don't have permission to perform this action");
+    throw new ApiError(response.status, getResponseErrorMessage(body, "You don't have permission to perform this action"));
   }
 
   const body = (await response.json().catch(() => null)) as any;
   if (!response.ok) {
-    throw new ApiError(response.status, body?.message || response.statusText || 'Request failed');
+    throw new ApiError(response.status, getResponseErrorMessage(body, response.statusText || 'Request failed'));
   }
 
   return body as T;
