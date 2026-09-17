@@ -1,8 +1,8 @@
-// export const API_BASE_URL =
-//   import.meta.env.VITE_API_BASE_URL || '/api';
+const runtimeEnv = (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string; DEV?: boolean } }).env ?? {};
+
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? '/api' : 'https://api.bidzo.auction/api');
+  runtimeEnv.VITE_API_BASE_URL ||
+  (runtimeEnv.DEV ? '/api' : 'https://api.bidzo.auction/api');
 export class ApiError extends Error {
   status: number;
 
@@ -146,9 +146,8 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth
   }
 
   const headers = new Headers(init.headers);
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
+  headers.set('Content-Type', 'application/json');
+  headers.set('Accept', 'application/json');
 
   const token = useAuth ? getStoredAuthToken() : null;
   if (useAuth && token && isJwtExpired(token)) {

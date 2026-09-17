@@ -116,13 +116,16 @@ function toIndiaOffsetDateTime(value?: string | null): string | null | undefined
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
     return `${value}:00+05:30`;
   }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)) {
+    return `${value}+05:30`;
+  }
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}:\d{2}$/.test(value)) {
     return value;
   }
   return value;
 }
 
-function normalizeOfferRequest(request: OfferRequest): OfferRequest {
+export function normalizeOfferRequest(request: OfferRequest): OfferRequest {
   return {
     ...request,
     startAt: toIndiaOffsetDateTime(request.startAt),
