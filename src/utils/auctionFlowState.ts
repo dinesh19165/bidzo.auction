@@ -286,9 +286,11 @@ export type BuyNowFlowState = {
   productTitle: string;
   productPrice: number;
   productImageUrl?: string;
+  categoryId?: number;
   orderSubtotal?: number;
   orderTotal?: number;
   loyaltyDiscount?: number;
+  offerDiscount?: number;
   loyaltyPointsRedeemed?: number;
   walletAmount?: number;
   finalPayable?: number;
@@ -320,13 +322,14 @@ export function writeBuyNowFlowState(state: BuyNowFlowState) {
   window.localStorage.setItem(BUYNOW_FLOW_STORAGE_KEY, JSON.stringify(state));
 }
 
-export function initializeBuyNowFlow(productId: number, productTitle: string, productPrice: number, productImageUrl?: string): BuyNowFlowState {
+export function initializeBuyNowFlow(productId: number, productTitle: string, productPrice: number, productImageUrl?: string, categoryId?: number | null): BuyNowFlowState {
   const state: BuyNowFlowState = {
     productId,
     flowStage: 'CONFIRM',
     productTitle,
     productPrice,
     productImageUrl,
+    ...(categoryId !== undefined && categoryId !== null ? { categoryId } : {}),
   };
   writeBuyNowFlowState(state);
   return state;

@@ -4,6 +4,8 @@ import type { ApiResponse, RazorpayOrderResponse } from '../types';
 export interface CartItemResponse {
   id: number;
   productId: number;
+  categoryId?: number | null;
+  availableQuantity?: number | null;
   productName: string;
   productImageUrl?: string | null;
   unitPrice: number;
@@ -18,10 +20,13 @@ export interface CartResponse {
 }
 
 function normalizeItem(item: any): CartItemResponse {
+  const rawAvailableQuantity = item.availableQuantity ?? item.product?.availableQuantity ?? item.product?.quantity ?? item.product?.stock;
   return {
     ...item,
     id: Number(item.id ?? item.itemId),
     productId: Number(item.productId),
+    categoryId: item.categoryId == null ? null : Number(item.categoryId),
+    availableQuantity: rawAvailableQuantity == null ? null : Number(rawAvailableQuantity),
     productName: item.productName ?? item.name ?? 'Product',
     productImageUrl: item.productImageUrl || item.imageUrl || '/logo.png',
     unitPrice: Number(item.unitPrice ?? item.price ?? 0),
@@ -60,10 +65,10 @@ export async function removeCartItem(itemId: number): Promise<CartResponse> {
   return getCart();
 }
 
-export async function createCartCheckout(addressId: number): Promise<RazorpayOrderResponse> {
+export async function createCartCheckout(addressId: number, offerId?: number | string, couponCode?: string): Promise<RazorpayOrderResponse> {
   const response = await fetchJson<ApiResponse<RazorpayOrderResponse>>('/api/cart/checkout', {
     method: 'POST',
-    body: JSON.stringify({ addressId }),
+    body: JSON.stringify({ addressId, ...(offerId !== undefined ? { offerId } : {}), ...(couponCode?.trim() ? { couponCode: couponCode.trim() } : {}) }),
   });
   if (!response?.data) throw new Error(response?.message || 'Failed to start cart checkout');
   return response.data;

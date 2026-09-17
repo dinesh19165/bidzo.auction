@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, ShoppingCart, Sparkles, Star, Users, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, ShoppingCart, Sparkles, Star, Users } from 'lucide-react';
 import { memo, useEffect, useMemo, useState, useCallback, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react';
 import ReactDOM from 'react-dom';
 import { showToast } from '../ui/toast';
@@ -8,6 +8,7 @@ import { useLocaleContext } from '../../context/LocaleContext';
 import { useCartContext } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { StockBadge } from '../common/StockBadge';
 
 interface ProductCardProps {
   id: string | number;
@@ -221,10 +222,10 @@ export const ProductCard = memo(function ProductCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -3 }}
       transition={{ duration: 0.25 }}
-      className="group relative flex h-full w-full max-w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 shadow-lg shadow-slate-950/20 transition-all duration-200 hover:border-blue-400/40"
+      className="group relative flex w-full max-w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-slate-900/80 shadow-lg shadow-slate-950/20 transition-all duration-200 hover:border-blue-400/40"
     >
       <div className="relative overflow-hidden">
-        <div className="aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-slate-950/40">
+        <div className="aspect-[5/3] w-full overflow-hidden rounded-t-xl bg-slate-950/40">
           <img src={image} alt={title} loading="lazy" decoding="async" className="h-full w-full object-contain p-2 transition-opacity duration-200 group-hover:opacity-95" />
         </div>
         <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2">
@@ -260,26 +261,25 @@ export const ProductCard = memo(function ProductCard({
         ) : null}
       </div>
 
-      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+      <div className="p-3 sm:p-3.5">
         <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-slate-400">
           <span>{category}</span>
           <span>{condition}</span>
         </div>
-        <div className="mt-1.5 space-y-1.5">
-          <h3 className="text-base font-semibold leading-5 text-white break-words">{title}</h3>
-          <p className="text-xs leading-5 text-slate-400 line-clamp-2 break-words">{description}</p>
+        <div className="mt-1 space-y-1">
+          <h3 className="break-words text-sm font-semibold leading-5 text-white">{title}</h3>
+          <p className="line-clamp-2 break-words text-[11px] leading-4 text-slate-400">{description}</p>
         </div>
 
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 min-w-0">
+        <div className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-1.5">
           <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <p className="text-lg font-semibold text-white">{priceValue}</p>
-              {oldPrice ? <p className="text-sm text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="text-base font-semibold text-white">{priceValue}</p>
+              {oldPrice ? <p className="text-xs text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
             </div>
-            <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-400">{priceLabel}</p>
-            {createdAt ? <p className="mt-0.5 text-[10px] text-slate-500">Added {new Date(createdAt).toLocaleDateString('en-IN')}</p> : null}
-            {discount ? <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-emerald-300">{discount}</p> : null}
-            {!isAuction && showAddToCart && availableQuantity !== null && availableQuantity !== undefined ? <p className={`mt-1 inline-flex items-center gap-1 text-xs font-semibold ${availableQuantity === 0 ? 'text-rose-300' : availableQuantity === 1 ? 'text-amber-300' : 'text-emerald-300'}`}>{availableQuantity === 0 ? 'Out of stock' : availableQuantity === 1 ? <><Zap className="h-3.5 w-3.5" /> 1 left</> : <><CheckCircle2 className="h-3.5 w-3.5" /> {availableQuantity} available</>}</p> : null}
+            <p className="mt-0.5 text-[9px] uppercase tracking-[0.12em] text-slate-400">{priceLabel}</p>
+            {createdAt ? <p className="mt-0.5 text-[9px] text-slate-500">Added {new Date(createdAt).toLocaleDateString('en-IN')}</p> : null}
+            {discount ? <p className="mt-0.5 text-[9px] uppercase tracking-[0.12em] text-emerald-300">{discount}</p> : null}
           </div>
           {isAuction ? (
             <div className="inline-flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-1 text-[10px] text-blue-200">
@@ -288,41 +288,42 @@ export const ProductCard = memo(function ProductCard({
             </div>
           ) : null}
         </div>
+        {!isAuction ? <StockBadge availableQuantity={availableQuantity} className="mt-1" /> : null}
 
-        {showSellerMeta && seller ? <div className="mt-2.5 rounded-xl border border-white/10 bg-slate-950/70 p-2.5">
+        {showSellerMeta && seller ? <div className="mt-2 rounded-lg border border-white/10 bg-slate-950/70 p-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-xs font-semibold text-blue-200">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-[11px] font-semibold text-blue-200">
                 {seller.charAt(0)}
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-1 text-xs font-semibold text-white">
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-white">
                   <span className="truncate">{seller}</span>
                   {verified ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" /> : null}
                 </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px] text-slate-400">
                   {rating !== undefined ? <span className="inline-flex items-center gap-1 text-amber-300"><Star className="h-3 w-3" /> {rating}</span> : null}
                   {reviews !== undefined ? <span>{reviews} Reviews</span> : null}
                 </div>
               </div>
             </div>
-            {verified ? <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-emerald-300">Verified</span> : null}
+            {verified ? <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-emerald-300">Verified</span> : null}
           </div>
         </div> : null}
 
-        <div className="mt-auto pt-2.5">
+        <div className="mt-2 pt-0.5">
           <div className="flex flex-wrap items-center gap-2">
-            <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-md shadow-blue-600/15 transition-colors duration-200 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60">
+            <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex min-h-[34px] flex-1 items-center justify-center gap-1 overflow-hidden rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white shadow-md shadow-blue-600/15 transition-colors duration-200 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60">
               <span className="relative z-10">{isAuction ? translate('watchAuction') : actionLabel || translate('buyNow')}</span>
               <ArrowRight className="relative z-10 h-3 w-3" />
             </Link>
-            <button type="button" onClick={handleShare} className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
-              <Share2 className="h-3.5 w-3.5" />
+            <button type="button" onClick={handleShare} className="inline-flex min-h-[34px] min-w-[34px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
+              <Share2 className="h-3 w-3" />
             </button>
-            <button type="button" onClick={toggleFavorite} disabled={favoritePending} className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 disabled:cursor-wait disabled:opacity-60" aria-label="Favorite listing">
-              <Heart className={`h-3.5 w-3.5 transition-colors duration-200 ${favorited ? 'fill-current text-rose-500' : ''}`} />
+            <button type="button" onClick={toggleFavorite} disabled={favoritePending} className="inline-flex min-h-[34px] min-w-[34px] items-center justify-center rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-200 transition-colors duration-200 hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 disabled:cursor-wait disabled:opacity-60" aria-label="Favorite listing">
+              <Heart className={`h-3 w-3 transition-colors duration-200 ${favorited ? 'fill-current text-rose-500' : ''}`} />
             </button>
-            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"><ShoppingCart className="h-3.5 w-3.5" />{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
+            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[34px] flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"><ShoppingCart className="h-3 w-3" />{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
           </div>
         </div>
       </div>

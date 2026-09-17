@@ -14,7 +14,7 @@ function getCloudinaryConfig() {
   return { cloudName, uploadPreset };
 }
 
-export async function uploadToCloudinary(file: File): Promise<string> {
+export async function uploadToCloudinaryAsset(file: File): Promise<{ secureUrl: string; publicId: string }> {
   const { cloudName, uploadPreset } = getCloudinaryConfig();
 
   if (!cloudName || !uploadPreset) {
@@ -38,9 +38,14 @@ export async function uploadToCloudinary(file: File): Promise<string> {
   }
 
   const publicUrl = data?.secure_url || data?.url;
-  if (!publicUrl) {
-    throw new Error('Cloudinary did not return a public image URL');
+  if (!publicUrl || !data?.public_id) {
+    throw new Error('Cloudinary did not return the required image details');
   }
 
-  return publicUrl;
+  return { secureUrl: publicUrl, publicId: data.public_id };
+}
+
+export async function uploadToCloudinary(file: File): Promise<string> {
+  const asset = await uploadToCloudinaryAsset(file);
+  return asset.secureUrl;
 }

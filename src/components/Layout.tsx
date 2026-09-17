@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Camera, Check, ChevronDown, Gavel, Globe, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
+import { Bell, Camera, Check, ChevronDown, Gavel, Globe, Grid2X2, Home, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -27,6 +27,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useThemeContext();
   const { language, currency, languageLabel, currencyLabel, setLanguage, setCurrency, translate, formatCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotificationContext();
   const location = useLocation();
   const navigate = useNavigate();
   const [headerSearch, setHeaderSearch] = useState('');
@@ -64,6 +65,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     if (query) params.set('q', query);
     if (headerCategory) params.set('categoryId', headerCategory);
     navigate(`/search?${params.toString()}`);
+  };
+  const focusMobileSearch = () => {
+    const input = document.querySelector('input[placeholder="Search products, auctions, sellers..."]') as HTMLInputElement | null;
+    input?.focus();
   };
   const languageOptions = [
     { key: 'en', label: 'English' },
@@ -116,7 +121,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className={`border-b transition duration-300 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
-          <div className={`mx-auto flex flex-col gap-0 px-4 py-0 text-xs transition duration-300 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
+          <div className={`mx-auto hidden flex-col gap-0 px-4 py-0 text-xs transition duration-300 md:flex ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
             <p className={`inline-flex flex-wrap items-center gap-1.5 rounded-full px-2.5 py-0 text-sm font-medium transition duration-300 ${theme === 'dark' ? 'bg-blue-500/10 text-slate-100' : 'bg-slate-100 text-slate-950 border border-slate-200'}`}>
               <span className="font-medium">{translate('freeShipping')}</span>
               <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{translate('onOrdersOver', { amount: '₹5,000' })}</span>
@@ -206,7 +211,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-<div className="mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
+  <div className="mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
           <div>
             {/* Shared header: logo always shown and links to home */}
@@ -251,58 +256,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 md:hidden">
-            {showMarketplaceControls ? <button type="button" onClick={() => { setMobileSearchOpen((value) => !value); setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
-              <Search className="h-4 w-4" />
-            </button> : null}
-            {/* Mobile auth: if not logged in show Login/Register, else show compact profile trigger with dropdown */}
-            {!user ? (
-              <>
-                <Link to="/login" className={`inline-flex min-h-[38px] items-center justify-center rounded-full border px-3 py-1.5 text-sm font-medium transition ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-                  Login
-                </Link>
-              </>
-            ) : (
-              <div ref={mobileProfileRef} className="relative">
-                <button type="button" onClick={() => { setMobileProfileOpen((v) => !v); setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className="inline-flex items-center justify-center rounded-full border p-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">{user.name ? user.name.split(' ').map((s) => s[0]).slice(0,2).join('') : 'U'}</div>
-                </button>
-                {mobileProfileOpen ? (
-                  <div className="fixed left-4 right-4 top-16 z-50 max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-slate-900/95 p-3 shadow-lg">
-                    <Link to={getPortalHome(user)} onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Dashboard</Link>
-                    {user.type === 'customer' ? <>
-                      <Link to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>
-                      <Link to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wishlist</Link>
-                      <Link to="/wallet" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
-                    </> : user.type === 'vendor' ? <>
-                      <Link to="/vendor/orders" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Orders</Link>
-                      <Link to="/vendor/wallet" onClick={() => setMobileProfileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-200 hover:bg-white/5">Wallet</Link>
-                    </> : null}
-                    <button onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-2 w-full rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            <button type="button" onClick={() => { setMobileMenuOpen(true); setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
-              <Menu className="h-4 w-4" />
-            </button>
+            {showMarketplaceControls ? <>
+              <button type="button" aria-label="Notifications" onClick={() => navigate(user?.type === 'vendor' ? '/vendor/notifications' : '/customer/notifications')} className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}><Bell className="h-4 w-4" />{unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}</button>
+              <Link to="/customer/offers" aria-label="Offers" className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}><Tag className="h-4 w-4" /></Link>
+            </> : null}
           </div>
         </div>
 
-        {showMarketplaceControls && mobileSearchOpen ? (
+        {showMarketplaceControls ? (
           <div className={`border-t px-4 py-3 md:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-            <div className="space-y-2">
-              <label className={`block rounded-2xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
-                <span className={`block text-[10px] font-semibold uppercase tracking-[0.14em] ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Category</span>
-                <select aria-label="Category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
-                  <option value="">All Categories</option>
-                  {categoriesLoading ? <option disabled>Loading categories...</option> : marketplaceCategories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}
-                </select>
-              </label>
-              <div className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
-                <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
-                <input value={headerSearch} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products, auctions, sellers..." className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
-              </div>
+            <div className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
+              <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
+              <input value={headerSearch} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products, auctions, sellers..." className={`w-full min-w-0 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
+              <button type="button" aria-label="Visual search" onClick={focusMobileSearch} className="shrink-0 text-slate-400"><Camera className="h-4 w-4" /></button>
+              <button type="button" aria-label="Voice search" onClick={focusMobileSearch} className="shrink-0 text-slate-400"><Mic className="h-4 w-4" /></button>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}><MapPin className="h-4 w-4 shrink-0 text-blue-500" /><select aria-label="Location" value={headerLocation} onChange={(event) => setHeaderLocation(event.target.value)} className={`min-w-0 w-full bg-transparent text-xs outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}><option>Hyderabad</option><option>Bengaluru</option><option>Mumbai</option><option>Delhi</option></select></label>
+              <label className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}><Grid2X2 className="h-4 w-4 shrink-0 text-blue-500" /><select aria-label="Category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} className={`min-w-0 w-full bg-transparent text-xs outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}><option value="">All Categories</option>{categoriesLoading ? <option disabled>Loading categories...</option> : marketplaceCategories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}</select></label>
             </div>
           </div>
         ) : null}
@@ -363,9 +334,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         ) : null}
       </AnimatePresence>
 
-      <main className="overflow-x-hidden">{children}</main>
+      <main className="overflow-x-hidden pb-20 md:pb-0">{children}</main>
 
       <Footer />
+      {showMarketplaceControls ? <><nav className={`fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl`} aria-label="Mobile navigation"><div className="grid grid-cols-5 gap-1"><Link to="/" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] text-slate-500"><Home className="h-4 w-4" />Home</Link><Link to="/customer/cart" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] text-slate-500"><ShoppingCart className="h-4 w-4" />Cart</Link><Link to="/categories" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] text-slate-500"><Grid2X2 className="h-4 w-4" />Categories</Link><button type="button" onClick={() => setMobileProfileOpen((value) => !value)} className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] ${mobileProfileOpen ? 'text-blue-500' : 'text-slate-500'}`}><UserRound className="h-4 w-4" />Account</button><button type="button" onClick={() => setMobileMenuOpen(true)} className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] text-slate-500"><Menu className="h-4 w-4" />More</button></div></nav>{mobileProfileOpen && user ? <div ref={mobileProfileRef} className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-9rem)] overflow-y-auto overflow-x-hidden rounded-xl border p-3 shadow-2xl md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}><Link to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Dashboard</Link>{user.type === 'customer' ? <><Link to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Orders</Link><Link to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wishlist</Link><Link to="/wallet" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wallet</Link><Link to="/customer/rewards" onClick={() => setMobileProfileOpen(false)} className={`block whitespace-normal break-words rounded-md px-3 py-2.5 text-sm leading-5 ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Rewards / Referral &amp; Earn</Link></> : null}<button onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-2 min-h-11 w-full rounded-md bg-amber-500 px-3 py-2.5 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button></div> : null}</> : null}
     </div>
   );
 }
@@ -546,7 +518,7 @@ function AuthActions() {
           {cartItemCount > 0 ? <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border-2 border-slate-950 bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">{cartItemCount}</span> : null}
         </Link>
       ) : null}
-      {user && isCustomer ? <Link to="/marketplace" className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-2.5 py-2 text-xs text-rose-100 transition hover:bg-rose-500/20"><Tag className="h-4 w-4" /><span className="hidden xl:inline">Offers</span></Link> : null}
+      {user && isCustomer ? <Link to="/customer/offers" className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-2.5 py-2 text-xs text-rose-100 transition hover:bg-rose-500/20"><Tag className="h-4 w-4" /><span className="hidden xl:inline">Offers</span></Link> : null}
       {!user ? (
         <>
           <Link to="/login" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Login</Link>

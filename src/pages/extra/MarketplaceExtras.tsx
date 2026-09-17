@@ -7,6 +7,7 @@ import { CategoryIcon } from '../../components/categories/CategoryIcon';
 import { categoryLabel, getCategories, type CategoryRecord } from '../../api/categoryApi';
 import { deduplicateMarketplaceResults, searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../../api/apiClient';
+import { StockBadge } from '../../components/common/StockBadge';
 
 export function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
@@ -108,7 +109,7 @@ function MarketplaceResultCard({ item }: { item: MarketplaceSearchResult }) {
   const imageUrl = image ? (image.startsWith('/') ? `${API_BASE_URL}${image}` : image) : null;
   const href = item.type === 'AUCTION' ? `/auctions/${item.id}` : item.type === 'VENDOR' ? `/seller/${item.id}` : `/product/${item.id}`;
   const value = item.type === 'AUCTION' ? item.currentBid : item.price;
-  return <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-slate-300"><div className="h-44 overflow-hidden rounded-2xl bg-slate-800">{imageUrl ? <img src={imageUrl} alt={item.title} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" /> : null}</div><p className="mt-4 text-xs uppercase tracking-[0.2em] text-blue-300">{item.type}</p><h3 className="mt-2 text-lg font-semibold text-white">{item.title}</h3><p className="mt-2 text-sm">{item.category?.name || item.vendor?.name || 'Marketplace result'}</p>{value !== null ? <p className="mt-4 text-lg font-semibold text-white">₹{Number(value).toLocaleString()}</p> : null}<Link to={href} className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">View details</Link></div>;
+  return <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-slate-300"><div className="h-44 overflow-hidden rounded-2xl bg-slate-800">{imageUrl ? <img src={imageUrl} alt={item.title} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="h-full w-full object-cover" /> : null}</div><p className="mt-4 text-xs uppercase tracking-[0.2em] text-blue-300">{item.type}</p><h3 className="mt-2 text-lg font-semibold text-white">{item.title}</h3><p className="mt-2 text-sm">{item.category?.name || item.vendor?.name || 'Marketplace result'}</p>{value !== null ? <p className="mt-4 text-lg font-semibold text-white">₹{Number(value).toLocaleString()}</p> : null}{item.type === 'PRODUCT' ? <StockBadge availableQuantity={item.availableQuantity} className="mt-2" /> : null}<Link to={href} className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">View details</Link></div>;
 }
 
 export function RecommendedPage() {

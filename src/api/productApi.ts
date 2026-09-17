@@ -27,6 +27,11 @@ export interface ProductApiResponse {
   status?: string;
   brandId?: number | null;
   categoryId?: number | null;
+  categoryName?: string | null;
+  category?: { id?: number | string | null; name?: string | null } | null;
+  availableQuantity?: number | null;
+  quantity?: number | null;
+  stock?: number | null;
   sellingType?: string | null;
   vendorId?: number | null;
   image?: string | null;
@@ -52,6 +57,9 @@ export interface ProductListItem {
   sku: string;
   brandId?: number | null;
   categoryId?: number | null;
+  categoryName?: string;
+  categoryObject?: { id?: number | string | null; name?: string | null } | null;
+  availableQuantity?: number | null;
   sellingType?: string;
   isAuction: boolean;
   isDirectBuy: boolean;
@@ -68,9 +76,12 @@ export interface ProductListItem {
 
 export interface BuyNowOrderRequest {
   quantity: number;
+  orderAmount?: number;
   addressId: number;
   walletAmountToUse?: number;
   redeemLoyaltyPoints?: number;
+  offerId?: number | string;
+  couponCode?: string;
 }
 
 export interface BuyNowOrderResponse {
@@ -80,6 +91,9 @@ export interface BuyNowOrderResponse {
   totalAmount: number;
   loyaltyPointsRedeemed?: number;
   loyaltyDiscount?: number;
+  offerId?: number | string;
+  offerDiscount?: number;
+  couponCode?: string;
   walletAmount?: number;
   finalPayable?: number;
   remainingAmount?: number;
@@ -143,6 +157,8 @@ function mapProductSpecifications(specs?: ProductSpecificationResponse[] | null)
 }
 
 function mapProduct(response: ProductApiResponse, imageOverride?: string): ProductListItem {
+  const categoryId = response.categoryId ?? (response.category?.id == null ? null : Number(response.category.id));
+  const categoryName = response.categoryName || response.category?.name || undefined;
   const price = formatPrice(response.price);
   const status = response.status || 'ACTIVE';
   const sellingType = normalizeSellingType(response.sellingType);
@@ -155,7 +171,7 @@ function mapProduct(response: ProductApiResponse, imageOverride?: string): Produ
     title: response.name,
     description: response.description || '',
     price,
-    category: response.categoryId != null ? String(response.categoryId) : '',
+    category: categoryName || (categoryId != null ? String(categoryId) : ''),
     condition: '',
     seller: '',
     rating: undefined,
@@ -166,7 +182,10 @@ function mapProduct(response: ProductApiResponse, imageOverride?: string): Produ
     reviews: undefined,
     sku: response.sku,
     brandId: response.brandId,
-    categoryId: response.categoryId,
+    categoryId,
+    categoryName,
+    categoryObject: response.category ?? (categoryId == null && !categoryName ? null : { id: categoryId, name: categoryName }),
+    availableQuantity: response.availableQuantity ?? response.quantity ?? response.stock ?? null,
     sellingType: sellingType === 'UNKNOWN' ? undefined : sellingType,
     isAuction,
     isDirectBuy,
@@ -235,13 +254,16 @@ export async function getProductById(id: number): Promise<ProductListItem> {
   }
 }
 
-export async function createBuyNowOrder(productId: number, addressId: number, walletAmountToUse?: number, redeemLoyaltyPoints?: number): Promise<BuyNowOrderResponse> {
+export async function createBuyNowOrder(productId: number, addressId: number, walletAmountToUse?: number, redeemLoyaltyPoints?: number, offerId?: number | string, couponCode?: string, orderAmount?: number): Promise<BuyNowOrderResponse> {
   const body: BuyNowOrderRequest = {
     quantity: 1,
     addressId,
     ...(redeemLoyaltyPoints !== undefined && redeemLoyaltyPoints > 0 ? { redeemLoyaltyPoints } : {}),
   };
+  if (orderAmount !== undefined && Number.isFinite(orderAmount)) body.orderAmount = orderAmount;
   if (walletAmountToUse !== undefined && walletAmountToUse > 0) body.walletAmountToUse = walletAmountToUse;
+  if (offerId !== undefined) body.offerId = offerId;
+  if (couponCode?.trim()) body.couponCode = couponCode.trim();
   const response = await fetchJson<ApiResponse<BuyNowOrderResponse>>(`/api/products/${productId}/buy-now`, {
     method: 'POST',
     body: JSON.stringify(body),

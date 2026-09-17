@@ -16,6 +16,7 @@ import type { AddressResponse } from '../../api/addressApi';
 import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } from '../../api/paymentApi';
 import { createVendorProduct, getVendorProducts, updateVendorProduct, type SellingType } from '../../api/vendorProductApi';
 import { createProductImage, createBuyNowOrder, getProducts, getProductById, type ProductListItem } from '../../api/productApi';
+import { StockBadge } from '../../components/common/StockBadge';
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
 import { WishlistPage } from '../WishlistPage';
 import { createAuction, getAuctions } from '../../api/auctionApi';
@@ -191,6 +192,7 @@ export function CustomerCategoryPage() {
             <p className="text-sm text-slate-400">{product.category}</p>
             <h3 className="mt-2 text-lg font-semibold text-white">{product.title}</h3>
             <p className="mt-2 text-sm text-slate-400">{product.description}</p>
+            <StockBadge availableQuantity={product.availableQuantity} className="mt-2" />
             <div className="mt-4 flex items-center justify-between">
               <p className="text-white">{product.price}</p>
               <Link to={`/customer/product/${product.id}`} className="rounded-full bg-blue-600 px-3 py-2 text-sm font-medium text-white">Open</Link>
@@ -234,6 +236,7 @@ export function CustomerProductPage() {
             <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">{product.category}</p>
             <h3 className="mt-2 text-3xl font-semibold text-white">{product.price}</h3>
             <p className="mt-3 text-sm text-slate-300">{product.description}</p>
+            <StockBadge availableQuantity={product.availableQuantity} className="mt-3" />
             <div className="mt-6 space-y-2 text-sm text-slate-300">
               <p><span className="text-slate-500">Seller:</span> {product.seller}</p>
               <p><span className="text-slate-500">Condition:</span> {product.condition}</p>

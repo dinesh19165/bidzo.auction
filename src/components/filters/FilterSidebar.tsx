@@ -2,6 +2,7 @@ import { Input, Select, Checkbox } from '../forms/FormComponents';
 import { Monitor, Search, User, Star, ShieldCheck, Gavel, ShoppingBag, Tag, Funnel, RefreshCw, Check } from 'lucide-react';
 import { categoryLabel, type CategoryRecord } from '../../api/categoryApi';
 import { useLocaleContext } from '../../context/LocaleContext';
+import { useThemeContext } from '../../context/ThemeContext';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -67,7 +68,7 @@ export default function FilterSidebar({
   resetFilters: () => void;
 }) {
   // Generic custom dropdown matching dark theme
-  function Dropdown({ label, options, value, onChange, icon }: { label?: string; options: Array<{ label: string; value: string }>; value?: string; onChange: (v: string) => void; icon?: any }) {
+  function Dropdown({ label, options, value, onChange, icon, themeAware = false }: { label?: string; options: Array<{ label: string; value: string }>; value?: string; onChange: (v: string) => void; icon?: any; themeAware?: boolean }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement | null>(null);
 
@@ -88,17 +89,17 @@ export default function FilterSidebar({
 
     return (
       <div className="relative w-full" ref={ref} onKeyDown={onKey}>
-        {label && <div className="mb-2 block text-sm font-medium text-slate-200">{label}</div>}
+        {label && <div className={`mb-2 block text-sm font-medium ${themeAware && theme === 'light' ? 'text-slate-700' : 'text-slate-200'}`}>{label}</div>}
         <button
           type="button"
           onClick={toggle}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className="flex w-full items-center justify-between gap-3 min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none"
+          className={`flex w-full items-center justify-between gap-3 min-h-[48px] rounded-2xl border px-4 py-3 text-sm outline-none ${themeAware && theme === 'light' ? 'border-slate-200 bg-white text-slate-900 shadow-sm' : 'border-white/10 bg-slate-950/60 text-white'}`}
         >
           <div className="flex items-center gap-3">
             {icon}
-            <span className="text-sm text-white">{options.find((o) => o.value === value)?.label ?? options[0]?.label}</span>
+            <span className={`text-sm ${themeAware && theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{options.find((o) => o.value === value)?.label ?? options[0]?.label}</span>
           </div>
           <svg className={`h-4 w-4 text-slate-300 transition-transform duration-150 ${open ? 'rotate-180' : 'rotate-0'}`} viewBox="0 0 20 20" fill="none">
             <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -108,12 +109,7 @@ export default function FilterSidebar({
         {/* dropdown menu */}
         <div
           className={`absolute left-0 mt-2 z-50 w-full origin-top-right transform transition-all duration-150 ${open ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
-          style={{
-            background: '#0F172A',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 14,
-            boxShadow: '0 20px 60px rgba(0,0,0,.45)',
-          }}
+          style={themeAware && theme === 'light' ? { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, boxShadow: '0 12px 30px rgba(15,23,42,.12)' } : { background: '#0F172A', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,.45)' }}
           role="listbox"
         >
           <ul className="max-h-60 overflow-auto">
@@ -128,10 +124,10 @@ export default function FilterSidebar({
                     onChange(opt.value);
                     setOpen(false);
                   }}
-                  className={`flex h-11 cursor-pointer items-center justify-between px-4 text-white font-medium ${selected ? 'bg-[#1e3a8a]' : 'hover:bg-[#2563EB] hover:text-white'}`}
+                  className={`flex h-11 cursor-pointer items-center justify-between px-4 font-medium ${themeAware && theme === 'light' ? (selected ? 'bg-blue-100 text-slate-900' : 'text-slate-800 hover:bg-slate-100 hover:text-slate-900') : `text-white ${selected ? 'bg-[#1e3a8a]' : 'hover:bg-[#2563EB] hover:text-white'}`}`}
                 >
                   <span>{opt.label}</span>
-                  {selected ? <Check className="h-4 w-4 text-white" /> : null}
+                  {selected ? <Check className={`h-4 w-4 ${themeAware && theme === 'light' ? 'text-blue-600' : 'text-white'}`} /> : null}
                 </li>
               );
             })}
@@ -141,6 +137,7 @@ export default function FilterSidebar({
     );
   }
   const { translate, currencySymbol } = useLocaleContext();
+  const { theme } = useThemeContext();
 
   return (
     <div className="space-y-3">
@@ -154,7 +151,7 @@ export default function FilterSidebar({
 
       <div className="mt-2 space-y-3">
         <Input ariaLabel="Search products" icon={<Search className="h-4 w-4 text-slate-400" />} placeholder={translate('searchPlaceholder')} value={query} onChange={(e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)} />
-            <Dropdown label={translate('category')} options={[{ label: translate('allCategories'), value: '' }, ...(categoriesLoading ? [{ label: 'Loading categories...', value: '__loading__' }] : categories.map((c) => ({ label: categoryLabel(c), value: String(c.id) })))]} value={category} onChange={(v) => { if (v !== '__loading__') setCategory(v); }} icon={<Monitor className="h-4 w-4 text-slate-400" />} />
+            <Dropdown themeAware label={translate('category')} options={[{ label: translate('allCategories'), value: '' }, ...(categoriesLoading ? [{ label: 'Loading categories...', value: '__loading__' }] : categories.map((c) => ({ label: categoryLabel(c), value: String(c.id) })))]} value={category} onChange={(v) => { if (v !== '__loading__') setCategory(v); }} icon={<Monitor className="h-4 w-4 text-slate-400" />} />
             {categoriesError ? <p className="mt-1 text-xs text-rose-300">Unable to load categories.</p> : null}
 
         <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">

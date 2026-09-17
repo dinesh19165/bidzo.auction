@@ -59,6 +59,14 @@ export async function getOrderById(orderId: number): Promise<OrderResponseDto> {
   return response.data;
 }
 
+export async function cancelOrder(orderId: number): Promise<OrderResponseDto | null> {
+  const response = await fetchJson<ApiResponse<OrderResponseDto>>(`/api/orders/${orderId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status: 'CANCELLED' }),
+  });
+  return response?.data ?? null;
+}
+
 export async function createOrder(request: OrderRequestDto): Promise<OrderResponseDto> {
   const response = await fetchJson<ApiResponse<OrderResponseDto>>('/api/orders', {
     method: 'POST',

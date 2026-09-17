@@ -19,6 +19,9 @@ export interface WishlistItemResponse {
     image?: string | null;
     imageUrl?: string | null;
     description?: string | null;
+    availableQuantity?: number | null;
+    quantity?: number | null;
+    stock?: number | null;
   };
   createdAt?: string;
   updatedAt?: string;
@@ -36,6 +39,7 @@ function normalizeWishlistItem(item: any): WishlistItemResponse {
     ? {
         ...rawProduct,
         image: rawProduct.imageUrl || rawProduct.image,
+        availableQuantity: rawProduct.availableQuantity ?? rawProduct.quantity ?? rawProduct.stock ?? null,
       }
     : undefined;
 

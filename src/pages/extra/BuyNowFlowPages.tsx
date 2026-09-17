@@ -5,13 +5,14 @@ import { CheckCircle2, CreditCard, Download, Info, Loader2, MapPin, PackageCheck
 import { SectionShell } from '../../components/SectionShell';
 import { useAuth } from '../../context/AuthContext';
 import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentApi';
-import { createProductImage, createBuyNowOrder } from '../../api/productApi';
+import { createProductImage, createBuyNowOrder, getProductById, type ProductListItem } from '../../api/productApi';
 import { getLoyaltyBalance, getLoyaltyRedeemQuote, type LoyaltyBalanceResponse, type LoyaltyRedeemQuoteResponse } from '../../api/loyaltyApi';
 import { getRewardsSummary } from '../../api/rewardsApi';
-import { getOrderById } from '../../api/orderApi';
+import { cancelOrder, getOrderById } from '../../api/orderApi';
 import { readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 import { loadRazorpay, type RazorpayInstance, type RazorpayOptions, type RazorpayPaymentResponse } from '../../utils/razorpay';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
+import { OfferCheckoutSection, type AppliedOffer } from '../../components/checkout/OfferCheckoutSection';
 import type { AddressResponse } from '../../api/addressApi';
 
 function FlowTransitionScreen({ heading, message, detail }: { heading: string; message: string; detail?: string }) {
@@ -52,7 +53,29 @@ export function BuyNowConfirmPage() {
   const [loyaltyPoints, setLoyaltyPoints] = useState('');
   const [loyaltyQuote, setLoyaltyQuote] = useState<LoyaltyRedeemQuoteResponse | null>(null);
   const [loyaltyError, setLoyaltyError] = useState<string | null>(null);
+  const [appliedOffer, setAppliedOffer] = useState<AppliedOffer | null>(null);
+  const [currentProduct, setCurrentProduct] = useState<ProductListItem | null>(null);
+  const [productContextError, setProductContextError] = useState<string | null>(null);
   const subtotal = Number(flowState.productPrice);
+
+  useEffect(() => {
+    let active = true;
+    if (!flowState.productId) return undefined;
+    setCurrentProduct(null);
+    setProductContextError(null);
+    getProductById(flowState.productId).then((product) => {
+      if (!active) return;
+      console.log('BUY NOW PRODUCT RAW', product);
+      if (product.categoryId === null || product.categoryId === undefined) {
+        setProductContextError('Product category information is unavailable. Please refresh and try again.');
+        return;
+      }
+      setCurrentProduct(product);
+    }).catch((reason) => {
+      if (active) setProductContextError(reason instanceof Error ? reason.message : 'Unable to load the current product.');
+    });
+    return () => { active = false; };
+  }, [flowState.productId]);
 
   useEffect(() => {
     getRewardsSummary().then((summary) => {
@@ -112,9 +135,7 @@ export function BuyNowConfirmPage() {
     try {
       // Create order via buy-now endpoint
       const requestedWalletAmount = useWallet && walletUsage.trim() ? Math.min(Math.max(0, Number(walletUsage)), walletMaximum) : undefined;
-      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id, requestedWalletAmount, loyaltyQuote?.acceptedPoints);
-      console.log('[BUY NOW CREATE RESPONSE]', orderData);
-      
+      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id, requestedWalletAmount, loyaltyQuote?.acceptedPoints, appliedOffer?.offerId ?? undefined, appliedOffer?.sourceCode, subtotal);
       if (!orderData) {
         setError('No order data returned from server');
         setLoading(false);
@@ -130,7 +151,7 @@ export function BuyNowConfirmPage() {
 
       if (orderData.paymentRequired === false || orderData.finalPayable === 0) {
         markBuyNowOrderConfirmed(orderData.id, orderData.deliveryAddress);
-        writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress, orderSubtotal: orderData.subtotal, orderTotal: orderData.totalAmount, loyaltyDiscount: orderData.loyaltyDiscount, loyaltyPointsRedeemed: orderData.loyaltyPointsRedeemed, walletAmount: orderData.walletAmount, finalPayable: orderData.finalPayable, remainingAmount: orderData.remainingAmount });
+        writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress, orderSubtotal: orderData.subtotal, orderTotal: orderData.totalAmount, offerDiscount: orderData.offerDiscount, loyaltyDiscount: orderData.loyaltyDiscount, loyaltyPointsRedeemed: orderData.loyaltyPointsRedeemed, walletAmount: orderData.walletAmount, finalPayable: orderData.finalPayable, remainingAmount: orderData.remainingAmount });
         navigate('/customer/buynow-success');
         return;
       }
@@ -142,12 +163,12 @@ export function BuyNowConfirmPage() {
         orderSubtotal: orderData.subtotal,
         orderTotal: orderData.totalAmount,
         loyaltyDiscount: orderData.loyaltyDiscount,
+        offerDiscount: orderData.offerDiscount,
         loyaltyPointsRedeemed: orderData.loyaltyPointsRedeemed,
         walletAmount: orderData.walletAmount,
         finalPayable: orderData.finalPayable,
         remainingAmount: orderData.remainingAmount,
       };
-      console.log('[BUY NOW NAVIGATION STATE]', navigationState);
       startBuyNowPayment(navigationState);
       
       navigate('/customer/buynow-payment');
@@ -236,12 +257,13 @@ export function BuyNowConfirmPage() {
                 {loyaltyLoading ? <p className="mt-3 text-sm text-slate-400">Checking loyalty points...</p> : loyaltyQuote ? <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-400/20 bg-emerald-500/10 p-3"><p className="text-sm font-semibold text-emerald-200">✓ {loyaltyQuote.acceptedPoints} points applied</p><button type="button" onClick={removeLoyaltyPoints} className="text-xs font-semibold text-slate-300 underline hover:text-white">Remove</button></div> : availableLoyaltyPoints <= 0 ? <p className="mt-3 text-sm text-slate-400">You don't have any loyalty points available.</p> : <><p className="mt-3 text-sm text-slate-300">Available points: <span className="font-semibold text-white">{availableLoyaltyPoints}</span></p><p className="mt-1 text-xs text-slate-400">{pointsToCurrencyConversion} points = ₹1</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><input inputMode="numeric" value={loyaltyPoints} onChange={(event) => setLoyaltyPoints(event.target.value.replace(/\D/g, ''))} placeholder="Enter points" className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none focus:border-amber-400/50" /><button type="button" onClick={applyLoyaltyPoints} className="h-10 rounded-lg bg-amber-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-400">Apply Points</button></div><button type="button" onClick={() => { setLoyaltyPoints(String(availableLoyaltyPoints)); }} className="mt-2 text-xs font-semibold text-amber-200 hover:text-amber-100">Use all {availableLoyaltyPoints} points</button></>}
                 {loyaltyError ? <p className="mt-2 text-xs text-rose-300">{loyaltyError}</p> : null}
               </section>
+              {productContextError ? <p className="rounded-lg border border-rose-400/20 bg-rose-500/10 p-3 text-xs text-rose-200">{productContextError}</p> : <OfferCheckoutSection orderAmount={subtotal} productId={currentProduct?.id} categoryId={currentProduct?.categoryId === undefined ? undefined : Number(currentProduct.categoryId)} categoryName={currentProduct?.categoryName || currentProduct?.category} categoryObject={currentProduct?.categoryObject} onApplied={setAppliedOffer} onRemoved={() => setAppliedOffer(null)} />}
               <section className="mb-4 rounded-lg border border-sky-400/20 bg-sky-500/5 p-3">
                 <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-white">Wallet Balance</h3><p className="mt-1 text-xs text-slate-400">₹{(walletBalance ?? 0).toLocaleString('en-IN')} available</p></div><WalletCards className="h-4 w-4 text-sky-300" /></div>
                 {walletError ? <p className="mt-3 text-sm text-rose-300">{walletError}</p> : walletBalance === null ? <p className="mt-3 text-sm text-slate-400">Checking wallet balance...</p> : walletBalance <= 0 ? <p className="mt-3 text-sm text-slate-400">No wallet balance available.</p> : <><label className="mt-3 flex items-center gap-2 text-sm text-slate-200"><input type="checkbox" checked={useWallet} onChange={(event) => { setUseWallet(event.target.checked); if (!event.target.checked) setWalletUsage(''); }} /> Use wallet balance</label>{useWallet ? <label className="mt-2 block text-xs text-slate-400">Wallet amount to use<input inputMode="decimal" min="0" max={walletMaximum} value={walletUsage} onChange={(event) => { const value = Number(event.target.value.replace(/[^0-9.]/g, '')); setWalletUsage(Number.isFinite(value) ? String(Math.min(Math.max(0, value), walletMaximum)) : ''); }} className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none focus:border-sky-400/50" /></label> : null}<p className="mt-2 text-xs text-slate-500">Maximum available for this order: ₹{walletMaximum.toLocaleString('en-IN')}</p></>}
               </section>
               <h2 className="text-base font-bold text-white">Price details</h2>
-              <div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-4 text-slate-400"><span>Subtotal</span><span className="shrink-0 text-white">₹{subtotal.toLocaleString('en-IN')}</span></div><div className="flex justify-between gap-4 text-emerald-300"><span>Loyalty discount</span><span className="shrink-0">-₹{(loyaltyQuote?.discountAmount ?? 0).toLocaleString('en-IN')}</span></div><div className="flex justify-between gap-4 text-sky-300"><span>Wallet used</span><span className="shrink-0">-₹{(useWallet ? Number(walletUsage) || 0 : 0).toLocaleString('en-IN')}</span></div><div className="border-t border-white/10 pt-2"><div className="flex justify-between gap-4 text-base font-bold"><span className="text-white">Estimated payable</span><span className="shrink-0 text-emerald-300">₹{Math.max(0, subtotal - (loyaltyQuote?.discountAmount ?? 0) - (useWallet ? Number(walletUsage) || 0 : 0)).toLocaleString('en-IN')}</span></div></div></div>
+              <div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-4 text-slate-400"><span>Subtotal</span><span className="shrink-0 text-white">₹{subtotal.toLocaleString('en-IN')}</span></div><div className="flex justify-between gap-4 text-emerald-300"><span>Loyalty discount</span><span className="shrink-0">-₹{(loyaltyQuote?.discountAmount ?? 0).toLocaleString('en-IN')}</span></div>{appliedOffer ? <div className="flex justify-between gap-4 text-emerald-300"><span>Offer discount</span><span className="shrink-0">-₹{Number(appliedOffer.discountAmount || 0).toLocaleString('en-IN')}</span></div> : null}<div className="flex justify-between gap-4 text-sky-300"><span>Wallet used</span><span className="shrink-0">-₹{(useWallet ? Number(walletUsage) || 0 : 0).toLocaleString('en-IN')}</span></div><div className="border-t border-white/10 pt-2"><div className="flex justify-between gap-4 text-base font-bold"><span className="text-white">Estimated payable</span><span className="shrink-0 text-emerald-300">₹{Math.max(0, (appliedOffer?.finalAmount ?? subtotal) - (loyaltyQuote?.discountAmount ?? 0) - (useWallet ? Number(walletUsage) || 0 : 0)).toLocaleString('en-IN')}</span></div></div></div>
               <div className="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-400"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />Secure payment through Razorpay</div>
             </aside>
           </div>
@@ -306,11 +328,13 @@ export function BuyNowPaymentPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flowState = readBuyNowFlowState();
   const serverOrderSubtotal = flowState.orderSubtotal ?? flowState.productPrice;
   const serverOrderTotal = flowState.finalPayable ?? flowState.orderTotal ?? flowState.productPrice;
   const serverLoyaltyDiscount = flowState.loyaltyDiscount ?? 0;
+  const serverOfferDiscount = flowState.offerDiscount ?? 0;
   const serverWalletAmount = flowState.walletAmount ?? 0;
   const rzpRef = useRef<RazorpayInstance | null>(null);
 
@@ -382,6 +406,21 @@ export function BuyNowPaymentPage() {
     }
   };
 
+  const handleCancelOrder = async () => {
+    if (!flowState.orderId || cancelling) return;
+    setCancelling(true);
+    setError(null);
+    try {
+      await cancelOrder(flowState.orderId);
+      clearBuyNowFlowState();
+      navigate(`/product/${flowState.productId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to cancel this order.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   return (
     <SectionShell title="Payment" subtitle="Complete your purchase securely">
       <div className="mx-auto max-w-2xl">
@@ -402,6 +441,10 @@ export function BuyNowPaymentPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">Loyalty discount</span>
                   <span className="text-emerald-300">-₹{serverLoyaltyDiscount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Offer discount</span>
+                  <span className="text-emerald-300">-₹{serverOfferDiscount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">Wallet used</span>
@@ -431,11 +474,11 @@ export function BuyNowPaymentPage() {
             {/* Actions */}
             <div className="flex flex-col gap-2.5 sm:flex-row">
               <button
-                onClick={() => navigate('/marketplace')}
-                disabled={loading}
+                onClick={() => void handleCancelOrder()}
+                disabled={loading || cancelling}
                 className="min-h-[46px] flex-1 rounded-full border border-white/10 px-4 py-2 font-medium text-white transition hover:bg-white/5 disabled:opacity-50"
               >
-                Cancel
+                {cancelling ? 'Cancelling...' : 'Cancel Payment'}
               </button>
               <button
                 onClick={handlePayment}

@@ -11,6 +11,7 @@ import { showToast } from '../components/ui/toast';
 import { initializeBuyNowFlow } from '../utils/auctionFlowState';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
+import { StockBadge } from '../components/common/StockBadge';
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -117,7 +118,7 @@ export function ProductDetailPage() {
   const handleBuyNow = () => {
     if (!product) return;
     const priceNum = Number(product.price.replace(/[^0-9.-]/g, '')) || 0;
-    initializeBuyNowFlow(product.id, product.title, priceNum, product.image);
+    initializeBuyNowFlow(product.id, product.title, priceNum, product.image, product.categoryId);
     navigate('/customer/buynow-confirm');
   };
 
@@ -184,6 +185,7 @@ export function ProductDetailPage() {
           </div>
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <StockBadge availableQuantity={product.availableQuantity} />
             <button onClick={handleBuyNow} className="w-full rounded-full bg-blue-600 px-5 py-2.5 text-center text-sm font-medium text-white sm:w-auto hover:bg-blue-700">Buy now</button>
           </div>
 
@@ -206,7 +208,6 @@ export function ProductDetailPage() {
               <p><span className="text-slate-500">Seller:</span> {product.seller} {product.verified ? <span className="ml-2 inline-flex items-center gap-1 text-emerald-300">(Verified)</span> : null}</p>
               <p><span className="text-slate-500">Location:</span> {product.location}</p>
               <p><span className="text-slate-500">Condition:</span> {product.condition}</p>
-              <p><span className="text-slate-500">Stock:</span> {product.stock} available</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Buyer protection</span>

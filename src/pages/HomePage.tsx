@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Gavel, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Gavel, Heart, Sparkles } from 'lucide-react';
 import { getPortalHome, useAuth } from '../context/AuthContext';
 import { useLocaleContext } from '../context/LocaleContext';
-import { getHomeData, type AuctionResponse, type CategoryResponse, type HomeBannerResponse, type HomeDataResponse, type HomeReviewResponse, type ProductResponse } from '../api/homeApi';
+import { getHomeData, getHomeDeals, type AuctionResponse, type CategoryResponse, type HomeBannerResponse, type HomeDataResponse, type HomeDealResponse, type HomeReviewResponse, type ProductResponse } from '../api/homeApi';
+import { getPublicPromotionalBanners, type PromotionalBanner } from '../api/promotionalBannerApi';
 import { getAuctions, type AuctionListItem } from '../api/auctionApi';
 import { CategoryIcon } from '../components/categories/CategoryIcon';
 import { API_BASE_URL } from '../api/apiClient';
 import { ProductCard, ReviewCard } from '../components/cards/MarketplaceCards';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
 import { filterEndingSoonHomeAuctions, filterHomeAuctions, type HomeAuctionStatus } from '../utils/homeAuctions';
-import { demoCategoryPromotions, demoDirectBuyPromotions, demoLiveAuctionPromotions, type HomePromotion } from '../data/homePromotions';
+import { demoDirectBuyPromotions, demoLiveAuctionPromotions, type HomePromotion } from '../data/homePromotions';
+import { useWishlist } from '../context/WishlistContext';
+import { showToast } from '../components/ui/toast';
+import { StockBadge } from '../components/common/StockBadge';
 
 function imageUrl(value?: string | null): string {
   if (!value) return '/logo.png';
@@ -103,7 +107,123 @@ function DemoPromotionGrid() {
 }
 
 function CategoryPromotionBanner() {
-  return <section className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8"><div className="grid gap-3 md:grid-cols-3">{demoCategoryPromotions.map((promotion) => <Link key={promotion.id} to={promotion.href} className={`group relative flex min-h-[182px] overflow-hidden rounded-2xl bg-gradient-to-br ${promotion.tone} p-5 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:min-h-[200px]`}><div className="relative z-10 flex max-w-[58%] flex-col items-start"><h2 className="text-xl font-bold leading-tight sm:text-2xl">{promotion.title}</h2><p className="mt-2 text-xs font-medium leading-5 text-slate-800/80 sm:text-sm">{promotion.description}</p><span className="mt-auto inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold shadow-sm transition group-hover:bg-white">Shop Now <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" /></span></div><div className="absolute inset-y-0 right-0 w-[56%] overflow-hidden"><img src={promotion.imageUrl} alt="" className="h-full w-full object-cover object-center mix-blend-multiply transition duration-500 group-hover:scale-105" /></div></Link>)}</div></section>;
+  const [banners, setBanners] = useState<PromotionalBanner[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const railRef = useRef<HTMLDivElement>(null);
+  const interactingRef = useRef(false);
+  const animationFrameRef = useRef<number | null>(null);
+  const previousTimestampRef = useRef<number | null>(null);
+  const firstSetWidthRef = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    getPublicPromotionalBanners().then((items) => {
+      if (active) setBanners(items.filter((item) => item.active));
+    }).catch((reason: unknown) => {
+      if (active) setBanners([]);
+      console.error('[Bidzo marketplace] promotional banners failed to load', reason);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setReducedMotion(mediaQuery.matches);
+    updatePreference();
+    mediaQuery.addEventListener('change', updatePreference);
+    return () => mediaQuery.removeEventListener('change', updatePreference);
+  }, []);
+
+  useEffect(() => {
+    if (reducedMotion || banners.length < 2) return undefined;
+    const rail = railRef.current;
+    if (!rail) return undefined;
+
+    const speed = 35;
+    const measureFirstSet = () => {
+      const firstCard = rail.children[0] as HTMLElement | undefined;
+      const firstClone = rail.children[banners.length] as HTMLElement | undefined;
+      firstSetWidthRef.current = firstCard && firstClone ? firstClone.offsetLeft - firstCard.offsetLeft : 0;
+    };
+    const pauseForInteraction = () => {
+      interactingRef.current = true;
+    };
+    const resumeAfterInteraction = () => {
+      interactingRef.current = false;
+      previousTimestampRef.current = performance.now();
+    };
+    const resumeWhenPointerReleased = (event: PointerEvent) => {
+      if (event.buttons === 0) resumeAfterInteraction();
+    };
+    const resetTimestamp = () => {
+      previousTimestampRef.current = performance.now();
+    };
+
+    const animate = (time: number) => {
+      const previousTime = previousTimestampRef.current ?? time;
+      const elapsed = Math.min(time - previousTime, 100);
+      previousTimestampRef.current = time;
+
+      if (!document.hidden && !interactingRef.current && firstSetWidthRef.current > 0) {
+        rail.scrollLeft += (speed * elapsed) / 1000;
+        if (rail.scrollLeft >= firstSetWidthRef.current) rail.scrollLeft -= firstSetWidthRef.current;
+      }
+
+      animationFrameRef.current = window.requestAnimationFrame(animate);
+    };
+
+    measureFirstSet();
+    previousTimestampRef.current = null;
+    rail.addEventListener('pointerdown', pauseForInteraction);
+    rail.addEventListener('touchstart', pauseForInteraction, { passive: true });
+    window.addEventListener('pointerup', resumeAfterInteraction);
+    window.addEventListener('pointercancel', resumeAfterInteraction);
+    window.addEventListener('pointermove', resumeWhenPointerReleased);
+    window.addEventListener('touchend', resumeAfterInteraction);
+    window.addEventListener('touchcancel', resumeAfterInteraction);
+    window.addEventListener('blur', resumeAfterInteraction);
+    window.addEventListener('resize', measureFirstSet);
+    document.addEventListener('visibilitychange', resetTimestamp);
+    animationFrameRef.current = window.requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+      previousTimestampRef.current = null;
+      rail.removeEventListener('pointerdown', pauseForInteraction);
+      rail.removeEventListener('touchstart', pauseForInteraction);
+      window.removeEventListener('pointerup', resumeAfterInteraction);
+      window.removeEventListener('pointercancel', resumeAfterInteraction);
+      window.removeEventListener('pointermove', resumeWhenPointerReleased);
+      window.removeEventListener('touchend', resumeAfterInteraction);
+      window.removeEventListener('touchcancel', resumeAfterInteraction);
+      window.removeEventListener('blur', resumeAfterInteraction);
+      window.removeEventListener('resize', measureFirstSet);
+      document.removeEventListener('visibilitychange', resetTimestamp);
+    };
+  }, [banners.length, reducedMotion]);
+
+  if (loading) {
+    return <section aria-label="Promotional banners" className="mx-auto w-full max-w-7xl min-w-0 px-4 py-3 sm:px-6 lg:px-8"><div className="flex min-w-0 gap-3 overflow-hidden">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-[200px] w-[min(82vw,360px)] shrink-0 animate-pulse rounded-2xl bg-white/10 sm:w-[300px] lg:w-[calc((100%-1.5rem)/3)]" />)}</div></section>;
+  }
+
+  if (banners.length === 0) return null;
+
+  const renderLink = (banner: PromotionalBanner, children: ReactNode, key: string) => {
+    const href = banner.buttonLink?.trim() || '/marketplace';
+    const cardStyle = { position: 'relative' as const, overflow: 'hidden' as const };
+    if (/^https?:\/\//i.test(href)) return <a key={key} href={href} style={cardStyle} className="group flex h-40 w-[min(92vw,600px)] shrink-0 rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:h-44 sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">{children}</a>;
+    return <Link key={key} to={href} style={cardStyle} className="group flex h-40 w-[min(92vw,600px)] shrink-0 rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:h-44 sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">{children}</Link>;
+  };
+
+  const renderBanner = (banner: PromotionalBanner, key: string) => renderLink(banner, <><img src={banner.imageUrl} alt={banner.title} style={{ position: 'absolute', inset: 0, display: 'block', width: '100%', height: '100%', margin: 0, padding: 0, objectFit: 'cover', objectPosition: 'center' }} className="transition duration-500 group-hover:scale-105" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white/85 via-white/35 to-transparent dark:from-slate-950/80 dark:via-slate-950/45" /><div className="relative z-10 flex h-full w-[62%] flex-col items-start justify-center gap-1.5 p-4 sm:gap-2 sm:p-5"><h2 className="line-clamp-2 text-lg font-bold leading-tight sm:line-clamp-1 sm:text-2xl">{banner.title}</h2>{banner.subtitle ? <p className="line-clamp-2 text-xs font-medium leading-5 text-slate-700 dark:text-slate-200 sm:text-sm">{banner.subtitle}</p> : null}{banner.buttonText?.trim() ? <span className="mt-1 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-slate-950 shadow-sm transition group-hover:bg-white">{banner.buttonText.trim()} <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" /></span> : null}</div></>, key);
+
+  return <section aria-label="Promotional banners" className="mx-auto w-full max-w-7xl min-w-0 overflow-hidden px-4 py-3 sm:px-6 lg:px-8"><div ref={railRef} style={{ scrollBehavior: 'auto' }} className="scrollbar-hidden flex min-w-0 gap-3 overflow-x-auto overflow-y-hidden pb-2">{banners.map((banner, index) => renderBanner(banner, `banner-${banner.id}-${index}`))}{banners.map((banner, index) => renderBanner(banner, `banner-clone-${banner.id}-${index}`))}</div></section>;
 }
 
 function toHomeAuction(item: AuctionListItem): AuctionResponse {
@@ -205,9 +325,77 @@ function ProductSection({ title, products, categories, emptyTitle, emptyDescript
   return (
     <section className={`mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 ${title === 'Featured products' ? 'featured-products-section' : ''}`}>
       <div className="mb-6 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Bidzo marketplace</p><h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2></div><Link to="/marketplace" className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/80">Browse Marketplace</Link></div>
-        {visibleProducts.length === 0 ? <EmptyState title={emptyTitle} description={emptyDescription} /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{visibleProducts.map((product) => <ProductCard key={product.id} id={product.id} title={text(product.name, 'Product')} description={text(product.description, 'Product details unavailable')} image={imageUrl(product.imageUrl || product.image || product.images?.[0])} price={numberText(product.price)} category={productCategory(product, categories)} condition={text(product.condition, '')} seller={sellerName(product)} rating={product.rating ?? undefined} reviews={product.reviewCount ?? product.reviews ?? undefined} verified={product.verified} createdAt={product.createdAt} badge="Direct Buy" actionLabel="View Product" actionLink={`/product/${product.id}`} wishlistItemType="PRODUCT" wishlistProductId={Number(product.id)} showSellerMeta compact={title === 'Recently added'} />)}</div>}
+        {visibleProducts.length === 0 ? <EmptyState title={emptyTitle} description={emptyDescription} /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{visibleProducts.map((product) => <ProductCard key={product.id} id={product.id} title={text(product.name, 'Product')} description={text(product.description, 'Product details unavailable')} image={imageUrl(product.imageUrl || product.image || product.images?.[0])} price={numberText(product.price)} category={productCategory(product, categories)} condition={text(product.condition, '')} seller={sellerName(product)} rating={product.rating ?? undefined} reviews={product.reviewCount ?? product.reviews ?? undefined} verified={product.verified} createdAt={product.createdAt} badge="Direct Buy" actionLabel="View Product" actionLink={`/product/${product.id}`} wishlistItemType="PRODUCT" wishlistProductId={Number(product.id)} availableQuantity={product.availableQuantity} showSellerMeta compact={title === 'Recently added'} />)}</div>}
     </section>
   );
+}
+
+function dealCountdown(offerEndsAt: string, now: number): string {
+  const totalSeconds = Math.max(0, Math.floor((new Date(offerEndsAt).getTime() - now) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, '0')} : ${String(minutes).padStart(2, '0')} : ${String(seconds).padStart(2, '0')}`;
+}
+
+function DealCard({ deal }: { deal: HomeDealResponse }) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { getItem, isPending, toggle } = useWishlist();
+  const wishlistParams = { itemType: 'PRODUCT' as const, productId: Number(deal.id) };
+  const wishlisted = Boolean(getItem(wishlistParams));
+  const pending = isPending(wishlistParams);
+  const toggleWishlist = async (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!user || (user.type !== 'customer' && user.role !== 'CUSTOMER')) { navigate('/login'); return; }
+    try { await toggle(wishlistParams); showToast(wishlisted ? 'Removed from favourites' : 'Added to favourites', '', wishlisted ? 'info' : 'success'); }
+    catch (reason) { showToast('Unable to update favourites', reason instanceof Error ? reason.message : 'Please try again.', 'warning'); }
+  };
+  return <article className="relative h-[120px] w-[260px] shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_1px_6px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:shadow-md sm:w-[268px] lg:w-[calc((100%-2rem)/3)] xl:w-[calc((100%-3rem)/5)]"><Link to={`/product/${deal.id}`} className="flex h-full min-w-0 items-stretch"><div className="flex h-full w-[132px] shrink-0 items-center justify-center overflow-hidden bg-slate-50"><img src={deal.imageUrl || '/logo.png'} alt={deal.name} className="h-full w-full object-contain p-1" loading="lazy" /></div><div className="min-w-0 flex-1 p-2 pr-8"><span className="inline-flex max-w-full rounded bg-red-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{deal.discountType === 'PERCENTAGE' ? `${deal.discountValue}% OFF` : `₹${deal.discountValue} OFF`}</span><h3 className="mt-0.5 truncate text-[11px] font-semibold leading-4 text-slate-900">{deal.name}</h3><p className="truncate text-[9px] text-slate-500">{deal.categoryName || 'Category unavailable'}</p><div className="mt-1 flex min-w-0 items-baseline gap-1"><span className="shrink-0 text-sm font-bold text-red-500">₹{Number(deal.discountedPrice).toLocaleString('en-IN')}</span><span className="truncate text-[9px] text-slate-400 line-through">₹{Number(deal.price).toLocaleString('en-IN')}</span></div><div className="mt-0.5 flex flex-col items-start gap-0.5"><StockBadge availableQuantity={deal.availableQuantity} className="text-[9px]" /><span className="text-[9px] font-medium text-slate-400">Ends {dealCountdown(deal.offerEndsAt, Date.now())}</span></div></div></Link><button type="button" aria-label={`Add ${deal.name} to wishlist`} disabled={pending} onClick={(event) => void toggleWishlist(event)} className={`absolute right-1.5 top-1.5 !h-7 !min-h-7 !w-7 !min-w-7 rounded-full bg-white/95 !p-0 text-slate-700 shadow-sm transition hover:text-red-500 disabled:opacity-50 ${wishlisted ? 'text-red-500' : ''}`}><Heart className="h-3.5 w-3.5" /></button></article>;
+}
+
+function DealsOfTheDay({ reducedMotion }: { reducedMotion: boolean }) {
+  const [deals, setDeals] = useState<HomeDealResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
+  const railRef = useRef<HTMLDivElement>(null);
+  const interactingRef = useRef(false);
+  const frameRef = useRef<number | null>(null);
+  const previousTimeRef = useRef<number | null>(null);
+  const loopWidthRef = useRef(0);
+  const refreshedRef = useRef(new Set<string>());
+  const uniqueDeals = useMemo(() => deals.filter((deal, index, self) => index === self.findIndex((item) => item.id === deal.id)), [deals]);
+
+  const loadDeals = async () => {
+    try { setDeals(await getHomeDeals(12)); } catch (reason) { console.error('[Bidzo marketplace] home deals failed to load', reason); setDeals([]); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void loadDeals(); }, []);
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => {
+    const expired = deals.filter((deal) => new Date(deal.offerEndsAt).getTime() <= now && !refreshedRef.current.has(String(deal.id)));
+    if (!expired.length) return;
+    expired.forEach((deal) => refreshedRef.current.add(String(deal.id)));
+    void loadDeals();
+  }, [deals, now]);
+  useEffect(() => {
+    if (reducedMotion || uniqueDeals.length < 2) return undefined;
+    const rail = railRef.current;
+    if (!rail) return undefined;
+    const measure = () => { loopWidthRef.current = rail.scrollWidth - rail.clientWidth; };
+    const pause = () => { interactingRef.current = true; };
+    const resume = () => { interactingRef.current = false; previousTimeRef.current = performance.now(); };
+    const animate = (time: number) => { const previous = previousTimeRef.current ?? time; previousTimeRef.current = time; if (!document.hidden && !interactingRef.current && loopWidthRef.current > 0) { rail.scrollLeft += (24 * Math.min(time - previous, 100)) / 1000; if (rail.scrollLeft >= loopWidthRef.current) rail.scrollLeft -= loopWidthRef.current; } frameRef.current = window.requestAnimationFrame(animate); };
+    measure(); rail.addEventListener('pointerdown', pause); rail.addEventListener('touchstart', pause, { passive: true }); window.addEventListener('pointerup', resume); window.addEventListener('pointercancel', resume); window.addEventListener('touchend', resume); window.addEventListener('touchcancel', resume); window.addEventListener('resize', measure); frameRef.current = window.requestAnimationFrame(animate);
+    return () => { if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current); rail.removeEventListener('pointerdown', pause); rail.removeEventListener('touchstart', pause); window.removeEventListener('pointerup', resume); window.removeEventListener('pointercancel', resume); window.removeEventListener('touchend', resume); window.removeEventListener('touchcancel', resume); window.removeEventListener('resize', measure); };
+  }, [uniqueDeals.length, reducedMotion]);
+
+  if (loading) return <section className="mx-auto max-w-7xl rounded-2xl bg-white px-4 py-5 sm:px-6 lg:px-8"><div className="mb-3 h-7 w-48 animate-pulse rounded bg-slate-100" /><div className="flex gap-3 overflow-hidden">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="h-60 w-[188px] shrink-0 animate-pulse rounded-xl bg-slate-100" />)}</div></section>;
+  const visibleDeals = uniqueDeals.filter((deal) => new Date(deal.offerEndsAt).getTime() > now);
+  if (!visibleDeals.length) return <section className="mx-auto w-full max-w-7xl rounded-2xl bg-white px-4 py-5 sm:px-6 lg:px-8"><div className="flex items-center gap-2"><span className="text-[25px] leading-none" aria-hidden="true">🔥</span><h2 className="text-xl font-bold text-slate-950 sm:text-2xl">Deals of the Day</h2></div><p className="mt-4 rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">No deals available right now</p></section>;
+  const nearestEnd = visibleDeals.reduce((nearest, deal) => new Date(deal.offerEndsAt).getTime() < new Date(nearest.offerEndsAt).getTime() ? deal : nearest, visibleDeals[0]);
+  return <section className="mx-auto w-full max-w-7xl min-w-0 overflow-hidden rounded-2xl bg-white px-4 py-5 sm:px-6 lg:px-8"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><span className="text-[25px] leading-none" aria-hidden="true">🔥</span><h2 className="text-xl font-bold tracking-[-0.02em] text-slate-950 sm:text-2xl">Deals of the Day</h2></div><div className="flex items-center gap-3"><p className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-500 sm:text-sm"><Clock3 className="h-4 w-4" /> Ends in {dealCountdown(nearestEnd.offerEndsAt, now)}</p><Link to="/marketplace" className="hidden items-center gap-1 text-sm font-semibold text-sky-500 transition hover:text-sky-600 sm:inline-flex">View All Deals <ChevronRight className="h-4 w-4" /></Link></div></div><div ref={railRef} className="scrollbar-hidden flex min-w-0 gap-3 overflow-x-auto overflow-y-hidden pb-1" style={{ scrollBehavior: 'auto' }}>{visibleDeals.map((deal) => <DealCard key={deal.id} deal={deal} />)}</div><Link to="/marketplace" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-sky-500 sm:hidden">View All Deals <ChevronRight className="h-3.5 w-3.5" /></Link></section>;
 }
 
 export function HomePage() {
@@ -297,7 +485,8 @@ export function HomePage() {
   return <><CategoryPromotionBanner /><div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8"><HomeBanner banners={homeData.banners ?? []}>
     <section className="relative overflow-hidden bg-[var(--app-bg)] text-white"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="max-w-4xl space-y-8"><div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10"><Sparkles className="h-4 w-4 text-amber-300" /> Trusted auctions and verified sellers</div><h1 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl"><span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-amber-300 bg-clip-text text-transparent">Buy with confidence.</span> Bid on what matters.</h1><p className="max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">Search real marketplace inventory, discover live auctions, and connect with verified sellers.</p><div className="flex flex-wrap gap-3"><Link to="/auctions" className="rounded-full bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950">Browse Live Auctions</Link><Link to="/marketplace" className="rounded-full bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:bg-orange-600">Browse Marketplace</Link></div>{stats ? <div className="grid gap-4 sm:grid-cols-3">{[['Live auctions', stats.liveAuctions], ['Products', stats.totalProducts], ['Verified sellers', stats.totalVendors]].map(([label, value]) => value !== null && value !== undefined ? <div key={String(label)} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5"><p className="text-xs uppercase tracking-[0.18em] text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{String(value)}</p></div> : null)}</div> : null}</div></div></section>
     </HomeBanner></div>
-    <section className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8"><div className="mb-4 flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">Explore</p><h2 className="mt-1 text-xl font-semibold text-white sm:text-2xl">All Categories</h2></div><Link to="/categories" className="shrink-0 text-sm font-semibold text-sky-300 transition hover:text-sky-200">See all</Link></div>{categories.length === 0 ? <EmptyState title="No categories available" description="Categories will appear here when available." /> : <div className="scrollbar-hidden flex snap-x gap-3 overflow-x-auto pb-2">{categories.map((category) => <button type="button" key={category.id} onClick={() => navigate(`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`)} className="flex w-[92px] shrink-0 snap-start flex-col items-center gap-2 text-center transition hover:-translate-y-0.5 sm:w-[104px]"><span className="flex h-[88px] w-[88px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-sky-200 shadow-sm shadow-slate-950/10 sm:h-24 sm:w-24"><CategoryIcon iconUrl={category.iconUrl} className="h-16 w-16 sm:h-[72px] sm:w-[72px]" /></span><span className="line-clamp-2 min-h-10 w-full text-sm font-medium leading-5 text-slate-200">{category.name}</span></button>)}</div>}</section>
+    <section aria-label="All Categories" className="mx-auto w-full max-w-7xl rounded-2xl bg-white/90 px-4 py-5 shadow-sm ring-1 ring-slate-200/80 sm:px-6 lg:px-8"><div className="mb-4 flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Explore</p><h2 className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">Shop by Category</h2></div><Link to="/categories" className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-sky-500 transition hover:text-sky-600">View All Categories <ChevronRight className="h-4 w-4" /></Link></div>{categories.length === 0 ? <EmptyState title="No categories available" description="Categories will appear here when available." /> : <div className="scrollbar-hidden flex snap-x gap-3 overflow-x-auto pb-1">{categories.map((category) => <button type="button" key={category.id} onClick={() => navigate(`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`)} className="flex h-[142px] w-[116px] shrink-0 snap-start flex-col items-center justify-between rounded-xl border border-slate-200 bg-white p-2.5 text-center shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md sm:w-[124px]"><span className="flex h-[92px] w-full items-center justify-center rounded-lg bg-slate-50 text-sky-600"><CategoryIcon iconUrl={category.iconUrl} className="h-16 w-16" /></span><span className="line-clamp-2 w-full text-xs font-semibold leading-4 text-slate-800">{category.name}</span></button>)}</div>}</section>
+    <DealsOfTheDay reducedMotion={reducedMotion} />
     <ProductSection title="Featured products" products={featured} categories={categories} emptyTitle="No featured products yet" emptyDescription="Featured products will appear here when available." />
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Live now</p><h2 className="mt-2 text-2xl font-semibold text-white">Live auctions</h2></div><Link to="/auctions" className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/80">Browse Auctions</Link></div>{liveAuctions.length === 0 ? <EmptyState title="No live auctions right now" description="Check back soon for new auctions." /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{liveAuctions.map((auction) => <AuctionTile key={auction.id} auction={auction} status="RUNNING" />)}</div>}</section>
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Coming up</p><h2 className="mt-2 text-2xl font-semibold text-white">Scheduled auctions</h2></div>{scheduledAuctions.length === 0 ? <EmptyState title="No scheduled auctions" description="There are no upcoming auctions right now." /> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">{scheduledAuctions.map((auction) => <AuctionTile key={auction.id} auction={auction} status="SCHEDULED" />)}</div>}</section>

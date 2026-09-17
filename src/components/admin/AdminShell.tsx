@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom';
 import Logo from '../Logo';
 import type { ReactNode } from 'react';
-import { Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, Inbox, LayoutGrid, LogOut, Megaphone, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
+import { Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, Inbox, Images, LayoutGrid, LogOut, Megaphone, Percent, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 type Breadcrumb = { label: string; to?: string };
@@ -22,6 +22,8 @@ const navItems = [
   { label: 'Notifications', to: '/admin/notifications', icon: Bell },
   { label: 'Settings', to: '/admin/settings', icon: Settings2 },
   { label: 'CMS', to: '/admin/cms', icon: Megaphone },
+  { label: 'Promotional Banners', to: '/admin/promotional-banners', icon: Images },
+  { label: 'Offers', to: '/admin/offers', icon: Percent },
   { label: 'Reports', to: '/admin/reports', icon: FileText },
   { label: 'Franchise', to: '/admin/franchise', icon: Building2 },
   { label: 'Vendors', to: '/admin/vendors', icon: Store },

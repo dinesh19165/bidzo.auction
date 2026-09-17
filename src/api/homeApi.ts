@@ -34,6 +34,26 @@ export interface ProductResponse {
   seller?: string | null;
   createdAt?: string | null;
   salesCount?: number | null;
+  availableQuantity?: number | null;
+}
+
+export interface HomeDealResponse {
+  id: number | string;
+  name: string;
+  imageUrl?: string | null;
+  price: number | string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: number | string;
+  discountAmount: number | string;
+  discountedPrice: number | string;
+  offerId: number | string;
+  offerName?: string | null;
+  offerEndsAt: string;
+  availableQuantity?: number | null;
+  categoryName?: string | null;
+  categoryId?: number | string | null;
+  description?: string | null;
+  seller?: string | null;
 }
 
 export interface AuctionResponse {
@@ -136,6 +156,14 @@ export async function getHomeData(): Promise<HomeDataResponse> {
     popularProducts: Array.isArray(response.data.popularProducts) ? response.data.popularProducts : [],
     verifiedSellers: Array.isArray(response.data.verifiedSellers) ? response.data.verifiedSellers : [],
   };
+}
+
+export async function getHomeDeals(limit: number = 12): Promise<HomeDealResponse[]> {
+  const response = await fetchJson<ApiResponse<HomeDealResponse[]>>(`/api/home/deals?limit=${encodeURIComponent(limit)}`, { method: 'GET' }, false);
+  if (!response?.data) {
+    throw new Error(response?.message || 'Failed to load home deals');
+  }
+  return Array.isArray(response.data) ? response.data : [];
 }
 
 /**

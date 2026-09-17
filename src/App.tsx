@@ -70,6 +70,9 @@ import { BuyNowConfirmPage, BuyNowPaymentPage, BuyNowOrderSuccessPage, BuyNowInv
 import { AdminDashboardApiPage, AdminReportApiPage, AdminResourceDetailPage, AdminResourcePage } from './pages/admin/AdminApiPages';
 import { AdminContactMessagesPage } from './pages/admin/AdminContactMessagesPage';
 import { CustomerCartPage } from './pages/CustomerCartPage';
+import { PromotionalBannersAdminPage } from './pages/PromotionalBannersAdminPage';
+import { OffersAdminPage } from './pages/OffersAdminPage';
+import { CustomerOffersPage } from './pages/CustomerOffersPage';
 import { getStoredAuthToken, handleUnauthorized, isJwtExpired } from './api/apiClient';
 import { getVendorVerificationStatus } from './api/vendorVerificationApi';
 
@@ -273,6 +276,7 @@ function App() {
             <Route path="/customer/messages" element={<CustomerMessagesPage />} />
             <Route path="/customer/notifications" element={<NotificationsPage />} />
             <Route path="/customer/rewards" element={<CustomerRewardsPage />} />
+            <Route path="/customer/offers" element={<CustomerOffersPage />} />
             <Route path="/customer/reviews" element={<CustomerReviewsPage />} />
             <Route path="/customer/support" element={<CustomerSupportPage />} />
             <Route path="/customer/invoices" element={<CustomerInvoicesPage />} />
@@ -365,6 +369,8 @@ function App() {
             <Route path="/admin/approvals" element={<ApprovalCenterPage />} />
             <Route path="/admin/settings" element={<SystemSettingsPage />} />
             <Route path="/admin/cms" element={<CMSPage />} />
+            <Route path="/admin/promotional-banners" element={<PromotionalBannersAdminPage />} />
+            <Route path="/admin/offers" element={<OffersAdminPage />} />
             <Route path="/admin/cms/banners" element={<CMSBannersPage />} />
             <Route path="/admin/cms/categories" element={<CMSCategoriesPage />} />
             <Route path="/admin/cms/faq" element={<CMSFaqPage />} />
