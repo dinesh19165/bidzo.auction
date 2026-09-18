@@ -10,6 +10,8 @@ import { useLocaleContext } from '../context/LocaleContext';
 import { Footer } from './Footer';
 import { CategoryIcon } from './categories/CategoryIcon';
 import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
+import { searchMarketplace, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
+import { API_BASE_URL } from '../api/apiClient';
 import { NotificationList } from './notifications/NotificationList';
 import { useNotificationContext } from '../context/NotificationContext';
 import { useCartContext } from '../context/CartContext';
@@ -37,6 +39,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [searchSuggestions, setSearchSuggestions] = useState<MarketplaceSearchResult[]>([]);
+  const [searchSuggestionsLoading, setSearchSuggestionsLoading] = useState(false);
+  const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(false);
+  const searchRequestGeneration = useRef(0);
   const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
   const showMarketplaceControls = !user || user.type === 'customer' || user.role === 'CUSTOMER';
@@ -69,6 +75,58 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const focusMobileSearch = () => {
     const input = document.querySelector('input[placeholder="Search products, auctions, sellers..."]') as HTMLInputElement | null;
     input?.focus();
+  };
+  useEffect(() => {
+    const query = headerSearch.trim();
+    const generation = ++searchRequestGeneration.current;
+    if (query.length < 2) {
+      setSearchSuggestions([]);
+      setSearchSuggestionsLoading(false);
+      setSearchSuggestionsOpen(false);
+      return undefined;
+    }
+
+    setSearchSuggestions([]);
+    setSearchSuggestionsLoading(true);
+    setSearchSuggestionsOpen(true);
+    const timer = window.setTimeout(() => {
+      const selectedCategory = marketplaceCategories.find((item) => String(item.id) === headerCategory);
+      searchMarketplace({ query, category: selectedCategory?.name, page: 0, size: 8 }).then((response) => {
+        if (generation !== searchRequestGeneration.current) return;
+        setSearchSuggestions(response.content.filter((item) => item.type === 'PRODUCT'));
+      }).catch(() => {
+        if (generation !== searchRequestGeneration.current) return;
+        setSearchSuggestions([]);
+      }).finally(() => {
+        if (generation === searchRequestGeneration.current) setSearchSuggestionsLoading(false);
+      });
+    }, 280);
+
+    return () => window.clearTimeout(timer);
+  }, [headerCategory, headerSearch, marketplaceCategories]);
+
+  useEffect(() => {
+    const handleSearchOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target?.closest('[data-header-search]')) setSearchSuggestionsOpen(false);
+    };
+    document.addEventListener('pointerdown', handleSearchOutsidePointer);
+    return () => document.removeEventListener('pointerdown', handleSearchOutsidePointer);
+  }, []);
+
+  const suggestionImageUrl = (value: string | null) => {
+    if (!value) return '/logo.png';
+    if (/^https?:\/\//i.test(value) || value.startsWith('/logo')) return value;
+    return value.startsWith('/') ? `${API_BASE_URL}${value}` : `${API_BASE_URL}/${value}`;
+  };
+  const renderSearchSuggestions = () => {
+    if (!searchSuggestionsOpen || headerSearch.trim().length < 2) return null;
+    return <div role="listbox" aria-label="Search suggestions" className={`absolute left-0 right-0 top-full z-[70] mt-2 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto rounded-xl border p-2 shadow-2xl ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+      {searchSuggestionsLoading ? <p className={`px-3 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Searching...</p> : searchSuggestions.length === 0 ? <p className={`px-3 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No products found</p> : searchSuggestions.map((item) => <button key={`${item.type}-${item.id}`} type="button" role="option" onClick={() => { setSearchSuggestionsOpen(false); navigate(`/product/${item.id}`); }} className={`flex w-full min-w-0 items-center gap-3 rounded-lg p-2 text-left transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}>
+        <img src={suggestionImageUrl(item.image)} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.title}</span><span className={`mt-0.5 block truncate text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{item.category?.name || 'Category unavailable'}</span><span className="mt-1 block truncate text-xs font-medium text-emerald-500">{item.price === null ? 'Price unavailable' : `₹${Number(item.price).toLocaleString('en-IN')}`}{item.availableQuantity !== null && item.availableQuantity !== undefined ? ` · ${item.availableQuantity} available` : ''}</span></span>
+      </button>)}
+    </div>;
   };
   const languageOptions = [
     { key: 'en', label: 'English' },
@@ -232,7 +290,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {categoriesLoading ? <p className="px-3 py-2 text-xs text-slate-400">Loading categories...</p> : marketplaceCategories.map((item) => <button key={item.id} type="button" role="option" aria-selected={String(item.id) === headerCategory} onClick={() => { setHeaderCategory(String(item.id)); setCategoryMenuOpen(false); }} className={`flex min-h-[60px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${String(item.id) === headerCategory ? 'bg-blue-500/10 text-blue-200' : theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"><CategoryIcon iconUrl={item.iconUrl} className="h-9 w-9" imageClassName="h-10 w-10 p-0" /></span><span className="truncate">{item.name}</span></button>)}
               </div> : null}
             </div>
-            <div className={`flex h-12 min-w-0 flex-1 items-center gap-2 rounded-2xl border px-3 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
+            <div data-header-search className={`relative flex h-12 min-w-0 flex-1 items-center gap-2 rounded-2xl border px-3 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
               <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                 <Search className="h-4 w-4" />
               </button>
@@ -248,6 +306,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                 <Mic className="h-4 w-4" />
               </button>
+              {renderSearchSuggestions()}
             </div>
           </div> : null}
 
@@ -265,11 +324,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {showMarketplaceControls ? (
           <div className={`border-t px-4 py-3 md:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-            <div className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
+            <div data-header-search className={`relative flex items-center gap-2 rounded-2xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
               <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
               <input value={headerSearch} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products, auctions, sellers..." className={`w-full min-w-0 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
               <button type="button" aria-label="Visual search" onClick={focusMobileSearch} className="shrink-0 text-slate-400"><Camera className="h-4 w-4" /></button>
               <button type="button" aria-label="Voice search" onClick={focusMobileSearch} className="shrink-0 text-slate-400"><Mic className="h-4 w-4" /></button>
+              {renderSearchSuggestions()}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <label className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}><MapPin className="h-4 w-4 shrink-0 text-blue-500" /><select aria-label="Location" value={headerLocation} onChange={(event) => setHeaderLocation(event.target.value)} className={`min-w-0 w-full bg-transparent text-xs outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}><option>Hyderabad</option><option>Bengaluru</option><option>Mumbai</option><option>Delhi</option></select></label>
