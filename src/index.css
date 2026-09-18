@@ -759,6 +759,60 @@ html.theme-light .featured-products-section article.group:hover {
 }
 
 @media (max-width: 767px) {
+  .home-hero {
+    min-height: 330px;
+    border-radius: 20px;
+  }
+
+  .home-hero-background img {
+    object-fit: cover !important;
+    object-position: center center;
+  }
+
+  .home-hero-content {
+    min-height: 330px;
+    padding: 1.5rem 1rem !important;
+  }
+
+  .home-hero-content > .max-w-4xl {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .home-hero-content h1 {
+    max-width: 18ch;
+    font-size: clamp(1.75rem, 8vw, 2.35rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+  }
+
+  .home-hero-content p {
+    max-width: 34rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .home-hero-actions {
+    width: min(100%, 18rem);
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .home-hero-actions a {
+    width: 100%;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    text-align: center;
+  }
+
+  .home-hero-stats {
+    display: none;
+  }
+
   .home-hero-overlay {
     background: linear-gradient(180deg, rgba(2, 6, 23, 0.68) 0%, rgba(2, 6, 23, 0.38) 55%, rgba(2, 6, 23, 0.72) 100%);
   }
