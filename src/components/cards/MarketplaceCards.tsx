@@ -311,18 +311,18 @@ export const ProductCard = memo(function ProductCard({
         </div> : null}
 
         <div className="product-card-actions mt-auto pt-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex h-11 min-h-11 flex-1 items-center justify-center gap-1 overflow-hidden rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-md shadow-blue-600/15 transition-colors duration-200 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60">
-              <span className="relative z-10">{isAuction ? translate('watchAuction') : actionLabel || translate('buyNow')}</span>
+          <div className={`${showAddToCart ? 'flex flex-wrap' : 'flex min-w-0 w-full'} items-center gap-1.5`}>
+            <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex h-[42px] min-h-[42px] min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden rounded-[10px] bg-blue-600 px-2 text-[12px] font-semibold leading-none text-white shadow-md shadow-blue-600/15 transition-colors duration-200 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60">
+              <span className="relative z-10 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{isAuction ? translate('watchAuction') : actionLabel || translate('buyNow')}</span>
               <ArrowRight className="relative z-10 h-3 w-3" />
             </Link>
-            <button type="button" onClick={handleShare} className="product-card-secondary-action inline-flex h-11 min-h-11 min-w-11 items-center justify-center rounded-lg border p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
+            <button type="button" onClick={handleShare} className="product-card-secondary-action inline-flex h-[42px] min-h-[42px] w-[42px] min-w-[42px] shrink-0 items-center justify-center rounded-[10px] border p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
               <Share2 className="h-4 w-4" />
             </button>
-            <button type="button" onClick={toggleFavorite} disabled={favoritePending} className="product-card-secondary-action inline-flex h-11 min-h-11 min-w-11 items-center justify-center rounded-lg border p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 disabled:cursor-wait disabled:opacity-60" aria-label="Favorite listing">
+            <button type="button" onClick={toggleFavorite} disabled={favoritePending} className="product-card-secondary-action inline-flex h-[42px] min-h-[42px] w-[42px] min-w-[42px] shrink-0 items-center justify-center rounded-[10px] border p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 disabled:cursor-wait disabled:opacity-60" aria-label="Favorite listing">
               <Heart className={`h-4 w-4 transition-colors duration-200 ${favorited ? 'fill-current text-rose-500' : ''}`} />
             </button>
-            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex min-h-[34px] flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"><ShoppingCart className="h-3 w-3" />{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
+            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex h-[42px] min-h-[42px] min-w-0 flex-1 items-center justify-center gap-1 rounded-[10px] border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"><ShoppingCart className="h-3 w-3" />{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
           </div>
         </div>
       </div>

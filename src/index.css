@@ -234,6 +234,20 @@ input.peer.sr-only {
 }
 
 @media (max-width: 767px) {
+  .product-card-shell {
+    min-height: 0;
+  }
+
+  .product-card-body {
+    padding: 0.625rem;
+  }
+
+  .product-card-actions {
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 767px) {
   .mobile-footer {
     padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
   }
