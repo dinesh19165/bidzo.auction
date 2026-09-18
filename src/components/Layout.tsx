@@ -24,6 +24,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const headerDropdownsRef = useRef<HTMLDivElement>(null);
+  const mobileUtilityRef = useRef<HTMLDivElement>(null);
   const mobileProfileRef = useRef<HTMLDivElement>(null);
   const categoryMenuRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useThemeContext();
@@ -163,7 +164,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
     const handleOutsidePointer = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!headerDropdownsRef.current?.contains(target) && !mobileProfileRef.current?.contains(target) && !categoryMenuRef.current?.contains(target)) {
+      if (!headerDropdownsRef.current?.contains(target) && !mobileUtilityRef.current?.contains(target) && !mobileProfileRef.current?.contains(target) && !categoryMenuRef.current?.contains(target)) {
         setLanguageMenuOpen(false);
         setCurrencyMenuOpen(false);
         setMobileProfileOpen(false);
@@ -267,6 +268,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
           </div>
+        </div>
+
+        <div ref={mobileUtilityRef} className={`relative flex flex-wrap items-center gap-2 border-t px-3 py-2 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/90' : 'border-slate-200 bg-white/95'}`}>
+          <div className="relative min-w-0 flex-1">
+            <button type="button" onClick={() => { setLanguageMenuOpen((value) => !value); setCurrencyMenuOpen(false); setMobileProfileOpen(false); }} aria-expanded={languageMenuOpen} aria-label="Select language" className={`flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border px-2 text-xs font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
+              <Globe className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{languageLabel}</span><ChevronDown className="h-3 w-3 shrink-0" />
+            </button>
+            {languageMenuOpen ? <div className={`absolute left-0 top-full z-[70] mt-2 w-44 overflow-hidden rounded-xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'}`}>
+              {languageOptions.map((option) => <button key={option.key} type="button" onClick={() => { setLanguage(option.key); setLanguageMenuOpen(false); }} className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}><span>{option.label}</span>{language === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}</button>)}
+            </div> : null}
+          </div>
+          <div className="relative min-w-0 flex-1">
+            <button type="button" onClick={() => { setCurrencyMenuOpen((value) => !value); setLanguageMenuOpen(false); setMobileProfileOpen(false); }} aria-expanded={currencyMenuOpen} aria-label="Select currency" className={`flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border px-2 text-xs font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
+              <span className="shrink-0">₹</span><span className="truncate">{currencyLabel}</span><ChevronDown className="h-3 w-3 shrink-0" />
+            </button>
+            {currencyMenuOpen ? <div className={`absolute right-0 top-full z-[70] mt-2 w-44 overflow-hidden rounded-xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'}`}>
+              {currencyOptions.map((option) => <button key={option.key} type="button" onClick={() => { setCurrency(option.key); setCurrencyMenuOpen(false); }} className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}><span>{option.label}</span>{currency === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}</button>)}
+            </div> : null}
+          </div>
+          <button type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} className={`inline-flex min-h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          <Link to="/help" onClick={() => { setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>{translate('help')}</Link>
         </div>
 
   <div className="mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
