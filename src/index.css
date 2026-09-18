@@ -790,6 +790,22 @@ html.theme-light .featured-products-section article.group:hover {
     letter-spacing: -0.02em;
   }
 
+  .home-hero-content > .max-w-4xl > .inline-flex {
+    align-self: flex-start;
+    width: fit-content;
+    max-width: 12rem;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.65rem;
+    line-height: 1.2;
+  }
+
+  .home-hero-content > .max-w-4xl > .inline-flex svg {
+    height: 0.75rem;
+    width: 0.75rem;
+    flex-shrink: 0;
+  }
+
   .home-hero-content p {
     max-width: 22rem;
     font-size: clamp(0.72rem, 2.5vw, 0.86rem);
