@@ -10,12 +10,15 @@ import {
   Clock3,
   CreditCard,
   FileCheck2,
+  Gavel,
   Gift,
   Landmark,
   LoaderCircle,
   Lock,
   Mail,
   Phone,
+  PackageCheck,
+  Search,
   Shield,
   ShieldCheck,
   Smartphone,
@@ -174,6 +177,44 @@ function FormError({ message }: { message?: string | null }) {
   );
 }
 
+function BrandJourneyPanel({ heading = 'Your marketplace journey starts here.', description = 'Explore products. Discover opportunities. Bid with confidence. Buy with ease.', theme }: { heading?: string; description?: string; theme: 'dark' | 'light' }) {
+  const stages = [
+    { label: 'Explore', icon: Search },
+    { label: 'Discover', icon: Sparkles },
+    { label: 'Bid', icon: Gavel },
+    { label: 'Buy', icon: ShoppingBag },
+    { label: 'Deliver', icon: PackageCheck },
+  ];
+
+  return (
+    <div className={`bidzo-journey-panel relative overflow-hidden rounded-xl border p-5 sm:p-7 ${theme === 'dark' ? 'border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-950 to-cyan-500/10' : 'border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50'}`}>
+      <div className="bidzo-journey-grid absolute inset-0 opacity-40" aria-hidden="true" />
+      <div className={`bidzo-journey-watermark absolute -right-6 -top-10 select-none text-[190px] font-black leading-none ${theme === 'dark' ? 'text-white/[0.055]' : 'text-sky-900/[0.06]'}`} aria-hidden="true">B</div>
+      <div className="relative z-10 flex h-full min-h-[420px] flex-col">
+        <div className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] ${theme === 'dark' ? 'text-cyan-200' : 'text-sky-700'}`}><Sparkles className="h-4 w-4" /> The Bidzo journey</div>
+        <h3 className={`mt-4 max-w-md text-3xl font-semibold leading-tight ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>{heading}</h3>
+        <p className={`mt-3 max-w-md text-sm leading-6 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{description}</p>
+
+        <div className="bidzo-journey-track relative mt-6 flex-1" aria-label="Explore, Discover, Bid, Buy and Deliver journey">
+          <div className={`bidzo-journey-orbit absolute left-7 top-3 h-[245px] w-[150px] rounded-[50%] border-l-2 border-dashed ${theme === 'dark' ? 'border-cyan-300/30' : 'border-sky-400/40'}`} aria-hidden="true" />
+          {stages.map((stage, index) => {
+            const Icon = stage.icon;
+            return <div key={stage.label} className={`bidzo-journey-stage absolute left-0 flex items-center gap-3 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`} style={{ top: `${index * 58}px`, animationDelay: `${index * 0.9}s` }}>
+              <span className={`bidzo-journey-icon flex h-14 w-14 shrink-0 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-cyan-300/25 bg-slate-950/80 text-cyan-200' : 'border-sky-200 bg-white text-sky-700 shadow-sm'}`}><Icon className="h-5 w-5" /></span>
+              <span className="text-sm font-semibold">{stage.label}</span>
+            </div>;
+          })}
+          <div className={`absolute right-3 top-10 hidden rounded-full border px-3 py-2 text-xs ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-white/80 text-slate-600'} sm:block`}>Simple, secure, yours.</div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {[{ label: 'Secure', icon: ShieldCheck }, { label: 'Live Auctions', icon: Gavel }, { label: 'Marketplace', icon: ShoppingBag }].map(({ label, icon: Icon }) => <div key={label} className={`rounded-lg border px-2 py-2 text-center text-[11px] font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-white/80 text-slate-700'}`}><Icon className={`mx-auto mb-1 h-4 w-4 ${theme === 'dark' ? 'text-cyan-300' : 'text-sky-600'}`} />{label}</div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -291,8 +332,8 @@ export function LoginPage() {
   };
 
   return (
-    <section className={`mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
-      <div className={`mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border shadow-[0_30px_90px_rgba(2,6,23,0.18)] transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.22),_transparent_40%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(2,8,23,0.98))] shadow-[0_30px_90px_rgba(2,6,23,0.55)]' : 'border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.12)]'}`}>
+    <section className={`mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
+      <div className={`mx-auto flex w-full max-w-[1280px] flex-col overflow-hidden rounded-2xl border shadow-[0_24px_70px_rgba(15,23,42,0.12)] transition duration-300 lg:grid lg:grid-cols-[1.08fr_0.92fr] ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-[0_24px_70px_rgba(2,6,23,0.55)]' : 'border-slate-200 bg-white'}`}>
         <div className={`flex items-center justify-between px-4 py-2.5 sm:px-6 transition duration-300 ${theme === 'dark' ? 'border-b border-white/10' : 'border-b border-slate-200 bg-slate-50'}`}>
           <div className="flex items-center gap-3">
             <div className={`flex h-10 w-10 items-center justify-center rounded-2xl shadow-lg ${theme === 'dark' ? 'bg-gradient-to-br from-blue-500 to-cyan-400 shadow-cyan-500/20' : 'bg-blue-100 shadow-slate-200'}`}>
@@ -310,21 +351,21 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="grid gap-5 p-3 sm:p-5 lg:grid-cols-[1.08fr_0.92fr]">
-          <div className={`rounded-[24px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-white/90 shadow-[inset_0_1px_0_rgba(15,23,42,0.04)]'}`}>
+        <div className="grid gap-6 p-4 sm:p-6 lg:col-span-2 lg:grid-cols-[1.08fr_0.92fr] lg:gap-8 lg:p-8">
+          <div className={`min-w-0 rounded-xl border p-5 transition duration-300 sm:p-7 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
             <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${theme === 'dark' ? 'border border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
               <ShieldCheck className="h-4 w-4" />
               Secure marketplace access
             </div>
 
-            <h3 className={`mt-3 text-2xl font-semibold sm:text-3xl ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
+            <h3 className={`mt-4 text-2xl font-semibold sm:text-3xl ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>
               Welcome back to Bidzo
             </h3>
             <p className={`mt-2 text-sm sm:text-base ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
               Sign in to continue to your account
             </p>
 
-            <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {roleOptions.map((option) => {
                 const isActive = selectedRole === option.value;
                 return (
@@ -332,20 +373,20 @@ export function LoginPage() {
                     key={option.value}
                     type="button"
                     onClick={() => setSelectedRole(option.value)}
-                    className={`rounded-[20px] border p-3 text-left transition-all duration-300 hover:-translate-y-0.5 ${isActive ? (theme === 'dark' ? 'border-cyan-400/40 bg-gradient-to-br from-blue-500/20 to-cyan-500/10 text-white shadow-[0_0_0_1px_rgba(34,211,238,0.25),0_14px_32px_rgba(14,165,233,0.16)]' : 'border-blue-400 bg-blue-50 text-slate-950 shadow-[0_0_0_1px_rgba(59,130,246,0.2),0_14px_32px_rgba(59,130,246,0.16)]') : (theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300 hover:border-cyan-400/30 hover:bg-slate-900/80' : 'border-slate-300 bg-white text-slate-900 hover:border-blue-300 hover:bg-blue-50')}`}
+                    aria-pressed={isActive}
+                    className={`group min-h-[158px] cursor-pointer rounded-[18px] border-2 p-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-2 ${theme === 'dark' ? 'focus-visible:ring-offset-slate-950' : 'focus-visible:ring-offset-white'} ${isActive ? (option.value === 'vendor' ? (theme === 'dark' ? 'border-cyan-400/70 bg-cyan-500/10 text-white shadow-[0_8px_24px_rgba(34,211,238,0.14)]' : 'border-cyan-500 bg-cyan-50 text-slate-950 shadow-[0_8px_24px_rgba(6,182,212,0.14)]') : (theme === 'dark' ? 'border-blue-400/70 bg-blue-500/10 text-white shadow-[0_8px_24px_rgba(59,130,246,0.16)]' : 'border-blue-500 bg-blue-50 text-slate-950 shadow-[0_8px_24px_rgba(59,130,246,0.14)]')) : (theme === 'dark' ? 'border-white/10 bg-slate-950/50 text-slate-300 hover:border-white/25 hover:bg-slate-900/80 hover:shadow-lg' : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md')}`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold">{option.label}</span>
-                      {isActive ? (
-                        <CheckCircle2 className={theme === 'dark' ? 'h-4 w-4 text-cyan-300' : 'h-4 w-4 text-slate-900'} />
-                      ) : (
-                        <ShieldCheck className={theme === 'dark' ? 'h-4 w-4 text-slate-500' : 'h-4 w-4 text-slate-500'} />
-                      )}
+                    <div className="flex items-start justify-between gap-3">
+                      <span className={`flex h-10 w-10 items-center justify-center rounded-full border transition duration-200 group-hover:scale-105 ${isActive ? (option.value === 'vendor' ? (theme === 'dark' ? 'border-cyan-300/30 bg-cyan-400/15 text-cyan-200' : 'border-cyan-200 bg-cyan-100 text-cyan-700') : (theme === 'dark' ? 'border-blue-300/30 bg-blue-400/15 text-blue-200' : 'border-blue-200 bg-blue-100 text-blue-700')) : (theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500')}`}>
+                        {option.value === 'vendor' ? <Briefcase className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />}
+                      </span>
+                      {isActive ? <CheckCircle2 className={`h-5 w-5 ${option.value === 'vendor' ? 'text-cyan-500' : 'text-blue-500'}`} /> : <span className={`h-5 w-5 rounded-full border ${theme === 'dark' ? 'border-white/20' : 'border-slate-300'}`} aria-hidden="true" />}
                     </div>
-                    <p className={`mt-1.5 text-xs leading-5 ${isActive ? (theme === 'dark' ? 'text-slate-100' : 'text-slate-700') : (theme === 'dark' ? 'text-slate-400' : 'text-slate-600')}`}>{option.description}</p>
+                    <p className="mt-2 text-[17px] font-semibold leading-5">{option.label}</p>
+                    <p className={`mt-1 text-[13px] leading-5 ${isActive ? (theme === 'dark' ? 'text-slate-200' : 'text-slate-700') : (theme === 'dark' ? 'text-slate-400' : 'text-slate-600')}`}>{option.description}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {option.features.map((feature) => (
-                        <span key={feature} className={`rounded-full px-2 py-0.5 text-[10px] ${isActive ? (theme === 'dark' ? 'bg-slate-950/60 text-slate-50' : 'bg-blue-100 text-blue-900') : (theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-700')}`}>
+                        <span key={feature} className={`rounded-full px-2 py-0.5 text-[11px] leading-4 ${isActive ? (option.value === 'vendor' ? (theme === 'dark' ? 'bg-cyan-950/50 text-cyan-100' : 'bg-cyan-100 text-cyan-800') : (theme === 'dark' ? 'bg-blue-950/50 text-blue-100' : 'bg-blue-100 text-blue-800')) : (theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-700')}`}>
                           {feature}
                         </span>
                       ))}
@@ -355,8 +396,8 @@ export function LoginPage() {
               })}
             </div>
 
-            <div className="mt-4 space-y-3.5">
-              <div className={`rounded-2xl border p-3.5 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
+            <div className="mt-5 space-y-5">
+              <div className={`rounded-xl border p-4 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
                 <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>{roleCopy.heading}</p>
                 <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{roleCopy.description}</p>
               </div>
@@ -366,13 +407,14 @@ export function LoginPage() {
                   <Mail className={`h-4 w-4 ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-700'}`} />
                   Email or phone number
                 </span>
-                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition duration-200 ${touched.identifier && errors.identifier ? (theme === 'dark' ? 'border-amber-400/40 bg-amber-500/10' : 'border-amber-400/40 bg-amber-100') : (theme === 'dark' ? 'border-white/10 bg-slate-900/70 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-900/90' : 'border-slate-300 bg-slate-100 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-50')}`}>
+                <div className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 py-3 transition duration-200 ${touched.identifier && errors.identifier ? (theme === 'dark' ? 'border-amber-400/60 bg-amber-500/10' : 'border-amber-400 bg-amber-50') : (theme === 'dark' ? 'border-white/10 bg-slate-900/80 hover:border-cyan-400/30 focus-within:border-blue-400 focus-within:bg-slate-900 focus-within:ring-2 focus-within:ring-blue-400/15' : 'border-slate-300 bg-white hover:border-slate-400 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/15')}`}>
+                  <Mail className={`h-5 w-5 shrink-0 ${theme === 'dark' ? 'text-cyan-300' : 'text-blue-600'}`} />
                   <input
                     value={identifier}
                     onChange={(e) => handleIdentifierChange(e.target.value)}
                     onBlur={() => setTouched((prev) => ({ ...prev, identifier: true }))}
                     className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
-                    placeholder="name@company.com or 10-digit phone"
+                    placeholder="Email address or 10-digit phone"
                   />
                 </div>
                 {touched.identifier && errors.identifier ? <FieldError message={errors.identifier} /> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use your registered Bidzo account details.</p>}
@@ -383,7 +425,8 @@ export function LoginPage() {
                   <Lock className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
                   Password
                 </span>
-                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition duration-200 ${touched.password && errors.password ? (theme === 'dark' ? 'border-amber-400/40 bg-amber-500/10' : 'border-amber-400/40 bg-amber-100') : (theme === 'dark' ? 'border-white/10 bg-slate-900/70 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-900/90' : 'border-slate-300 bg-slate-100 hover:border-cyan-400/30 focus-within:border-cyan-400/50 focus-within:bg-slate-50')}`}>
+                <div className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 py-3 transition duration-200 ${touched.password && errors.password ? (theme === 'dark' ? 'border-amber-400/60 bg-amber-500/10' : 'border-amber-400 bg-amber-50') : (theme === 'dark' ? 'border-white/10 bg-slate-900/80 hover:border-cyan-400/30 focus-within:border-blue-400 focus-within:bg-slate-900 focus-within:ring-2 focus-within:ring-blue-400/15' : 'border-slate-300 bg-white hover:border-slate-400 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/15')}`}>
+                  <Lock className={`h-5 w-5 shrink-0 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-500'}`} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
@@ -392,75 +435,61 @@ export function LoginPage() {
                     className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
                     placeholder="Enter your password"
                   />
-                  <button type="button" onClick={() => setShowPassword((prev) => !prev)} className={`rounded-full p-1 transition ${theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                  <button type="button" onClick={() => setShowPassword((prev) => !prev)} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition focus:outline-none focus:ring-2 focus:ring-blue-400/50 ${theme === 'dark' ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`} aria-label={showPassword ? 'Hide password' : 'Show password'}>
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
                 {touched.password && errors.password ? <FieldError message={errors.password} /> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use the password from your latest Bidzo account setup.</p>}
               </label>
 
-              <label className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-sm transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+              <label className={`flex items-center gap-2 text-sm transition ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
                 <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className={`h-4 w-4 rounded border ${theme === 'dark' ? 'border-white/20 bg-slate-950 text-blue-500' : 'border-slate-400 bg-white text-blue-600'}`} />
-                <span>Remember me for faster access next time</span>
+                <span>Remember me</span>
               </label>
 
-              <div className={`flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>
+              <div className={`flex items-center justify-between gap-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>
                 <Link to="/forgot-password" className={`transition ${theme === 'dark' ? 'hover:text-white' : 'text-slate-900 hover:text-slate-700'}`}>Forgot password?</Link>
-                <div className={`rounded-2xl border px-3 py-2 text-center sm:text-right transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/60 text-slate-300' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
-                  <p className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>New to Bidzo?</p>
-                  <Link to={selectedRole === 'vendor' ? '/register/vendor' : '/register/customer'} className={`font-medium transition ${theme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-600 hover:text-cyan-700'}`}>Create account</Link>
-                </div>
+                <span className="hidden sm:block" />
               </div>
+
+              <p className={`text-center text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Don't have an account? <Link to={selectedRole === 'vendor' ? '/register/vendor' : '/register/customer'} className={`font-semibold transition ${theme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-600 hover:text-cyan-700'}`}>Create an account</Link></p>
 
               <button
                 onClick={handleLogin}
                 disabled={isSubmitting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_35px_rgba(59,130,246,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(59,130,246,0.35)] disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_35px_rgba(59,130,246,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(59,130,246,0.35)] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting ? 'Signing in…' : 'Sign in'} <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>
 
-          <div className={`relative overflow-hidden rounded-[28px] p-4 sm:p-7 transition duration-300 ${theme === 'dark' ? 'border border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/70 to-cyan-500/20' : 'border border-slate-200 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.08)]'}`}>
+          <BrandJourneyPanel theme={theme} />
+          <div className="hidden">
             <div className={`absolute inset-0 transition duration-300 ${theme === 'dark' ? 'bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.2),_transparent_40%)]' : 'bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_40%)]'}`} />
             <div className={`absolute right-4 top-4 text-[120px] font-black leading-none transition duration-300 ${theme === 'dark' ? 'text-white/10' : 'text-slate-900/10'} sm:text-[180px]`}>B</div>
             <div className="relative">
               <div className={`flex items-center gap-2 ${theme === 'dark' ? 'text-cyan-200' : 'text-cyan-700'}`}>
-                <Sparkles className="h-4 w-4" />
-                <p className="text-sm font-semibold uppercase tracking-[0.24em]">Everything you need to buy & sell</p>
+                <ShoppingBag className="h-4 w-4" />
+                <p className="text-xs font-semibold uppercase tracking-[0.2em]">Bidzo marketplace</p>
               </div>
+              <h3 className={`mt-4 text-3xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Explore. Bid. Buy.</h3>
+              <p className={`mt-2 text-sm leading-6 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Everything you need in one marketplace.</p>
 
-              <div className={`mt-4 rounded-[28px] p-4 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-slate-950/70 shadow-[0_20px_45px_rgba(2,6,23,0.35)]' : 'border border-slate-200 bg-slate-50 shadow-sm'}`}>
-                <div className={`rounded-[24px] border p-5 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.35),_transparent_45%),linear-gradient(135deg,_rgba(8,15,35,0.96),_rgba(15,23,42,1))]' : 'border-slate-200 bg-white shadow-sm'}`}>
-                  <div className="flex items-center justify-center gap-3 py-5">
-                    {[ShieldCheck, Sparkles, CheckCircle2].map((Icon, index) => (
-                      <div key={index} className={`flex h-14 w-14 items-center justify-center rounded-2xl border transition duration-300 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
-                        <Icon className={`h-6 w-6 ${theme === 'dark' ? 'text-cyan-200' : 'text-cyan-700'}`} />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-center">
-                    <p className={`text-lg font-semibold transition duration-300 ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Explore with confidence</p>
-                    <p className={`mt-2 text-sm transition duration-300 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Discover products, connect with sellers, and make informed decisions.</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-5 grid gap-3">
                   {[
-                    { title: 'Secure & Protected', icon: ShieldCheck },
-                    { title: 'Real-time Bidding', icon: Sparkles },
-                    { title: 'Trusted Marketplace', icon: CheckCircle2 },
+                    { title: 'Secure & Protected', copy: 'Live bidding and secure transactions', icon: ShieldCheck },
+                    { title: 'Real-time Auctions', copy: 'Participate in exciting live auctions', icon: Sparkles },
+                    { title: 'Trusted Marketplace', copy: 'Discover products from sellers', icon: ShoppingBag },
                   ].map((item) => {
                     const Icon = item.icon;
                     return (
-                      <div key={item.title} className={`rounded-2xl border px-3 py-3 text-center text-sm transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300' : 'border-slate-200 bg-white text-slate-900'}`}>
-                        <Icon className={`mx-auto mb-2 h-4 w-4 ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-700'}`} />
-                        {item.title}
+                      <div key={item.title} className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-sm transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-300' : 'border-slate-200 bg-white text-slate-900'}`}>
+                        <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-700'}`} />
+                        <span><span className="block font-semibold">{item.title}</span><span className={`mt-0.5 block text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{item.copy}</span></span>
                       </div>
                     );
                   })}
-                </div>
               </div>
             </div>
           </div>
@@ -580,7 +609,8 @@ export function CustomerRegisterPage() {
             {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : <><span>Continue to OTP</span><ArrowRight className="h-4 w-4" /></>}
           </button>
         </form>
-        <div className={`relative overflow-hidden rounded-[28px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-cyan-400/20 bg-gradient-to-br from-blue-600/20 via-slate-900/80 to-cyan-500/20' : 'border-cyan-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50'}`}>
+        <BrandJourneyPanel heading="Start your Bidzo journey." description="Explore products. Discover opportunities. Bid with confidence. Buy with ease." theme={theme} />
+        <div className="hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.2),_transparent_40%)]" />
           <div className="absolute right-3 top-3 text-[110px] font-black leading-none text-white/10 sm:text-[160px]">BIDZO</div>
           <div className="relative">
@@ -707,7 +737,8 @@ export function VendorRegisterPage() {
             {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : <><span>Continue to verification</span><ArrowRight className="h-4 w-4" /></>}
           </button>
         </form>
-        <div className={`relative overflow-hidden rounded-[28px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-emerald-400/20 bg-gradient-to-br from-emerald-600/20 via-slate-900/80 to-cyan-500/20' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-cyan-50'}`}>
+        <BrandJourneyPanel heading="Build your business with Bidzo." description="Explore products. Discover opportunities. Bid with confidence. Buy with ease." theme={theme} />
+        <div className="hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.2),_transparent_40%)]" />
           <div className="absolute right-3 top-3 text-[110px] font-black leading-none text-white/10 sm:text-[160px]">B</div>
           <div className="relative">
