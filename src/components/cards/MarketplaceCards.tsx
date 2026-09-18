@@ -499,23 +499,23 @@ export function ReviewCard({
   const formattedDate = createdAt ? new Date(createdAt).toLocaleDateString() : null;
 
   return (
-    <article className="flex h-full min-w-0 w-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_8px_22px_rgba(15,23,42,0.09)] sm:p-5">
+    <article className="flex h-full min-w-0 w-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_8px_22px_rgba(15,23,42,0.09)] dark:border-white/10 dark:bg-slate-900 dark:shadow-black/20 dark:hover:border-sky-400/40 dark:hover:shadow-black/30 sm:p-5">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-950">{author}</p>
+          <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">{author}</p>
           <p className="mt-1 text-sm leading-none text-amber-500" aria-label={`${safeRating} out of 5 stars`}>{'★'.repeat(safeRating)}</p>
         </div>
-        {imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200" /> : null}
+        {imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200 dark:ring-white/10" /> : null}
       </div>
 
-      {formattedDate ? <p className="mt-2 text-xs text-slate-500">{formattedDate}</p> : null}
-      {title ? <p className="mt-3 break-words text-sm font-semibold leading-5 text-slate-900">{title}</p> : null}
-      {quote ? <p className="mt-3 break-words text-sm leading-6 text-slate-600">“{quote}”</p> : null}
+      {formattedDate ? <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{formattedDate}</p> : null}
+      {title ? <p className="mt-3 break-words text-sm font-semibold leading-5 text-slate-900 dark:text-slate-100">{title}</p> : null}
+      {quote ? <p className="mt-3 break-words text-sm leading-6 text-slate-600 dark:text-slate-300">“{quote}”</p> : null}
 
       {(productName || productImageUrl) ? (
-        <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-slate-100 pt-3">
+        <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-slate-100 pt-3 dark:border-white/10">
           {productImageUrl ? <img src={productImageUrl} alt={productName || 'Product'} className="h-9 w-9 shrink-0 rounded-lg object-cover" /> : null}
-          <p className="min-w-0 truncate text-xs font-medium text-slate-600">{productName || 'Product review'}</p>
+          <p className="min-w-0 truncate text-xs font-medium text-slate-600 dark:text-slate-300">{productName || 'Product review'}</p>
         </div>
       ) : null}
     </article>
