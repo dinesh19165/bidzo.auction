@@ -797,17 +797,7 @@ html.theme-light .featured-products-section article.group:hover {
   }
 
   .home-hero-actions {
-    width: min(100%, 15rem);
-    flex-direction: column;
-    gap: 0.45rem;
-  }
-
-  .home-hero-actions a {
-    width: 100%;
-    justify-content: center;
-    min-height: 2.45rem;
-    padding: 0.55rem 0.8rem;
-    text-align: center;
+    display: none;
   }
 
   .home-hero-stats {
