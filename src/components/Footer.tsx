@@ -33,8 +33,8 @@ export function Footer() {
   }, []);
 
   return (
-    <footer className="border-t border-white/10 bg-slate-950/90">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-2 lg:grid-cols-5 lg:px-8">
+    <footer className="mobile-footer border-t border-white/10 bg-slate-950/90">
+      <div className="footer-grid mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-2 lg:grid-cols-5 lg:px-8">
         <div>
           <p className="text-lg font-semibold">{platformName}</p>
           <p className="mt-3 text-sm text-slate-400">A premium marketplace for real products, live auctions, verified sellers, and fast delivery across India.</p>

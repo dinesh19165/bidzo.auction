@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Camera, Check, ChevronDown, Gavel, Globe, Grid2X2, Home, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Bell, Camera, Check, ChevronDown, Gavel, Globe, Grid2X2, Home, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -23,6 +23,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
   const headerDropdownsRef = useRef<HTMLDivElement>(null);
   const mobileUtilityRef = useRef<HTMLDivElement>(null);
   const mobileProfileRef = useRef<HTMLDivElement>(null);
@@ -46,6 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const searchRequestGeneration = useRef(0);
   const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
+  const isHomePage = location.pathname === '/';
   const showMarketplaceControls = !user || user.type === 'customer' || user.role === 'CUSTOMER';
   useEffect(() => {
     let active = true;
@@ -74,8 +76,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     navigate(`/search?${params.toString()}`);
   };
   const focusMobileSearch = () => {
-    const input = document.querySelector('input[placeholder="Search products, auctions, sellers..."]') as HTMLInputElement | null;
-    input?.focus();
+    setMobileSearchOpen(true);
+    window.requestAnimationFrame(() => mobileSearchRef.current?.focus());
   };
   useEffect(() => {
     const query = headerSearch.trim();
@@ -180,7 +182,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className={`border-b transition duration-300 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
-          <div className={`mx-auto hidden flex-col gap-0 px-4 py-0 text-xs transition duration-300 md:flex ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
+          <div className={`mx-auto hidden flex-col gap-0 px-4 py-0 text-xs transition duration-300 lg:flex ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
             <p className={`inline-flex flex-wrap items-center gap-1.5 rounded-full px-2.5 py-0 text-sm font-medium transition duration-300 ${theme === 'dark' ? 'bg-blue-500/10 text-slate-100' : 'bg-slate-100 text-slate-950 border border-slate-200'}`}>
               <span className="font-medium">{translate('freeShipping')}</span>
               <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{translate('onOrdersOver', { amount: '₹5,000' })}</span>
@@ -270,9 +272,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <div ref={mobileUtilityRef} className={`relative flex flex-wrap items-center gap-2 border-t px-3 py-2 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/90' : 'border-slate-200 bg-white/95'}`}>
+        <div ref={mobileUtilityRef} className={`relative flex flex-nowrap items-center gap-1 border-t px-3 py-0 lg:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/90' : 'border-slate-200 bg-white/95'}`}>
           <div className="relative min-w-0 flex-1">
-            <button type="button" onClick={() => { setLanguageMenuOpen((value) => !value); setCurrencyMenuOpen(false); setMobileProfileOpen(false); }} aria-expanded={languageMenuOpen} aria-label="Select language" className={`flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border px-2 text-xs font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
+            <button type="button" onClick={() => { setLanguageMenuOpen((value) => !value); setCurrencyMenuOpen(false); setMobileProfileOpen(false); }} aria-expanded={languageMenuOpen} aria-label="Select language" className={`mobile-header-compact-control flex h-[34px] w-full items-center justify-center gap-1 rounded-md border px-1.5 text-[12px] font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
               <Globe className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{languageLabel}</span><ChevronDown className="h-3 w-3 shrink-0" />
             </button>
             {languageMenuOpen ? <div className={`absolute left-0 top-full z-[70] mt-2 w-44 overflow-hidden rounded-xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'}`}>
@@ -280,30 +282,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div> : null}
           </div>
           <div className="relative min-w-0 flex-1">
-            <button type="button" onClick={() => { setCurrencyMenuOpen((value) => !value); setLanguageMenuOpen(false); setMobileProfileOpen(false); }} aria-expanded={currencyMenuOpen} aria-label="Select currency" className={`flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border px-2 text-xs font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
+            <button type="button" onClick={() => { setCurrencyMenuOpen((value) => !value); setLanguageMenuOpen(false); setMobileProfileOpen(false); }} aria-expanded={currencyMenuOpen} aria-label="Select currency" className={`mobile-header-compact-control flex h-[34px] w-full items-center justify-center gap-1 rounded-md border px-1.5 text-[12px] font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
               <span className="shrink-0">₹</span><span className="truncate">{currencyLabel}</span><ChevronDown className="h-3 w-3 shrink-0" />
             </button>
             {currencyMenuOpen ? <div className={`absolute right-0 top-full z-[70] mt-2 w-44 overflow-hidden rounded-xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'}`}>
               {currencyOptions.map((option) => <button key={option.key} type="button" onClick={() => { setCurrency(option.key); setCurrencyMenuOpen(false); }} className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}><span>{option.label}</span>{currency === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}</button>)}
             </div> : null}
           </div>
-          <button type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} className={`inline-flex min-h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
+          <button type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} className={`mobile-header-icon-control inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-md border text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          <Link to="/help" onClick={() => { setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>{translate('help')}</Link>
+          <Link to="/help" onClick={() => { setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`mobile-header-compact-control inline-flex h-[34px] shrink-0 items-center justify-center rounded-md border px-2 text-[12px] font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>{translate('help')}</Link>
         </div>
 
-  <div className="mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
+  <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
           <div>
             {/* Shared header: logo always shown and links to home */}
             <Link to="/" className="inline-flex items-center flex-shrink-0">
               {/* Slightly smaller logo on mobile to avoid horizontal overflow */}
-              <Logo className="w-[110px] sm:w-[150px] h-auto object-contain" />
+              <Logo className="w-[104px] sm:w-[150px] h-auto object-contain" />
            </Link>
           </div>
 
-          {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
+          {showMarketplaceControls && isHomePage ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
             <label className={`inline-flex h-12 w-[160px] shrink-0 items-center gap-2 rounded-2xl border px-3 text-sm ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-100' : 'border-slate-200 bg-white text-slate-900 shadow-sm'}`}><MapPin className="h-4 w-4 text-blue-500" /><select aria-label="Location" value={headerLocation} onChange={(event) => setHeaderLocation(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none"><option>Hyderabad</option><option>Bengaluru</option><option>Mumbai</option><option>Delhi</option></select></label>
             <div ref={categoryMenuRef} className="relative min-w-0 w-[220px] shrink-0">
               <button type="button" aria-label="Category" aria-haspopup="listbox" aria-expanded={categoryMenuOpen} onClick={() => setCategoryMenuOpen((value) => !value)} onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCategoryMenuOpen(true); } }} title={categoriesError ?? undefined} className="flex h-12 min-h-12 max-h-12 w-full items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-900 px-3 text-left text-white shadow-sm transition hover:bg-slate-800">
@@ -338,39 +340,40 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <AuthActions />
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 md:hidden">
+          <div className="flex flex-wrap items-center justify-end gap-1.5 lg:hidden">
             {showMarketplaceControls ? <>
-              <button type="button" aria-label="Notifications" onClick={() => navigate(user?.type === 'vendor' ? '/vendor/notifications' : '/customer/notifications')} className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}><Bell className="h-4 w-4" />{unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}</button>
-              <Link to="/customer/offers" aria-label="Offers" className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}><Tag className="h-4 w-4" /></Link>
+              <button type="button" aria-label="Notifications" onClick={() => navigate(user?.type === 'vendor' ? '/vendor/notifications' : '/customer/notifications')} className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}><Bell className="h-4 w-4" />{unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}</button>
+              <Link to="/customer/offers" aria-label="Offers" className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20' : 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'}`}><Tag className="h-4 w-4" /></Link>
             </> : null}
           </div>
         </div>
 
-        {showMarketplaceControls ? (
-          <div className={`border-t px-4 py-3 md:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-            <div data-header-search className={`relative flex items-center gap-2 rounded-2xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
-              <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-900'}`} />
-              <input value={headerSearch} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products, auctions, sellers..." className={`w-full min-w-0 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
-              <button type="button" aria-label="Visual search" onClick={focusMobileSearch} className="shrink-0 text-slate-400"><Camera className="h-4 w-4" /></button>
-              <button type="button" aria-label="Voice search" onClick={focusMobileSearch} className="shrink-0 text-slate-400"><Mic className="h-4 w-4" /></button>
+        {showMarketplaceControls && isHomePage ? (
+          <div className={`border-t px-3 py-1 lg:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+            <div data-header-search className={`relative flex h-[46px] items-center gap-1.5 rounded-xl border px-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
+              {mobileSearchOpen ? <button type="button" aria-label="Exit search" onClick={() => setMobileSearchOpen(false)} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><ArrowLeft className="h-4 w-4" /></button> : <button type="button" aria-label="Open search" onClick={focusMobileSearch} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><Search className="h-4 w-4" /></button>}
+              <input ref={mobileSearchRef} value={headerSearch} onFocus={() => setMobileSearchOpen(true)} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products & auctions" className={`w-full min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
+              <span aria-hidden="true" className={`h-6 w-px shrink-0 ${theme === 'dark' ? 'bg-white/15' : 'bg-slate-300'}`} />
+              <button type="button" aria-label="Visual search" onClick={focusMobileSearch} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}><Camera className="h-4 w-4" /></button>
+              <button type="button" aria-label="Voice search" onClick={focusMobileSearch} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}><Mic className="h-4 w-4" /></button>
+              {mobileSearchOpen ? <button type="button" aria-label="Close search" onClick={() => setMobileSearchOpen(false)} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><X className="h-4 w-4" /></button> : null}
               {renderSearchSuggestions()}
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}><MapPin className="h-4 w-4 shrink-0 text-blue-500" /><select aria-label="Location" value={headerLocation} onChange={(event) => setHeaderLocation(event.target.value)} className={`min-w-0 w-full bg-transparent text-xs outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}><option>Hyderabad</option><option>Bengaluru</option><option>Mumbai</option><option>Delhi</option></select></label>
-              <label className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}><Grid2X2 className="h-4 w-4 shrink-0 text-blue-500" /><select aria-label="Category" value={headerCategory} onChange={(event) => setHeaderCategory(event.target.value)} className={`min-w-0 w-full bg-transparent text-xs outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}><option value="">All Categories</option>{categoriesLoading ? <option disabled>Loading categories...</option> : marketplaceCategories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}</select></label>
+            <div className="mt-1.5 grid grid-cols-1 gap-2">
+              <label className={`flex h-10 min-w-0 items-center gap-1.5 rounded-lg border px-2.5 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}><MapPin className="h-3.5 w-3.5 shrink-0 text-blue-500" /><select aria-label="Location" value={headerLocation} onChange={(event) => setHeaderLocation(event.target.value)} className={`mobile-header-select min-w-0 w-full bg-transparent text-xs outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}><option>Hyderabad</option><option>Bengaluru</option><option>Mumbai</option><option>Delhi</option></select></label>
             </div>
           </div>
         ) : null}
 
-        {showMarketplaceControls ? <nav className={`border-t px-4 py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
-          <div className="mx-auto flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-            <Link to="/auctions" className={`inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-4 py-2 text-xs font-semibold text-white shadow-lg transition hover:-translate-y-0.5 sm:px-5 sm:text-sm ${isLiveAuctionsPage ? 'border-blue-200/50 bg-blue-500 shadow-blue-500/25' : 'border-blue-500/40 bg-blue-600 hover:bg-blue-500'}`}>
+        {showMarketplaceControls ? <nav className={`border-t px-3 py-1 lg:py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
+          <div className="mx-auto flex flex-nowrap items-center justify-center gap-1.5 sm:gap-3">
+            <Link to="/auctions" className={`mobile-header-action inline-flex h-10 min-w-0 flex-[1.45] items-center justify-center gap-1 whitespace-nowrap rounded-[10px] border px-2 text-[13px] font-semibold text-white shadow-lg transition hover:-translate-y-0.5 sm:flex-none sm:gap-2 sm:px-5 sm:text-sm ${isLiveAuctionsPage ? 'border-blue-200/50 bg-blue-500 shadow-blue-500/25' : 'border-blue-500/40 bg-blue-600 hover:bg-blue-500'}`}>
               <Gavel className="h-4 w-4" /> Live Auctions
             </Link>
-            <Link to="/marketplace" className={`inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-4 py-2 text-xs font-semibold text-white shadow-lg transition hover:-translate-y-0.5 sm:px-5 sm:text-sm ${isDirectBuyPage ? 'border-red-200/50 bg-red-500 shadow-red-500/25' : 'border-red-500/40 bg-red-600 hover:bg-red-500'}`}>
+            <Link to="/marketplace" className={`mobile-header-action inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-[10px] border px-2 text-[13px] font-semibold text-white shadow-lg transition hover:-translate-y-0.5 sm:flex-none sm:gap-2 sm:px-5 sm:text-sm ${isDirectBuyPage ? 'border-red-200/50 bg-red-500 shadow-red-500/25' : 'border-red-500/40 bg-red-600 hover:bg-red-500'}`}>
               <ShoppingBag className="h-4 w-4" /> Buy
             </Link>
-            <Link to="/register/vendor" className="inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200/40 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-500 sm:px-5 sm:text-sm">
+            <Link to="/register/vendor" className="mobile-header-action inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-[10px] border border-emerald-200/40 bg-emerald-600 px-2 text-[13px] font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 sm:flex-none sm:gap-2 sm:px-5 sm:text-sm">
               <Tag className="h-4 w-4" /> Sell
             </Link>
           </div>
