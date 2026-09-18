@@ -203,6 +203,14 @@ input.peer.sr-only {
   color: #dc2626;
 }
 
+.mobile-nav-item {
+  color: var(--text-muted);
+}
+
+.mobile-nav-item:hover {
+  color: var(--text-primary);
+}
+
 html.theme-dark .homepage-theme-danger {
   background-color: rgba(239, 68, 68, 0.12);
   color: #fca5a5;
