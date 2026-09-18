@@ -373,8 +373,8 @@ export function CustomerOrdersPage() {
 
   return (
     <SectionShell title="My orders" subtitle="Your shipment and delivery history">
-      <div className="mx-auto w-full max-w-5xl space-y-4">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+      <div className="mx-auto w-full max-w-[1200px] space-y-4 px-0 sm:px-2 lg:px-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             type="text"
             placeholder="Search orders..."
@@ -398,24 +398,28 @@ export function CustomerOrdersPage() {
         {filteredOrders.length === 0 ? (
           <EmptyState title="No orders found" description="Your orders will appear here once you make a purchase." />
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {filteredOrders.map((order) => (
               <Link
                 key={order.id}
                 to={`/customer/orders/${order.id}`}
-                className="grid gap-3 rounded-xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300 transition hover:border-blue-400/40 hover:bg-slate-900/90 sm:grid-cols-[minmax(0,1.25fr)_minmax(150px,0.75fr)_auto] sm:items-center"
+                className="customer-order-card grid gap-x-5 gap-y-2 rounded-xl border border-white/10 bg-slate-900/70 p-3.5 text-sm text-slate-300 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-slate-900/90 hover:shadow-md sm:grid-cols-[1.4fr_1fr_0.85fr_0.9fr] sm:items-center sm:p-4 lg:min-h-[96px] lg:px-[18px] lg:py-4"
               >
                 <div className="min-w-0">
                   <p className="break-words font-semibold text-white">{formatOrderNumber(order)}</p>
                   <p className="mt-1 text-xs text-slate-400">{order.items?.length ? `${order.items.length} item${order.items.length > 1 ? 's' : ''}` : 'No items'}</p>
-                  {order.items?.[0] ? <p className="mt-2 truncate text-xs text-slate-300">{getOrderProductName(order)}{order.items.length > 1 ? ` + ${order.items.length - 1} more` : ''}</p> : null}
                 </div>
-                <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
-                  <div><p className="font-semibold text-white">{getOrderTotal(order)}</p>{formatOrderDate(order) ? <p className="mt-1 text-xs text-slate-400">{formatOrderDate(order)}</p> : null}</div>
-                  <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusClasses(order.orderStatus)}`}>{order.orderStatus || 'N/A'}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-200">{order.items?.[0] ? getOrderProductName(order) : 'Product unavailable'}</p>
+                  {order.items && order.items.length > 1 ? <p className="mt-1 text-xs text-slate-400">+ {order.items.length - 1} more</p> : null}
                 </div>
-                <div className="flex items-center justify-end border-t border-white/10 pt-3 sm:border-0 sm:pt-0">
-                  <span className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-sky-300">View Order <ArrowRight className="h-4 w-4" /></span>
+                <div className="flex min-w-0 items-center justify-between gap-3 sm:block">
+                  {formatOrderDate(order) ? <p className="truncate text-xs text-slate-400">{formatOrderDate(order)}</p> : <p className="text-xs text-slate-500">Date unavailable</p>}
+                  <span className={`mt-1 inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusClasses(order.orderStatus)}`}>{order.orderStatus || 'N/A'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 sm:block sm:border-0 sm:pt-0 sm:text-right">
+                  <p className="font-semibold text-white">{getOrderTotal(order)}</p>
+                  <span className="mt-1 inline-flex min-h-8 items-center gap-1.5 text-sm font-semibold text-sky-300">View Order <ArrowRight className="h-4 w-4" /></span>
                 </div>
               </Link>
             ))}
@@ -1766,7 +1770,7 @@ export function CustomerSettingsPage() {
 
   return (
     <SectionShell title="Settings" subtitle="Customize your account experience">
-      <div className="space-y-6">
+      <div className="order-detail-page space-y-5">
         {/* Notification Preferences */}
         <SubtlePanel title="Notification Preferences">
           <div className="space-y-3 text-sm text-slate-300">
@@ -1994,40 +1998,40 @@ export function CustomerOrderDetailPage() {
           <ChevronLeft className="h-4 w-4" /> Back
         </button>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Order Summary</h3>
-              <div className="space-y-3 text-sm text-slate-300">
-                <div className="flex justify-between gap-4">
+        <div className="order-detail-layout grid gap-5 lg:grid-cols-3">
+          <div className="order-detail-main space-y-5 lg:col-span-2">
+            <div className="order-detail-summary rounded-xl border border-white/10 bg-slate-900/70 p-4 shadow-sm sm:p-5">
+              <h3 className="mb-3 text-lg font-semibold text-white">Order Summary</h3>
+              <div className="space-y-2.5 text-sm text-slate-300">
+                <div className="flex items-start justify-between gap-4">
                   <span>Product</span>
-                  <span className="text-right text-white font-medium">{productDisplay}</span>
+                  <span className="max-w-[70%] break-words text-right font-medium text-white">{productDisplay}</span>
                 </div>
-                <div className="flex justify-between gap-4">
+                <div className="flex items-start justify-between gap-4">
                   <span>Seller</span>
-                  <span className="text-right text-white font-medium">{sellerDisplay}</span>
+                  <span className="max-w-[70%] break-words text-right font-medium text-white">{sellerDisplay}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex items-start justify-between gap-4">
                   <span>Price</span>
-                  <span className="text-white font-medium">₹{Number(order.totalAmount).toLocaleString()}</span>
+                  <span className="shrink-0 font-medium text-white">₹{Number(order.totalAmount).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex items-start justify-between gap-4">
                   <span>Order Date</span>
-                  <span className="text-white font-medium">{order.orderDate || 'Not provided'}</span>
+                  <span className="max-w-[70%] break-words text-right font-medium text-white">{order.orderDate || 'Not provided'}</span>
                 </div>
               </div>
 
               {reviewableItems.length > 0 ? (
-                <div className="mt-6">
+                <div className="mt-5 border-t border-white/10 pt-4">
                   <p className="mb-3 text-sm font-semibold text-white">Order items</p>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {reviewableItems.map((item) => {
                       const reviewKey = `${item.orderId ?? order.id}:${item.productId}`;
                       const reviewState = reviewStates[reviewKey] ?? {};
                       const itemName = item.productName || item.name || `Product #${item.productId}`;
 
                       return (
-                        <div key={reviewKey} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div key={reviewKey} className="rounded-xl border border-white/10 bg-white/5 p-3">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                               <p className="font-medium text-white">{itemName}</p>
@@ -2058,12 +2062,12 @@ export function CustomerOrderDetailPage() {
               ) : null}
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Delivery Information</h3>
-              <div className="space-y-3 text-sm text-slate-300">
+            <div className="order-detail-delivery rounded-xl border border-white/10 bg-slate-900/70 p-4 shadow-sm sm:p-5">
+              <h3 className="mb-3 text-lg font-semibold text-white">Delivery Information</h3>
+              <div className="space-y-2.5 text-sm text-slate-300">
                 <div>
                   <p className="text-slate-400">Delivery Address</p>
-                  {address ? typeof address === 'string' ? <p className="mt-1 whitespace-pre-wrap text-white">{address}</p> : addressLines.length > 0 ? <div className="mt-1 space-y-1 text-white">{addressLines.map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}</div> : <p className="mt-1 text-white">Address not available</p> : <p className="mt-1 text-white">Address not available</p>}
+                  {address ? typeof address === 'string' ? <p className="mt-1 break-words whitespace-pre-wrap leading-6 text-white">{address}</p> : addressLines.length > 0 ? <div className="mt-1 space-y-1 leading-6 text-white">{addressLines.map((line, index) => <p key={`${line}-${index}`} className="break-words">{line}</p>)}</div> : <p className="mt-1 text-white">Address not available</p> : <p className="mt-1 text-white">Address not available</p>}
                 </div>
                 {order.trackingNumber ? <div>
                   <p className="text-slate-400">Tracking Number</p>
@@ -2077,24 +2081,24 @@ export function CustomerOrderDetailPage() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
-              <p className="text-sm text-slate-400 mb-2">Status</p>
-              <span className="rounded-full bg-emerald-500/20 text-emerald-300 px-3 py-1 text-sm font-medium">
+          <div className="order-detail-sidebar space-y-4">
+            <div className="order-detail-status rounded-xl border border-white/10 bg-slate-900/70 p-4 shadow-sm sm:p-5">
+              <p className="mb-2 text-sm text-slate-400">Status</p>
+              <span className="inline-flex rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-medium text-emerald-300">
                 {order.orderStatus}
               </span>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
-              <p className="text-sm text-slate-400 mb-3 font-semibold">Actions</p>
+            <div className="order-detail-actions rounded-xl border border-white/10 bg-slate-900/70 p-4 shadow-sm sm:p-5">
+              <p className="mb-3 text-sm font-semibold text-slate-400">Actions</p>
               <div className="space-y-2">
-                <button className="w-full rounded-full border border-blue-400/30 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-400/10">
+                <button className="min-h-10 w-full rounded-lg border border-blue-400/30 px-4 py-2 text-sm font-medium text-blue-400 transition hover:bg-blue-400/10 focus:outline-none focus:ring-2 focus:ring-blue-400/40">
                   Track Package
                 </button>
-                <button className="w-full rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">
+                <button className="min-h-10 w-full rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20">
                   Contact Support
                 </button>
-                <button className="w-full rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">
+                <button className="min-h-10 w-full rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20">
                   Download Invoice
                 </button>
               </div>

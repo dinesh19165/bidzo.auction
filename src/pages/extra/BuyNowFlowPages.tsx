@@ -515,46 +515,46 @@ export function BuyNowOrderSuccessPage() {
 
   return (
     <SectionShell title="Order Confirmed" subtitle="Your purchase was successful">
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto w-full max-w-[960px] px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8 text-center"
+          className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 text-center shadow-sm sm:p-7"
         >
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
-            <CheckCircle2 className="h-10 w-10" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300 sm:h-[68px] sm:w-[68px]">
+            <CheckCircle2 className="h-8 w-8 sm:h-9 sm:w-9" />
           </div>
 
-          <h2 className="text-3xl font-bold text-white">Order Placed Successfully</h2>
-          <p className="mt-2 text-slate-400">Thank you for your purchase!</p>
+          <h2 className="mt-5 text-2xl font-bold text-white sm:text-[30px]">Order Placed Successfully</h2>
+          <p className="mt-1.5 text-sm text-slate-400 sm:text-base">Thank you for your purchase!</p>
 
-          <div className="mt-8 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 text-left">
-            <div>
+          <div className="mx-auto mt-6 grid gap-4 rounded-xl border border-white/10 bg-white/5 p-4 text-left sm:grid-cols-3 sm:gap-5 sm:p-5">
+            <div className="min-w-0">
               <p className="text-sm text-slate-400">Order ID</p>
-              <p className="text-lg font-semibold text-white">#{flowState.orderId}</p>
+              <p className="mt-1 text-lg font-semibold text-white">#{flowState.orderId}</p>
             </div>
-            <div className="border-t border-white/10 pt-4">
+            <div className="min-w-0">
               <p className="text-sm text-slate-400">Product</p>
-              <p className="text-lg font-semibold text-white">{flowState.productTitle}</p>
+              <p className="mt-1 break-words text-lg font-semibold text-white">{flowState.productTitle}</p>
             </div>
-            <div className="border-t border-white/10 pt-4">
+            <div className="min-w-0">
               <p className="text-sm text-slate-400">Amount Paid</p>
-              <p className="text-lg font-semibold text-emerald-400">₹{flowState.productPrice.toLocaleString()}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-400">₹{flowState.productPrice.toLocaleString()}</p>
             </div>
           </div>
 
-          <div className="mt-6 space-y-3 text-sm text-slate-300">
-            <p>✓ Payment received and confirmed</p>
-            <p>✓ Invoice has been sent to your email</p>
-            <p>✓ Order is being processed for shipment</p>
+          <div className="mx-auto mt-5 space-y-2 text-left text-sm text-slate-300 sm:w-fit sm:text-center">
+            <p><span className="mr-2 text-emerald-300">✓</span>Payment received and confirmed</p>
+            <p><span className="mr-2 text-emerald-300">✓</span>Invoice has been sent to your email</p>
+            <p><span className="mr-2 text-emerald-300">✓</span>Order is being processed for shipment</p>
           </div>
 
-          <div className="mt-8 flex gap-3">
+          <div className="mx-auto mt-6 grid w-full max-w-[680px] gap-3 sm:grid-cols-2">
             <button
               onClick={() => navigate(`/customer/buynow-invoice`)}
-              className="flex-1 rounded-full border border-blue-500/40 bg-blue-500/10 px-4 py-3 font-medium text-blue-300 transition hover:bg-blue-500/20"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-blue-400/30 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
             >
-              <Download className="inline-block h-4 w-4 mr-2" />
+              <Download className="h-4 w-4" />
               Download Invoice
             </button>
             <button
@@ -562,7 +562,7 @@ export function BuyNowOrderSuccessPage() {
                 clearBuyNowFlowState();
                 navigate('/customer/orders');
               }}
-              className="flex-1 rounded-full bg-blue-600 px-4 py-3 font-medium text-white transition hover:bg-blue-700"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
             >
               View Orders
             </button>
@@ -573,7 +573,7 @@ export function BuyNowOrderSuccessPage() {
               clearBuyNowFlowState();
               navigate('/marketplace');
             }}
-            className="mt-3 w-full rounded-full border border-white/10 px-4 py-3 font-medium text-white transition hover:bg-white/5"
+            className="mx-auto mt-3 inline-flex min-h-12 w-full max-w-[680px] items-center justify-center rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20"
           >
             Continue Shopping
           </button>

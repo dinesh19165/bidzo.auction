@@ -211,6 +211,43 @@ input.peer.sr-only {
   color: var(--text-primary);
 }
 
+@media (max-width: 1023px) {
+  .customer-order-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .customer-order-card > :nth-child(1),
+  .customer-order-card > :nth-child(2) {
+    min-width: 0;
+  }
+
+  .order-detail-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .order-detail-main,
+  .order-detail-sidebar {
+    display: contents;
+  }
+
+  .order-detail-summary {
+    order: 1;
+  }
+
+  .order-detail-status {
+    order: 2;
+  }
+
+  .order-detail-actions {
+    order: 3;
+  }
+
+  .order-detail-delivery {
+    order: 4;
+  }
+}
+
 html.theme-dark .homepage-theme-danger {
   background-color: rgba(239, 68, 68, 0.12);
   color: #fca5a5;
