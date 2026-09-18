@@ -1,5 +1,5 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigationType } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Layout } from './components/Layout';
 import { AuthProvider, getPortalHome, isAdminUser, useAuth, type UserType } from './context/AuthContext';
@@ -183,6 +183,28 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RouteScrollManager() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const initialRender = useRef(true);
+
+  useLayoutEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'auto';
+
+    if (initialRender.current || navigationType !== 'POP') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      initialRender.current = false;
+    }
+
+    return () => {
+      window.history.scrollRestoration = previousRestoration;
+    };
+  }, [location.pathname, location.search, location.hash, navigationType]);
+
+  return null;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -193,6 +215,7 @@ function App() {
             <WishlistProvider>
               <LocaleProvider>
                 <ThemeProvider>
+                <RouteScrollManager />
                 <Layout>
                 <AnimatePresence mode="wait">
                   <AppRouteGuard>
