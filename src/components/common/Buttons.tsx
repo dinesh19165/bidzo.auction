@@ -9,7 +9,7 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'chi
 
 export function PrimaryButton({ children, icon, fullWidth = false, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex min-h-[44px] max-w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 font-medium text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
+    <button className={`inline-flex min-h-[44px] max-w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 disabled:cursor-not-allowed disabled:opacity-60 ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
       {icon}
       {children}
     </button>
@@ -18,7 +18,7 @@ export function PrimaryButton({ children, icon, fullWidth = false, className = '
 
 export function SecondaryButton({ children, icon, fullWidth = false, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex min-h-[44px] max-w-full items-center justify-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--surface-muted)] px-4 py-2 font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
+    <button className={`inline-flex min-h-[44px] max-w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 disabled:cursor-not-allowed disabled:opacity-60 ${fullWidth ? 'w-full' : 'w-full sm:w-auto'} ${className}`} {...props}>
       {icon}
       {children}
     </button>
@@ -27,14 +27,14 @@ export function SecondaryButton({ children, icon, fullWidth = false, className =
 
 export function IconButton({ children, className = '', ...props }: ButtonProps) {
   return (
-    <button className={`inline-flex min-h-[44px] min-w-[44px] max-w-full items-center justify-center rounded-full border border-[var(--border-color)] bg-[var(--surface-muted)] p-2 text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] ${className}`} {...props}>
+    <button className={`inline-flex min-h-[44px] min-w-[44px] max-w-full items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] p-2 text-[var(--text-secondary)] transition hover:bg-[var(--surface-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 ${className}`} {...props}>
       {children}
     </button>
   );
 }
 
 export function Badge({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <span className={`rounded-full bg-[var(--badge-bg)] px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-[var(--pill-text)] ${className}`}>{children}</span>;
+  return <span className={`inline-flex items-center rounded-lg bg-[var(--badge-bg)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--pill-text)] ${className}`}>{children}</span>;
 }
 
 export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) {

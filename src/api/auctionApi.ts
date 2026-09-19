@@ -1,4 +1,4 @@
-import { fetchJson } from './apiClient';
+import { fetchJson, uploadFormData } from './apiClient';
 import { getAuctionBids } from './bidApi';
 import type {
   ApiResponse,
@@ -34,6 +34,10 @@ export interface AuctionResponse {
   createdBy?: string;
   updatedAt?: string;
   updatedBy?: string;
+  image?: string | null;
+  images?: Array<{ id?: number | string; url?: string | null; imageUrl?: string | null; isPrimary?: boolean }> | null;
+  videoUrl?: string | null;
+  videoPublicId?: string | null;
 }
 
 export interface AuctionImageResponse {
@@ -79,6 +83,9 @@ export interface CreateAuctionRequest {
   startingPrice: number;
   productId: number;
   vendorId: number;
+  videoUrl?: string | null;
+  videoPublicId?: string | null;
+  images?: Array<{ url: string; publicId: string }>;
 }
 
 export interface AuctionListItem {
@@ -427,17 +434,13 @@ export async function getAuctions(): Promise<
 }
 
 export async function createAuction(
-  payload: CreateAuctionRequest
+  payload: CreateAuctionRequest,
+  images: File[] = []
 ): Promise<AuctionResponse> {
-  const response = await fetchJson<
-    ApiResponse<AuctionResponse>
-  >(
-    '/api/auctions',
-    {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }
-  );
+  const formData = new FormData();
+  formData.append('data', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+  images.forEach((image) => formData.append('images', image));
+  const response = await uploadFormData<ApiResponse<AuctionResponse>>('/api/auctions', formData);
 
   if (
     response?.success &&
@@ -630,4 +633,23 @@ export async function getMyWonAuctions(): Promise<
   );
 
   return results;
+}
+
+export async function updateAuction(auctionId: number, payload: Partial<CreateAuctionRequest>, images: File[] = []): Promise<AuctionResponse> {
+  const formData = new FormData();
+  formData.append('data', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+  images.forEach((image) => formData.append('images', image));
+  const response = await uploadFormData<ApiResponse<AuctionResponse>>(`/api/auctions/${auctionId}`, formData, 'PUT');
+  if (response?.success && response.data) return response.data;
+  throw new Error(response?.message || 'Unable to update auction');
+}
+
+export async function deleteAuctionImage(auctionId: number, imageId: number | string): Promise<void> {
+  const response = await fetchJson<ApiResponse<unknown>>(`/api/auctions/${auctionId}/images/${imageId}`, { method: 'DELETE' });
+  if (!response?.success) throw new Error(response?.message || 'Unable to remove auction image');
+}
+
+export async function setAuctionPrimaryImage(auctionId: number, imageId: number | string): Promise<void> {
+  const response = await fetchJson<ApiResponse<unknown>>(`/api/auctions/${auctionId}/images/${imageId}/primary`, { method: 'PUT' });
+  if (!response?.success) throw new Error(response?.message || 'Unable to set primary auction image');
 }

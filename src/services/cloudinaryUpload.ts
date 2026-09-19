@@ -14,7 +14,7 @@ function getCloudinaryConfig() {
   return { cloudName, uploadPreset };
 }
 
-export async function uploadToCloudinaryAsset(file: File): Promise<{ secureUrl: string; publicId: string }> {
+export async function uploadToCloudinaryAsset(file: File, resourceType: 'image' | 'video' = 'image'): Promise<{ secureUrl: string; publicId: string }> {
   const { cloudName, uploadPreset } = getCloudinaryConfig();
 
   if (!cloudName || !uploadPreset) {
@@ -25,7 +25,7 @@ export async function uploadToCloudinaryAsset(file: File): Promise<{ secureUrl: 
   formData.append('file', file);
   formData.append('upload_preset', uploadPreset);
 
-  const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
   const response = await fetch(uploadUrl, {
     method: 'POST',
     body: formData,
@@ -34,12 +34,12 @@ export async function uploadToCloudinaryAsset(file: File): Promise<{ secureUrl: 
   const data = (await response.json().catch(() => null)) as CloudinaryUploadResponse | null;
 
   if (!response.ok) {
-    throw new Error(data?.error?.message || 'Image upload failed');
+    throw new Error(data?.error?.message || `${resourceType === 'video' ? 'Video' : 'Image'} upload failed`);
   }
 
   const publicUrl = data?.secure_url || data?.url;
   if (!publicUrl || !data?.public_id) {
-    throw new Error('Cloudinary did not return the required image details');
+    throw new Error('Cloudinary did not return the required media details');
   }
 
   return { secureUrl: publicUrl, publicId: data.public_id };

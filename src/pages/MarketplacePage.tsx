@@ -12,6 +12,7 @@ import { API_BASE_URL } from '../api/apiClient';
 import { getProductById } from '../api/productApi';
 import { EmptyState, SkeletonCard, ErrorState } from '../components/loading/LoadingComponents';
 import { useLocation } from 'react-router-dom';
+import { useCustomerLocation } from '../utils/customerLocation';
 
 const ALL_CATEGORIES = '';
 const PAGE_SIZE = 20;
@@ -31,6 +32,7 @@ function toCardListing(item: MarketplaceSearchResult) {
     title: item.title || item.vendor?.name || 'Marketplace listing',
     description: item.type === 'VENDOR' ? 'Seller profile' : `${item.type === 'AUCTION' ? 'Auction' : 'Product'} listing`,
     image: image.startsWith('/') && !image.startsWith('/logo') ? `${API_BASE_URL}${image}` : image,
+    gallery: (item.images || []).map((value) => value.startsWith('/') && !value.startsWith('/logo') ? `${API_BASE_URL}${value}` : value),
     price: String(isAuction ? (item.currentBid ?? item.price ?? 0) : (item.price ?? 0)),
     category: item.category?.name || 'Marketplace',
     condition: isAuction ? (item.auctionStatus || 'Auction') : 'Available',
@@ -77,6 +79,7 @@ export function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestGeneration = useRef(0);
+  const customerLocation = useCustomerLocation();
 
   useEffect(() => {
     const params = new URLSearchParams(routeLocation.search);
@@ -108,14 +111,14 @@ export function MarketplacePage() {
     const requestFilters = { ...appliedFilters };
     setLoading(true);
     setError(null);
-    searchMarketplace({ ...requestFilters, page, size: PAGE_SIZE }).then(async (data) => {
+    searchMarketplace({ ...requestFilters, page, size: PAGE_SIZE, latitude: customerLocation?.latitude, longitude: customerLocation?.longitude, radiusKm: 25 }).then(async (data) => {
       if (!active || generation !== requestGeneration.current) return;
       const enrichedContent = await Promise.all(data.content.map(async (item) => {
-        if (item.type !== 'PRODUCT' || item.sellingType) return item;
+        if (item.type !== 'PRODUCT') return item;
 
         try {
           const product = await getProductById(item.id);
-          return { ...item, sellingType: product.sellingType || null };
+          return { ...item, sellingType: product.sellingType || null, images: product.gallery || [] };
         } catch {
           return item;
         }
@@ -133,7 +136,7 @@ export function MarketplacePage() {
     }).catch((err: unknown) => { if (active && generation === requestGeneration.current) setError(requestFilters.category ? 'Unable to load products for this category.' : (err instanceof Error ? err.message : 'Unable to load marketplace listings')); })
       .finally(() => { if (active && generation === requestGeneration.current) setLoading(false); });
     return () => { active = false; };
-  }, [appliedFilters, page]);
+  }, [appliedFilters, page, customerLocation?.latitude, customerLocation?.longitude]);
 
   const { translate, currencySymbol } = useLocaleContext();
   const { theme } = useThemeContext();
@@ -295,7 +298,7 @@ export function MarketplacePage() {
           ) : error ? (
             <ErrorState title="Product load failed" description={error} />
           ) : results.length === 0 ? (
-            <EmptyState title="No products found" description="Try clearing filters or adjusting search criteria." />
+            <EmptyState title={customerLocation ? 'No products available in this location' : 'No products found'} description={customerLocation ? 'Change location to explore products nearby.' : 'Try clearing filters or adjusting search criteria.'} />
           ) : (
             <div className={`${grid ? 'grid grid-cols-1 gap-4 justify-items-center md:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}`}>
               {results.map((product) => (
@@ -305,6 +308,7 @@ export function MarketplacePage() {
                     title={product.title}
                     description={product.description}
                     image={product.image}
+                    images={product.gallery}
                     price={product.price}
                     category={product.category}
                     condition={product.condition}

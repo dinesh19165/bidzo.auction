@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowRight, BadgeCheck, BellRing, CreditCard, Heart, MapPin, MessageCircleMore, PackageCheck, ReceiptText, Search, Settings, ShieldCheck, Sparkles, Store, Wallet2, ChevronLeft, X, Check, Clock, Eye, MessageSquare } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { Card } from '../../components/common/Card';
@@ -9,7 +9,7 @@ import { EmptyState, ErrorState, SkeletonCard, SkeletonTable } from '../../compo
 import VendorSidebar from '../../components/layout/VendorSidebar';
 import { getCustomerProfile, saveCustomerProfile } from '../../api/customerApi';
 import { getAuctionPaymentState, getOrderById, getOrders, isConfirmedOrderStatus, isPaidStatus } from '../../api/orderApi';
-import { getAuctionById, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus } from '../../api/auctionApi';
+import { getAuctionById, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus, updateAuction } from '../../api/auctionApi';
 import { getAuctionBids, placeBid } from '../../api/bidApi';
 import { buildAddressPayload, getAddresses, getAddressById, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
 import { useAuth } from '../../context/AuthContext';
@@ -26,10 +26,14 @@ import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
 import { updateVendorProfile, getVendorProfile, getVendorBankRecord, saveVendorBankRecord, type VendorProfileResponse, type VendorBankRecord } from '../../api/vendorApi';
 import { createVendorWithdrawal, getVendorWithdrawalBalance, getVendorWithdrawals, type WithdrawalBalance, type WithdrawalRecord } from '../../api/withdrawalApi';
 import { getProductReviews, getReviews, getReviewEligibility, createReview } from '../../api/reviewApi';
+import VideoUploadField from '../../components/forms/VideoUploadField';
+import { uploadToCloudinaryAsset } from '../../services/cloudinaryUpload';
 import { getTransactions, type TransactionResponse } from '../../api/walletApi';
 import { getInvoices, type InvoiceResponse } from '../../api/invoiceApi';
 import { createSupportTicket, getSupportTickets, type SupportTicketResponse } from '../../api/supportApi';
 import { WishlistPage } from '../WishlistPage';
+import { KycApprovalRequiredModal, KycPublishWarning } from '../../components/common/Feedback';
+import { isVendorKycPublishRestrictionError, VENDOR_KYC_PUBLISH_REQUIRED_MESSAGE } from '../../utils/vendorKycPublishRestriction';
 import { getConversations, getMessages, sendMessage, type ConversationResponse, type MessageResponse } from '../../api/messageApi';
 import { NotificationList } from '../../components/notifications/NotificationList';
 import { useNotificationContext } from '../../context/NotificationContext';
@@ -3412,6 +3416,8 @@ export function VendorInventoryPage() {
   const [editingInventoryId, setEditingInventoryId] = useState<number | null>(null);
   const [inventoryDraft, setInventoryDraft] = useState('');
   const [savingInventoryId, setSavingInventoryId] = useState<number | null>(null);
+  const [showKycRestriction, setShowKycRestriction] = useState(false);
+  const navigate = useNavigate();
 
   const loadProducts = async () => {
     setLoading(true);
@@ -3602,6 +3608,12 @@ export function VendorInventoryPage() {
       await updateVendorProduct(productId, buildPublishPayload(product));
       await loadProducts();
     } catch (err) {
+      if (isVendorKycPublishRestrictionError(err)) {
+        showToast('KYC Approval Required', 'Your KYC is not approved yet. Please complete your KYC and wait for approval before publishing.', 'warning');
+        setShowKycRestriction(true);
+        setError('KYC approval required to publish.');
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Unable to publish vendor product.');
     } finally {
       setActionLoading(false);
@@ -3643,6 +3655,12 @@ export function VendorInventoryPage() {
       setSelected([]);
       await loadProducts();
     } catch (err) {
+      if (isVendorKycPublishRestrictionError(err)) {
+        showToast('KYC Approval Required', 'Your KYC is not approved yet. Please complete your KYC and wait for approval before publishing.', 'warning');
+        setShowKycRestriction(true);
+        setError('KYC approval required to publish.');
+        return;
+      }
       setError(err instanceof Error ? err.message : `Unable to ${action} vendor products.`);
     } finally {
       setActionLoading(false);
@@ -3650,10 +3668,21 @@ export function VendorInventoryPage() {
   };
 
   return (
+    <>
+      <KycApprovalRequiredModal
+        open={showKycRestriction}
+        itemLabel="product"
+        onComplete={() => {
+          setShowKycRestriction(false);
+          navigate('/kyc');
+        }}
+        onClose={() => setShowKycRestriction(false)}
+      />
     <SectionShell title="Inventory" subtitle="Stock health for your catalog" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Inventory' }]}>
       <div className="lg:flex lg:gap-6">
         <VendorSidebar />
         <main className="flex-1">
+          <KycPublishWarning onComplete={() => navigate('/kyc')} />
           <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search products or SKU" className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2 text-sm text-white" />
@@ -3781,7 +3810,8 @@ export function VendorInventoryPage() {
           </Card>
         </main>
       </div>
-    </SectionShell>
+      </SectionShell>
+      </>
   );
 }
 
@@ -4148,11 +4178,59 @@ export function VendorCreateAuctionPage() {
 }
 
 export function VendorEditAuctionPage() {
+  const [searchParams] = useSearchParams();
+  const auctionId = Number(searchParams.get('id') || 0);
+  const [auction, setAuction] = useState<Awaited<ReturnType<typeof getAuctionById>> | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoPublicId, setVideoPublicId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (!auctionId) return;
+    getAuctionById(auctionId).then((result) => {
+      setAuction(result);
+      setVideoUrl(result.videoUrl || null);
+      setVideoPublicId(result.videoPublicId || null);
+    }).catch(() => setMessage('Unable to load auction.'));
+  }, [auctionId]);
+
+  const saveAuctionVideo = async () => {
+    if (!auction) return;
+    setSaving(true);
+    setMessage('');
+    try {
+      let nextVideoUrl = videoUrl;
+      let nextVideoPublicId = videoPublicId;
+      if (videoFile) {
+        setMessage('Uploading video...');
+        const uploaded = await uploadToCloudinaryAsset(videoFile, 'video');
+        nextVideoUrl = uploaded.secureUrl;
+        nextVideoPublicId = uploaded.publicId;
+      }
+      await updateAuction(auction.id, { videoUrl: nextVideoUrl || null, videoPublicId: nextVideoPublicId || null }, []);
+      setVideoFile(null);
+      setVideoUrl(nextVideoUrl);
+      setVideoPublicId(nextVideoPublicId);
+      setMessage('Auction video saved.');
+    } catch {
+      setMessage('Video upload failed. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SectionShell title="Edit auction" subtitle="Fine-tune reserve price and time controls">
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
-        <p>Update bidding rules, promotion windows, and auction captions in one place.</p>
-      </div>
+      {!auctionId ? <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">Open this page with an auction id to manage optional media.</div> : (
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
+          <p className="font-semibold text-white">{auction?.title || 'Loading auction...'}</p>
+          <div className="mt-4"><VideoUploadField file={videoFile} existingUrl={videoUrl} onChange={(file) => { setVideoFile(file); if (!file && !videoFile) { setVideoUrl(null); setVideoPublicId(null); } }} label="Auction video (optional)" disabled={saving} /></div>
+          {message ? <p className="mt-3 text-sm text-blue-200">{message}</p> : null}
+          <button type="button" onClick={() => void saveAuctionVideo()} disabled={saving || !auction} className="mt-4 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving ? 'Saving...' : 'Save video'}</button>
+        </div>
+      )}
     </SectionShell>
   );
 }

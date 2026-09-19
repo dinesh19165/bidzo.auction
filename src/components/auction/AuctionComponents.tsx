@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 
 export function CountdownTimer({ value }: { value: string }) {
-  return <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-slate-100 shadow-lg shadow-blue-500/10">{value}</div>;
+  return <div className="rounded-xl border border-blue-400/20 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-slate-100 shadow-sm shadow-blue-500/10">{value}</div>;
 }
 
 export function BidHistory({ bids }: { bids: Array<{ bidder: string; amount: string }> }) {
@@ -24,11 +24,11 @@ export function BidHistory({ bids }: { bids: Array<{ bidder: string; amount: str
 }
 
 export function BidCard({ title, children }: { title: string; children: ReactNode }) {
-  return <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 shadow-lg shadow-slate-950/20"><h3 className="font-semibold text-white">{title}</h3><div className="mt-4">{children}</div></div>;
+  return <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--surface)] p-5 shadow-sm shadow-[var(--shadow-color)]"><h3 className="font-semibold text-[var(--text-primary)]">{title}</h3><div className="mt-4">{children}</div></div>;
 }
 
 export function AutoBidCard({ title }: { title: string }) {
-  return <motion.div whileHover={{ y: -2 }} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 shadow-lg shadow-slate-950/20"><h3 className="font-semibold text-white">{title}</h3><p className="mt-2 text-sm text-slate-400">Enable automatic bidding for faster participation.</p></motion.div>;
+  return <motion.div whileHover={{ y: -2 }} className="rounded-2xl border border-[var(--border-color)] bg-[var(--surface)] p-5 shadow-sm shadow-[var(--shadow-color)]"><h3 className="font-semibold text-[var(--text-primary)]">{title}</h3><p className="mt-2 text-sm text-[var(--text-muted)]">Enable automatic bidding for faster participation.</p></motion.div>;
 }
 
 export function WinnerBanner({ label }: { label: string }) {

@@ -180,15 +180,36 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth
   return body as T;
 }
 
-export async function uploadFormData<T>(path: string, formData: FormData): Promise<T> {
-  const token = getStoredAuthToken();
-  const headers = new Headers();
-  applyAuthHeaders(headers, token);
-  const response = await fetch(getApiUrl(path), { method: 'POST', headers, body: formData });
-  const body = (await response.json().catch(() => null)) as any;
-  if (!response.ok) {
-    throw new ApiError(response.status, body?.message || response.statusText || 'Upload failed');
+export async function uploadFormData<T>(path: string, formData: FormData, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
+  if (sessionExpirationHandled) {
+    throw new ApiError(401, 'Unauthorized');
   }
+
+  const token = getStoredAuthToken();
+  if (token && isJwtExpired(token)) {
+    handleUnauthorized();
+    throw new ApiError(401, 'Unauthorized');
+  }
+
+  const headers = new Headers();
+  headers.set('Accept', 'application/json');
+  applyAuthHeaders(headers, token);
+  const response = await fetch(getApiUrl(path), { method, headers, body: formData });
+
+  if (response.status === 401) {
+    handleUnauthorized();
+    throw new ApiError(response.status, 'Unauthorized');
+  }
+
+  const body = (await response.json().catch(() => null)) as unknown;
+  if (response.status === 403) {
+    throw new ApiError(response.status, getResponseErrorMessage(body, "You don't have permission to perform this action"));
+  }
+
+  if (!response.ok) {
+    throw new ApiError(response.status, getResponseErrorMessage(body, response.statusText || 'Upload failed'));
+  }
+
   return body as T;
 }
 

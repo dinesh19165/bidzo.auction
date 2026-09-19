@@ -138,8 +138,14 @@ export interface HomeDataResponse {
  * Fetch home page data - includes stats, categories, featured products, and auctions
  * This is the recommended endpoint for initial page load
  */
-export async function getHomeData(): Promise<HomeDataResponse> {
-  const response = await fetchJson<ApiResponse<HomeDataResponse>>('/api/home', { method: 'GET' }, false);
+export async function getHomeData(location?: { latitude: number; longitude: number; radiusKm?: number }): Promise<HomeDataResponse> {
+  const params = new URLSearchParams();
+  if (location) {
+    params.set('latitude', String(location.latitude));
+    params.set('longitude', String(location.longitude));
+    params.set('radiusKm', String(location.radiusKm ?? 25));
+  }
+  const response = await fetchJson<ApiResponse<HomeDataResponse>>(`/api/home${params.toString() ? `?${params.toString()}` : ''}`, { method: 'GET' }, false);
   if (!response?.data) {
     throw new Error(response?.message || 'Failed to load home data');
   }

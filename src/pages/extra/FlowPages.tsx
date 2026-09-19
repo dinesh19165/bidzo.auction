@@ -7,17 +7,18 @@ import { categoryLabel, getCategories, getCategoryFields, type CategoryFieldDefi
 import ProductForm from '../../components/ProductForm';
 import Wizard from '../../components/Wizard';
 import AuctionForm from '../../components/AuctionForm';
-import UploadField from '../../components/forms/UploadField';
+import ImageGalleryField, { type GalleryImage } from '../../components/forms/ImageGalleryField';
+import VideoUploadField from '../../components/forms/VideoUploadField';
 import { useAuth } from '../../context/AuthContext';
 import { createAuctionOrder, getAuctionPaymentState, getOrderById, isPaidStatus } from '../../api/orderApi';
 import { createReview, getReviewEligibility } from '../../api/reviewApi';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
 import type { AddressResponse } from '../../api/addressApi';
 import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } from '../../api/paymentApi';
-import { createVendorProduct, getVendorProducts, updateVendorProduct, type SellingType } from '../../api/vendorProductApi';
-import { createProductImage, createBuyNowOrder, getProducts, getProductById, type ProductListItem } from '../../api/productApi';
+import { createVendorProduct, getVendorProducts, updateVendorProduct, deleteProductImage, setProductPrimaryImage, type SellingType } from '../../api/vendorProductApi';
+import { createProductImage, createBuyNowOrder, getProducts, getProductById, getProductImages, type ProductListItem } from '../../api/productApi';
 import { StockBadge } from '../../components/common/StockBadge';
-import { uploadToCloudinary } from '../../services/cloudinaryUpload';
+import { uploadToCloudinaryAsset } from '../../services/cloudinaryUpload';
 import { WishlistPage } from '../WishlistPage';
 import { createAuction, getAuctions } from '../../api/auctionApi';
 import { getVendorProfile } from '../../api/vendorApi';
@@ -25,6 +26,9 @@ import { getVendorAuctions } from '../../api/vendorAuctionApi';
 import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
 import type { OrderResponseDto, PaymentResponseDto, RazorpayOrderResponse } from '../../types';
 import { addMockBid, advanceAuctionClock, beginFinalPayment, enterLiveAuctionRoom, goToMarketplace, initializeAuctionFlowState, initializeAuctionFlowStateForAuction, markInvoiceReady, markOrderConfirmed, placeBid, readAuctionFlowState, resolveAuctionOutcome, startAuctionFlow, type AuctionFlowState, writeAuctionFlowState, setSelectedAuctionId, isAuctionRegistered, markAuctionAsRegistered, getSelectedAuctionId, readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
+import { isVendorKycPublishRestrictionError } from '../../utils/vendorKycPublishRestriction';
+import { KycApprovalRequiredModal, KycPublishWarning } from '../../components/common/Feedback';
+import { showToast } from '../../components/ui/toast';
 
 function FlowBreadcrumbs({ steps }: { steps: Array<{ label: string; to?: string }> }) {
   return (
@@ -37,6 +41,66 @@ function FlowBreadcrumbs({ steps }: { steps: Array<{ label: string; to?: string 
       ))}
     </div>
   );
+}
+
+function LocalFilePreview({ file, alt, className }: { file: File; alt: string; className: string }) {
+  const [src, setSrc] = useState('');
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setSrc(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  return src ? <img src={src} alt={alt} className={className} /> : null;
+}
+
+interface UploadedProductImage {
+  fileKey: string;
+  secureUrl: string;
+  publicId: string;
+}
+type UploadedAuctionImage = UploadedProductImage;
+
+function getProductFileKey(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+async function uploadProductFiles(
+  files: File[],
+  cachedImages: UploadedProductImage[],
+  onProgress: (message: string) => void,
+  onCachedImagesChange: (images: UploadedProductImage[]) => void,
+): Promise<UploadedProductImage[]> {
+  const uploaded = [...cachedImages];
+
+  for (const [index, file] of files.entries()) {
+    const fileKey = getProductFileKey(file);
+    const cached = uploaded.find((image) => image.fileKey === fileKey);
+    if (cached) {
+      onProgress(`Uploading images ${index + 1}/${files.length}...`);
+      continue;
+    }
+
+    onProgress(`Uploading images ${index + 1}/${files.length}...`);
+    try {
+      const result = await uploadToCloudinaryAsset(file);
+      uploaded.push({ fileKey, secureUrl: result.secureUrl, publicId: result.publicId });
+      onCachedImagesChange([...uploaded]);
+    } catch {
+      throw new Error(`Image ${index + 1} could not be uploaded. Please try again.`);
+    }
+  }
+
+  return files.map((file) => uploaded.find((image) => image.fileKey === getProductFileKey(file))).filter((image): image is UploadedProductImage => Boolean(image));
+}
+
+async function uploadVideoFile(file: File): Promise<{ secureUrl: string; publicId: string }> {
+  try {
+    return await uploadToCloudinaryAsset(file, 'video');
+  } catch {
+    throw new Error('Video upload failed. Please try again.');
+  }
 }
 
 type AuctionFlowStepKey = 'details' | 'bid' | 'registration' | 'live' | 'result' | 'payment';
@@ -2033,11 +2097,14 @@ export function VendorCreateProductWizardPage() {
   const [categoryFieldsError, setCategoryFieldsError] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
   const [productFormValid, setProductFormValid] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<File[] | undefined>(undefined);
-  const [productImageUrl, setProductImageUrl] = useState('');
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadedCloudinaryImages, setUploadedCloudinaryImages] = useState<UploadedProductImage[]>([]);
+  const [productVideo, setProductVideo] = useState<File | null>(null);
+  const [uploadedProductVideo, setUploadedProductVideo] = useState<{ secureUrl: string; publicId: string } | null>(null);
+  const [imageUploadStatus, setImageUploadStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [kycRestrictionOpen, setKycRestrictionOpen] = useState(false);
 
   useEffect(() => {
     getCategories().then((items) => {
@@ -2100,27 +2167,31 @@ export function VendorCreateProductWizardPage() {
         setSubmitting(true);
         setSubmitError(null);
 
-        const selectedFile = uploadedImages?.[0];
-        let resolvedPublicImageUrl = String(productImageUrl || '').trim();
-
-        if (selectedFile) {
-          setUploadingImage(true);
-          try {
-            resolvedPublicImageUrl = await uploadToCloudinary(selectedFile);
-            setProductImageUrl(resolvedPublicImageUrl);
-          } finally {
-            setUploadingImage(false);
-          }
-        }
-
-        if (!resolvedPublicImageUrl || !(resolvedPublicImageUrl.startsWith('http://') || resolvedPublicImageUrl.startsWith('https://'))) {
-          setSubmitError('A valid public image URL is required before the product can be published.');
+        if (uploadedImages.length === 0) {
+          setSubmitError('Add at least one product image before publishing.');
           return;
         }
 
-            const productPayload = buildProductPayload(formData);
-        console.log('PRODUCT PAYLOAD BEFORE API:', productPayload);
-        console.log('PRODUCT FIELDS BEFORE API:', productPayload.fields);
+        const uploadedImagesResult = await uploadProductFiles(
+          uploadedImages,
+          uploadedCloudinaryImages,
+          setImageUploadStatus,
+          setUploadedCloudinaryImages,
+        );
+        setImageUploadStatus('Images uploaded successfully');
+
+        let videoResult = uploadedProductVideo;
+        if (productVideo && !videoResult) {
+          setImageUploadStatus('Uploading video...');
+          videoResult = await uploadVideoFile(productVideo);
+          setUploadedProductVideo(videoResult);
+        }
+
+        const productPayload = {
+          ...buildProductPayload(formData),
+          videoUrl: videoResult?.secureUrl || null,
+          videoPublicId: videoResult?.publicId || null,
+        };
         const createdProduct = await createVendorProduct(productPayload);
         const productId = Number(createdProduct?.id ?? 0);
 
@@ -2128,10 +2199,12 @@ export function VendorCreateProductWizardPage() {
           throw new Error('Product creation did not return a valid product ID.');
         }
 
-        await createProductImage(productId, {
-          url: resolvedPublicImageUrl,
-          altText: `${String(formData.title || 'Product').trim() || 'Product'} Main Image`,
-        });
+        for (const [index, image] of uploadedImagesResult.entries()) {
+          await createProductImage(productId, {
+            url: image.secureUrl,
+            altText: `${String(formData.title || 'Product').trim() || 'Product'} Image ${index + 1}`,
+          });
+        }
 
         if (productPayload.sellingType === 'AUCTION') {
           navigate(`/vendor/create-auction-wizard?productId=${productId}`);
@@ -2140,6 +2213,12 @@ export function VendorCreateProductWizardPage() {
 
         setStep(9);
       } catch (error) {
+        if (isVendorKycPublishRestrictionError(error)) {
+          showToast('KYC Approval Required', 'Your KYC is not approved yet. Please complete your KYC and wait for approval before publishing.', 'warning');
+          setKycRestrictionOpen(true);
+          setSubmitError('KYC approval required to publish.');
+          return;
+        }
         setSubmitError(error instanceof Error ? error.message : 'Unable to create product');
       } finally {
         setSubmitting(false);
@@ -2165,7 +2244,7 @@ export function VendorCreateProductWizardPage() {
   } else if (step === 3) {
     canContinue = productFormValid;
   } else if (step === 4) {
-    const imgs = uploadedImages || formData.images || [];
+    const imgs = uploadedImages.length > 0 ? uploadedImages : formData.images || [];
     canContinue = imgs.length > 0;
   } else if (step === 5) {
     const quantityValue = Number(formData.quantity);
@@ -2176,8 +2255,19 @@ export function VendorCreateProductWizardPage() {
   }
 
   return (
-    <SectionShell title="Create product" subtitle="Multi-step product wizard for a complete selling experience">
+    <>
+      <KycApprovalRequiredModal
+        open={kycRestrictionOpen}
+        itemLabel="product"
+        onComplete={() => {
+          setKycRestrictionOpen(false);
+          navigate('/kyc');
+        }}
+        onClose={() => setKycRestrictionOpen(false)}
+      />
+      <SectionShell title="Create product" subtitle="Multi-step product wizard for a complete selling experience">
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+        {step === steps.length && <KycPublishWarning onComplete={() => navigate('/kyc')} />}
         <Wizard
           steps={steps}
           step={step}
@@ -2214,22 +2304,18 @@ export function VendorCreateProductWizardPage() {
 
           {step === 4 && (
             <div>
-              <p className="text-sm text-slate-400">Select an image and upload it to the configured Cloudinary unsigned preset. The backend image API requires a permanent public URL, not a browser blob URL.</p>
+              <p className="text-sm text-slate-400">Select one or more images. The first image becomes primary.</p>
               <div className="mt-3">
-                <UploadField onChange={(files) => { setUploadedImages(files); setFormData((prev: any) => ({ ...prev, images: files })); }} />
+                <ImageGalleryField files={uploadedImages} onFilesChange={(files) => {
+                  setUploadedImages(files);
+                  setUploadedCloudinaryImages((current) => current.filter((image) => files.some((file) => getProductFileKey(file) === image.fileKey)));
+                  setFormData((prev: any) => ({ ...prev, images: files }));
+                }} />
               </div>
-              <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                <label className="mb-2 block text-sm font-medium text-slate-200">Cloudinary public URL</label>
-                <input
-                  value={productImageUrl}
-                  onChange={(e) => setProductImageUrl(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white"
-                  placeholder="https://res.cloudinary.com/.../image/upload/...jpg"
-                />
-                {uploadingImage && (
-                  <p className="mt-3 text-sm text-blue-200">Uploading selected image to Cloudinary...</p>
-                )}
+              <div className="mt-3">
+                <VideoUploadField file={productVideo} onChange={(file) => { setProductVideo(file); if (!file) setUploadedProductVideo(null); }} />
               </div>
+              {imageUploadStatus && <p className="mt-3 text-sm text-blue-200">{imageUploadStatus}</p>}
             </div>
           )}
 
@@ -2267,12 +2353,25 @@ export function VendorCreateProductWizardPage() {
           {step === 8 && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-300">
               <p className="font-semibold text-white">Preview</p>
+              {uploadedImages.length > 0 && (
+                <div className="mt-3">
+                  <div className="h-36 overflow-hidden rounded-xl border border-white/10 bg-slate-950/50">
+                    <LocalFilePreview file={uploadedImages[0]} alt="Primary product preview" className="h-full w-full object-contain" />
+                  </div>
+                  <div className="mt-2 flex max-w-full gap-2 overflow-x-auto pb-1">
+                    {uploadedImages.map((image, index) => {
+                      return <LocalFilePreview key={`${image.name}-${image.lastModified}`} file={image} alt={`Product preview ${index + 1}`} className={`h-14 w-14 shrink-0 rounded-lg border object-cover ${index === 0 ? 'border-amber-400' : 'border-white/10'}`} />;
+                    })}
+                  </div>
+                </div>
+              )}
               <p className="mt-2">{formData.title}</p>
               <p className="mt-2">Category: {formData.category}</p>
               <p className="mt-2">Selling type: {formData.sellingType === 'AUCTION' ? 'Auction' : 'Direct Buy'}</p>
               <p className="mt-2">Price: {formData.price}</p>
               <p className="mt-2">Quantity: {formData.quantity}</p>
               {submitError && <p className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{submitError}</p>}
+              {imageUploadStatus && <p className="mt-3 text-sm text-blue-200">{imageUploadStatus}</p>}
             </div>
           )}
 
@@ -2288,12 +2387,14 @@ export function VendorCreateProductWizardPage() {
           )}
         </Wizard>
       </div>
-    </SectionShell>
+      </SectionShell>
+    </>
   );
 }
 
 export function VendorEditProductWizardPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [product, setProduct] = useState<{ id: number; title: string; category?: string; price?: number | string; description?: string } | null>(null);
   const [productError, setProductError] = useState<string | null>(null);
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
@@ -2302,8 +2403,17 @@ export function VendorEditProductWizardPage() {
   const [categoryFieldsError, setCategoryFieldsError] = useState<string | null>(null);
   const [productFormValidEdit, setProductFormValidEdit] = useState(false);
   const [existingSpecifications, setExistingSpecifications] = useState<Array<{ name: string; value: string }>>([]);
+  const [existingImages, setExistingImages] = useState<GalleryImage[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [productVideo, setProductVideo] = useState<File | null>(null);
+  const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null);
+  const [existingVideoPublicId, setExistingVideoPublicId] = useState<string | null>(null);
+  const [uploadedProductVideo, setUploadedProductVideo] = useState<{ secureUrl: string; publicId: string } | null>(null);
+  const [uploadedCloudinaryImages, setUploadedCloudinaryImages] = useState<UploadedProductImage[]>([]);
+  const [imageUploadStatus, setImageUploadStatus] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [kycRestrictionOpen, setKycRestrictionOpen] = useState(false);
 
   const steps = ['Edit Info', 'Category fields', 'Images', 'Pricing', 'Shipping', 'Preview', 'Publish'];
   const [step, setStep] = useState(1);
@@ -2312,7 +2422,7 @@ export function VendorEditProductWizardPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([getCategories(), getVendorProducts()]).then(([items, vendorProducts]) => {
+    Promise.all([getCategories(), getVendorProducts(), getProductImages(Number(id)).catch(() => [])]).then(([items, vendorProducts, images]) => {
       if (!active) return;
       setCategories(items);
       const current = vendorProducts.find((item) => item.id === Number(id));
@@ -2322,6 +2432,9 @@ export function VendorEditProductWizardPage() {
       setProduct(normalizedProduct);
       const categoryId = current.categoryId ?? items.find((item) => item.name === categoryName)?.id ?? null;
       setExistingSpecifications(current?.specifications ?? []);
+        setExistingVideoUrl(current.videoUrl || null);
+        setExistingVideoPublicId(current.videoPublicId || null);
+      setExistingImages(images.map((image) => ({ id: image.id, url: image.url, altText: image.altText })));
       setFormData((previous: any) => ({
         ...previous,
         title: current?.name ?? previous.title,
@@ -2377,15 +2490,48 @@ export function VendorEditProductWizardPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      let videoUrl = existingVideoUrl;
+      let videoPublicId = existingVideoPublicId;
+      if (productVideo) {
+        setAutosaveStatus('Uploading video...');
+        const uploadedVideo = uploadedProductVideo || await uploadVideoFile(productVideo);
+        setUploadedProductVideo(uploadedVideo);
+        videoUrl = uploadedVideo.secureUrl;
+        videoPublicId = uploadedVideo.publicId;
+      } else if (!existingVideoUrl) {
+        videoUrl = null;
+        videoPublicId = null;
+      }
+      const uploadedImagesResult = await uploadProductFiles(
+        uploadedImages,
+        uploadedCloudinaryImages,
+        setImageUploadStatus,
+        setUploadedCloudinaryImages,
+      );
       await updateVendorProduct(Number(id) || product.id, {
         name: String(formData.title || '').trim(),
         description: String(formData.description || '').trim(),
         price: formData.price,
         categoryId: formData.categoryId,
         fields: Object.fromEntries(Object.entries(formData.fields || {}).filter(([, value]) => String(value).trim() !== '').map(([key, value]) => [key, String(value)])),
+        videoUrl,
+        videoPublicId,
       });
+      for (const [index, image] of uploadedImagesResult.entries()) {
+        await createProductImage(Number(id) || product.id, {
+          url: image.secureUrl,
+          altText: `${String(formData.title || 'Product').trim() || 'Product'} Image ${index + 1}`,
+        });
+      }
+      if (uploadedImagesResult.length > 0) setImageUploadStatus('Images uploaded successfully');
       setStep(7);
     } catch (error) {
+      if (isVendorKycPublishRestrictionError(error)) {
+        showToast('KYC Approval Required', 'Your KYC is not approved yet. Please complete your KYC and wait for approval before publishing.', 'warning');
+        setKycRestrictionOpen(true);
+        setSubmitError('KYC approval required to publish.');
+        return;
+      }
       setSubmitError(error instanceof Error ? error.message : 'Unable to update product');
     } finally {
       setSubmitting(false);
@@ -2399,14 +2545,25 @@ export function VendorEditProductWizardPage() {
   } else if (step === 2) {
     canContinueEdit = productFormValidEdit;
   } else if (step === 3) {
-    canContinueEdit = !!(formData.images && formData.images.length > 0);
+    canContinueEdit = existingImages.length > 0 || uploadedImages.length > 0;
   } else if (step === 4) {
     canContinueEdit = !!(formData.price && formData.price.toString().trim().length > 0);
   }
 
   return (
-    <SectionShell title="Edit product" subtitle={`Edit: ${product.title}`}>
+    <>
+      <KycApprovalRequiredModal
+        open={kycRestrictionOpen}
+        itemLabel="product"
+        onComplete={() => {
+          setKycRestrictionOpen(false);
+          navigate('/kyc');
+        }}
+        onClose={() => setKycRestrictionOpen(false)}
+      />
+      <SectionShell title="Edit product" subtitle={`Edit: ${product.title}`}>
       <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+        {step === steps.length && <KycPublishWarning onComplete={() => navigate('/kyc')} />}
         <Wizard
           steps={steps}
           step={step}
@@ -2428,10 +2585,45 @@ export function VendorEditProductWizardPage() {
 
           {step === 3 && (
             <div>
-              <p className="text-sm text-slate-400">Manage product images and media.</p>
+              <p className="text-sm text-slate-400">Manage product images and media. Existing images remain unless you remove them.</p>
               <div className="mt-3">
-                <UploadField onChange={(files) => setFormData((prev: any) => ({ ...prev, images: files }))} />
+                <ImageGalleryField
+                  existingImages={existingImages}
+                  files={uploadedImages}
+                  onFilesChange={(files) => {
+                    setUploadedImages(files);
+                    setUploadedCloudinaryImages((current) => current.filter((image) => files.some((file) => getProductFileKey(file) === image.fileKey)));
+                  }}
+                  onRemoveExisting={async (image) => {
+                    if (image.id == null || !window.confirm('Remove this image?')) return;
+                    try {
+                      await deleteProductImage(product.id, image.id);
+                      setExistingImages((current) => current.filter((item) => item.id !== image.id));
+                    } catch (error) {
+                      setSubmitError(error instanceof Error ? error.message : 'Unable to remove image');
+                    }
+                  }}
+                  onPrimaryChange={async (image) => {
+                    if (image.id == null) return;
+                    try {
+                      await setProductPrimaryImage(product.id, image.id);
+                    } catch (error) {
+                      setSubmitError(error instanceof Error ? error.message : 'Unable to set primary image');
+                    }
+                  }}
+                />
               </div>
+              <div className="mt-3">
+                <VideoUploadField file={productVideo} existingUrl={existingVideoUrl} onChange={(file) => {
+                  setProductVideo(file);
+                  if (!file) {
+                    setExistingVideoUrl(null);
+                    setExistingVideoPublicId(null);
+                    setUploadedProductVideo(null);
+                  }
+                }} />
+              </div>
+              {imageUploadStatus && <p className="mt-3 text-sm text-blue-200">{imageUploadStatus}</p>}
             </div>
           )}
 
@@ -2464,7 +2656,8 @@ export function VendorEditProductWizardPage() {
           )}
         </Wizard>
       </div>
-    </SectionShell>
+      </SectionShell>
+    </>
   );
 }
 
@@ -2475,7 +2668,7 @@ export function VendorCreateAuctionWizardPage() {
   const requestedProductId = Number(searchParams.get('productId') || 0);
   const isBikeAuction = typeParam === 'bike';
 
-  const steps = ['Settings', 'Details', 'Preview', 'Publish'];
+  const steps = ['Settings', 'Details', 'Images', 'Preview', 'Publish'];
   const [step, setStep] = useState(1);
   const [data, setData] = useState<any>({
     title: '',
@@ -2497,6 +2690,15 @@ export function VendorCreateAuctionWizardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [kycRestrictionOpen, setKycRestrictionOpen] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadedAuctionImages, setUploadedAuctionImages] = useState<UploadedAuctionImage[]>([]);
+  const [auctionImageUploadStatus, setAuctionImageUploadStatus] = useState('');
+  const [auctionImageUploadError, setAuctionImageUploadError] = useState<string | null>(null);
+  const auctionImageUploadCache = useRef<Record<string, UploadedAuctionImage>>({});
+  const auctionImageUploadPromises = useRef<Record<string, Promise<UploadedAuctionImage>>>({});
+  const [auctionVideo, setAuctionVideo] = useState<File | null>(null);
+  const [uploadedAuctionVideo, setUploadedAuctionVideo] = useState<{ secureUrl: string; publicId: string } | null>(null);
 
   const applyProductToAuction = (product: { id: number; name: string; description?: string | null; price: number | string; categoryId?: number | null }) => {
     const productPrice = String(product.price ?? '').trim();
@@ -2566,6 +2768,48 @@ export function VendorCreateAuctionWizardPage() {
     return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
   };
 
+  const uploadAuctionImages = async (files: File[]) => {
+    const fileKeys = new Set(files.map(getProductFileKey));
+    Object.keys(auctionImageUploadCache.current).forEach((key) => {
+      if (!fileKeys.has(key)) delete auctionImageUploadCache.current[key];
+    });
+    Object.keys(auctionImageUploadPromises.current).forEach((key) => {
+      if (!fileKeys.has(key)) delete auctionImageUploadPromises.current[key];
+    });
+
+    if (files.length === 0) {
+      setUploadedAuctionImages([]);
+      setAuctionImageUploadStatus('');
+      return;
+    }
+
+    setAuctionImageUploadError(null);
+    setAuctionImageUploadStatus(`Uploading images 0/${files.length}...`);
+    try {
+      const uploaded = await Promise.all(files.map(async (file, index) => {
+        const fileKey = getProductFileKey(file);
+        const cached = auctionImageUploadCache.current[fileKey];
+        if (cached) return cached;
+
+        const pending = auctionImageUploadPromises.current[fileKey] || uploadToCloudinaryAsset(file).then((result) => {
+          const image = { fileKey, secureUrl: result.secureUrl, publicId: result.publicId };
+          auctionImageUploadCache.current[fileKey] = image;
+          delete auctionImageUploadPromises.current[fileKey];
+          return image;
+        });
+        auctionImageUploadPromises.current[fileKey] = pending;
+        const image = await pending;
+        setAuctionImageUploadStatus(`Uploading images ${index + 1}/${files.length}...`);
+        return image;
+      }));
+      setUploadedAuctionImages(uploaded);
+      setAuctionImageUploadStatus('Images uploaded successfully');
+    } catch (error) {
+      setAuctionImageUploadError(error instanceof Error ? error.message : 'Unable to upload auction images.');
+      setAuctionImageUploadStatus('');
+    }
+  };
+
   const handlePublish = async () => {
     try {
       setIsSubmitting(true);
@@ -2603,10 +2847,32 @@ export function VendorCreateAuctionWizardPage() {
         vendorId,
       };
 
-      const createdAuction = await createAuction(payload);
+      if (uploadedImages.length === 0 || uploadedAuctionImages.length !== uploadedImages.length) {
+        throw new Error('Add at least one auction image before publishing.');
+      }
+
+      let videoResult = uploadedAuctionVideo;
+      if (auctionVideo && !videoResult) {
+        setAutosaveStatus('Uploading video...');
+        videoResult = await uploadVideoFile(auctionVideo);
+        setUploadedAuctionVideo(videoResult);
+      }
+
+      const createdAuction = await createAuction({
+        ...payload,
+        images: uploadedAuctionImages.map((image) => ({ url: image.secureUrl, publicId: image.publicId })),
+        videoUrl: videoResult?.secureUrl || null,
+        videoPublicId: videoResult?.publicId || null,
+      });
       setSubmitSuccess(`Auction created successfully: ${createdAuction.title} (${createdAuction.status || 'LIVE'})`);
       navigate(`/auctions/${createdAuction.id}`, { replace: true });
     } catch (error) {
+      if (isVendorKycPublishRestrictionError(error)) {
+        showToast('KYC Approval Required', 'Your KYC is not approved yet. Please complete your KYC and wait for approval before publishing.', 'warning');
+        setKycRestrictionOpen(true);
+        setSubmitError('KYC approval required to publish.');
+        return;
+      }
       setSubmitError(error instanceof Error ? error.message : 'Unable to create auction');
     } finally {
       setIsSubmitting(false);
@@ -2619,78 +2885,113 @@ export function VendorCreateAuctionWizardPage() {
   } else if (step === 2) {
     canContinueAuction = auctionFormValid;
   } else if (step === 3) {
+    canContinueAuction = uploadedImages.length > 0 && uploadedAuctionImages.length === uploadedImages.length && !auctionImageUploadError;
+  } else if (step === 4) {
     canContinueAuction = !!(selectedProductId || data.productId);
   }
 
   return (
-    <SectionShell title="Create auction" subtitle="Guide your auction from setup to launch">
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-        <Wizard
-          steps={steps}
-          step={step}
-          canContinue={canContinueAuction && !isSubmitting}
-          onPrev={() => setStep(Math.max(1, step - 1))}
-          onNext={() => {
-            if (step === steps.length) {
-              void handlePublish();
-              return;
-            }
-            setStep(Math.min(steps.length, step + 1));
-          }}
-          onSaveDraft={() => alert('Auction draft saved (UI only)')}
-          onPreview={() => alert('Auction preview (UI only)')}
-          autosaveStatus={isSubmitting ? 'Submitting...' : autosaveStatus}
-        >
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-                <p className="font-medium text-white">Choose your product</p>
-                <div className="mt-3 space-y-2">
-                  {products.length === 0 ? (
-                    <p className="text-slate-400">No vendor products were returned by the authenticated vendor profile.</p>
-                  ) : (
-                    products.map((product) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => {
-                          applyProductToAuction(product);
-                        }}
-                        className={`w-full rounded-2xl border px-4 py-3 text-left text-sm ${selectedProductId === product.id ? 'border-blue-500/40 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}
-                      >
-                        {product.name} • ₹{Number(product.price ?? 0).toLocaleString()} • {product.sellingType === 'AUCTION' ? 'Auction' : 'Direct Buy'}
-                      </button>
-                    ))
-                  )}
+    <>
+      <KycApprovalRequiredModal
+        open={kycRestrictionOpen}
+        itemLabel="auction"
+        onComplete={() => {
+          setKycRestrictionOpen(false);
+          navigate('/kyc');
+        }}
+        onClose={() => setKycRestrictionOpen(false)}
+      />
+      <SectionShell title="Create auction" subtitle="Guide your auction from setup to launch">
+        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
+          {step === steps.length && <KycPublishWarning onComplete={() => navigate('/kyc')} />}
+          <Wizard
+            steps={steps}
+            step={step}
+            canContinue={canContinueAuction && !isSubmitting}
+            onPrev={() => setStep(Math.max(1, step - 1))}
+            onNext={() => {
+              if (step === steps.length) {
+                void handlePublish();
+                return;
+              }
+              setStep(Math.min(steps.length, step + 1));
+            }}
+            onSaveDraft={() => alert('Auction draft saved (UI only)')}
+            onPreview={() => alert('Auction preview (UI only)')}
+            autosaveStatus={isSubmitting ? 'Submitting...' : autosaveStatus}
+          >
+            {step === 1 && (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                  <p className="font-medium text-white">Choose your product</p>
+                  <div className="mt-3 space-y-2">
+                    {products.length === 0 ? (
+                      <p className="text-slate-400">No vendor products were returned by the authenticated vendor profile.</p>
+                    ) : (
+                      products.map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => {
+                            applyProductToAuction(product);
+                          }}
+                          className={`w-full rounded-2xl border px-4 py-3 text-left text-sm ${selectedProductId === product.id ? 'border-blue-500/40 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}
+                        >
+                          {product.name} • ₹{Number(product.price ?? 0).toLocaleString()} • {product.sellingType === 'AUCTION' ? 'Auction' : 'Direct Buy'}
+                        </button>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          {step === 2 && <AuctionForm initial={data} onValidate={(v) => setAuctionFormValid(v)} onChange={(d) => setData((prev: any) => ({ ...prev, ...d }))} />}
-          {step === 3 && (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-              <p className="text-lg font-semibold text-white">Preview</p>
-              <p className="mt-2">Title: {data.title}</p>
-              <p className="mt-2">Product price: ₹{String(data.productPrice || '').replace(/[^\d.]/g, '') || '0'}</p>
-              <p className="mt-2">Category ID: {data.categoryId ?? 'Not available'}</p>
-              <p className="mt-2">Description: {data.description}</p>
-              <p className="mt-2">Start: {data.startAt || 'Not set'}</p>
-              <p className="mt-2">End: {data.endAt || 'Not set'}</p>
-              <p className="mt-2">Starting price: ₹{String(data.reserve || '').replace(/[^\d.]/g, '') || '0'}</p>
-              <p className="mt-2">Product ID: {selectedProductId ?? data.productId ?? 'Not selected'}</p>
-              <p className="mt-2">Vendor ID: {data.vendorId ?? 'Not resolved'}</p>
-            </div>
-          )}
-          {step === 4 && (
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6 text-sm text-slate-300">
-              <p className="text-lg font-semibold text-white">Auction published</p>
-              <p className="mt-2">{submitSuccess || `${data.title} is ready to go live.`}</p>
-              {submitError && <p className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{submitError}</p>}
-              <Link to="/vendor/auction-analytics" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Manage auctions</Link>
-            </div>
-          )}
-        </Wizard>
-      </div>
-    </SectionShell>
+            )}
+            {step === 2 && <AuctionForm initial={data} onValidate={(v) => setAuctionFormValid(v)} onChange={(d) => setData((prev: any) => ({ ...prev, ...d }))} />}
+            {step === 3 && (
+              <div className="space-y-3">
+                <ImageGalleryField
+                  files={uploadedImages}
+                  onFilesChange={(files) => {
+                    setUploadedImages(files);
+                    void uploadAuctionImages(files);
+                  }}
+                  label="Auction images"
+                  disabled={isSubmitting}
+                />
+                {auctionImageUploadStatus && <p className="text-sm text-blue-200">{auctionImageUploadStatus}</p>}
+                {auctionImageUploadError && <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{auctionImageUploadError}</p>}
+              </div>
+            )}
+            {step === 3 && <div className="mt-3"><VideoUploadField file={auctionVideo} onChange={(file) => { setAuctionVideo(file); if (!file) setUploadedAuctionVideo(null); }} label="Auction video (optional)" /></div>}
+            {step === 4 && (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                <p className="text-lg font-semibold text-white">Preview</p>
+                {uploadedAuctionImages.length > 0 && (
+                  <div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-1">
+                    {uploadedAuctionImages.map((image, index) => <img key={image.publicId} src={image.secureUrl} alt={`Auction preview ${index + 1}`} className="h-20 w-20 shrink-0 rounded-lg border border-white/10 object-cover" />)}
+                  </div>
+                )}
+                <p className="mt-2">Title: {data.title}</p>
+                <p className="mt-2">Product price: ₹{String(data.productPrice || '').replace(/[^\d.]/g, '') || '0'}</p>
+                <p className="mt-2">Category ID: {data.categoryId ?? 'Not available'}</p>
+                <p className="mt-2">Description: {data.description}</p>
+                <p className="mt-2">Start: {data.startAt || 'Not set'}</p>
+                <p className="mt-2">End: {data.endAt || 'Not set'}</p>
+                <p className="mt-2">Starting price: ₹{String(data.reserve || '').replace(/[^\d.]/g, '') || '0'}</p>
+                <p className="mt-2">Product ID: {selectedProductId ?? data.productId ?? 'Not selected'}</p>
+                <p className="mt-2">Vendor ID: {data.vendorId ?? 'Not resolved'}</p>
+              </div>
+            )}
+            {step === 5 && submitSuccess && (
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6 text-sm text-slate-300">
+                <p className="text-lg font-semibold text-white">Auction published</p>
+                <p className="mt-2">{submitSuccess}</p>
+                <Link to="/vendor/auction-analytics" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Manage auctions</Link>
+              </div>
+            )}
+            {step === 5 && submitError && !submitSuccess && <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-200">{submitError}</p>}
+          </Wizard>
+        </div>
+      </SectionShell>
+    </>
   );
 }

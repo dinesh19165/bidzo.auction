@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, ShoppingCart, Sparkles, Star, Users } from 'lucide-react';
-import { memo, useEffect, useMemo, useState, useCallback, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Eye, Gavel, Heart, Share2, ShoppingCart, Sparkles, Star, Users } from 'lucide-react';
+import { memo, useEffect, useMemo, useRef, useState, useCallback, type ReactNode, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import ReactDOM from 'react-dom';
 import { showToast } from '../ui/toast';
 import { useLocaleContext } from '../../context/LocaleContext';
@@ -15,6 +15,7 @@ interface ProductCardProps {
   title: string;
   description: string;
   image: string;
+  images?: string[];
   price: string;
   category: string;
   condition: string;
@@ -70,6 +71,7 @@ export const ProductCard = memo(function ProductCard({
   title,
   description,
   image,
+  images = [],
   price,
   category,
   condition,
@@ -95,6 +97,9 @@ export const ProductCard = memo(function ProductCard({
   availableQuantity,
 }: ProductCardProps) {
   const [quickOpen, setQuickOpen] = useState(false);
+  const [activeImage, setActiveImage] = useState(0);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isWishlisted, isPending, toggle } = useWishlist();
@@ -139,6 +144,42 @@ export const ProductCard = memo(function ProductCard({
   const closeQuickView = useCallback(() => setQuickOpen(false), []);
   const [countdown, setCountdown] = useState(() => parseCountdown(endsIn));
   const isAuction = useMemo(() => (badge || '').toLowerCase().includes('auction'), [badge]);
+  const galleryImages = useMemo(() => Array.from(new Set([image, ...images].filter(Boolean))), [image, images]);
+
+  useEffect(() => setActiveImage(0), [image, images]);
+
+  const moveImage = useCallback((direction: 1 | -1) => {
+    setActiveImage((current) => (current + direction + galleryImages.length) % galleryImages.length);
+  }, [galleryImages.length]);
+
+  const handleImagePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleImagePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = pointerStartRef.current;
+    pointerStartRef.current = null;
+    if (!start || galleryImages.length < 2) return;
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    if (Math.abs(deltaY) >= 12 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      suppressClickRef.current = true;
+      return;
+    }
+    if (Math.abs(deltaX) >= 35 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      moveImage(deltaX < 0 ? 1 : -1);
+      suppressClickRef.current = true;
+    }
+  };
+
+  const handleImageClick = () => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    navigate(actionLink ?? `/product/${id}`);
+  };
 
   useEffect(() => {
     const initialSeconds = parseCountdown(endsIn);
@@ -224,8 +265,27 @@ export const ProductCard = memo(function ProductCard({
       className="product-card-shell group relative flex h-full w-full max-w-full flex-col overflow-hidden rounded-xl border shadow-lg transition-all duration-200 hover:border-blue-400/40"
     >
       <div className="relative overflow-hidden">
-        <div className="product-card-image aspect-[4/3] w-full overflow-hidden rounded-t-xl">
-          <img src={image} alt={title} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]" />
+        <div
+          className="product-card-image group/image relative aspect-[4/3] w-full touch-pan-y overflow-hidden rounded-t-xl"
+          onPointerDown={handleImagePointerDown}
+          onPointerUp={handleImagePointerUp}
+          onPointerCancel={handleImagePointerUp}
+          onClick={handleImageClick}
+          role="link"
+          tabIndex={0}
+          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleImageClick(); } }}
+          aria-label={`View ${title}`}
+        >
+          <div className="flex h-full transition-transform duration-200 ease-out" style={{ transform: `translateX(-${activeImage * (100 / galleryImages.length)}%)`, width: `${galleryImages.length * 100}%`, maxWidth: 'none' }}>
+            {galleryImages.map((galleryImage) => <img key={galleryImage} src={galleryImage} alt={title} loading="lazy" decoding="async" draggable={false} className="h-full min-w-0 shrink-0 object-cover" style={{ width: `${100 / galleryImages.length}%`, maxWidth: 'none' }} />)}
+          </div>
+          {galleryImages.length > 1 ? <>
+            <button type="button" aria-label="Previous product image" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); moveImage(-1); }} className="absolute left-2 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/70 text-white opacity-0 shadow-lg transition-opacity group-hover/image:opacity-100 md:flex" tabIndex={-1}><ArrowLeft className="h-4 w-4" /></button>
+            <button type="button" aria-label="Next product image" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); moveImage(1); }} className="absolute right-2 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/70 text-white opacity-0 shadow-lg transition-opacity group-hover/image:opacity-100 md:flex" tabIndex={-1}><ArrowRight className="h-4 w-4" /></button>
+          </> : null}
+          {galleryImages.length > 1 ? <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5" aria-label="Image gallery position">
+            {galleryImages.slice(0, 7).map((galleryImage, index) => <button key={galleryImage} type="button" aria-label={`Show image ${index + 1}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setActiveImage(index); }} className={`h-1.5 rounded-full transition-all ${index === activeImage ? 'w-4 bg-white' : 'w-1.5 bg-white/60'}`} />)}
+          </div> : null}
         </div>
         <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2">
           {badge ? (
@@ -330,10 +390,10 @@ export const ProductCard = memo(function ProductCard({
       {quickOpen && ReactDOM.createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={closeQuickView} />
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.18 }} className="relative z-10 mx-4 w-full max-w-3xl rounded-2xl bg-slate-900/95 border border-white/10 p-6 shadow-2xl">
+          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.18 }} className="relative z-10 mx-4 max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl sm:p-6">
             <div className="grid gap-6 md:grid-cols-2">
               <div className="rounded-lg bg-slate-800/50 p-2">
-                <img src={image} alt={title} className="h-72 w-full rounded-md object-cover" />
+                <img src={image} alt={title} className="h-48 w-full rounded-md object-cover sm:h-72" />
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">

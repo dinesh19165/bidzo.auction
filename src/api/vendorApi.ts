@@ -40,6 +40,12 @@ export interface VendorProfileResponse {
 }
 
 export interface VendorProfileUpdateRequest {
+  businessAddress?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   gstNumber?: string;
   gst?: string;
   gst_number?: string;
@@ -204,39 +210,42 @@ export async function getVendorProfile(): Promise<VendorProfileResponse> {
 }
 
 export async function updateVendorProfile(payload: VendorProfileUpdateRequest): Promise<VendorProfileResponse> {
-  const attempts = [
-    { method: 'PUT', body: JSON.stringify(payload) },
-    { method: 'PATCH', body: JSON.stringify(payload) },
-  ];
+  const currentProfile = await getVendorProfile();
+  const requestPayload = {
+    ...currentProfile,
+    id: currentProfile.id,
+    name: String(currentProfile.name ?? currentProfile.companyName ?? ''),
+    ...payload,
+  };
+  const response = await fetchJson<ApiResponse<VendorProfileResponse>>(`/api/vendors/${currentProfile.id}`, {
+    method: 'PUT',
+    body: JSON.stringify(requestPayload),
+  });
 
-  let lastError: unknown = null;
-
-  for (const init of attempts) {
-    try {
-      const response = await fetchJson<ApiResponse<VendorProfileResponse>>('/api/vendors/me', {
-        method: init.method,
-        body: init.body,
-      });
-
-      if (response?.success && response.data) {
-        return response.data;
-      }
-
-      if (response?.message) {
-        throw new Error(response.message);
-      }
-
-      return {} as VendorProfileResponse;
-    } catch (error) {
-      lastError = error;
-      if (error instanceof ApiError && (error.status === 404 || error.status === 405 || error.status === 400)) {
-        continue;
-      }
-      throw error;
-    }
+  if (response?.success && response.data) {
+    return response.data;
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Unable to update vendor profile');
+  throw new Error(response?.message || 'Unable to update vendor profile');
+}
+
+export interface VendorKycRequest {
+  documentType: VendorDocumentType;
+  documentNumber: string;
+  documentUrl: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'IN_REVIEW';
+  remarks: string;
+}
+
+export async function saveVendorKyc(vendorId: string | number, payload: VendorKycRequest): Promise<void> {
+  const response = await fetchJson<ApiResponse<unknown> | null>(`/api/vendors/${vendorId}/kyc`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+  if (response?.success === false) {
+    throw new Error(response.message || 'Unable to save KYC record');
+  }
 }
 
 function unwrapVendorBankRecord(response: unknown, fallback: string): VendorBankRecord | null {

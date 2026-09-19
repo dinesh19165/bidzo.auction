@@ -15,6 +15,7 @@ import { demoDirectBuyPromotions, demoLiveAuctionPromotions, type HomePromotion 
 import { useWishlist } from '../context/WishlistContext';
 import { showToast } from '../components/ui/toast';
 import { StockBadge } from '../components/common/StockBadge';
+import { useCustomerLocation } from '../utils/customerLocation';
 
 function imageUrl(value?: string | null): string {
   if (!value) return '/logo.png';
@@ -419,7 +420,7 @@ function ProductSection({ title, products, categories, emptyTitle, emptyDescript
   return (
     <section className={`mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 ${title === 'Featured products' ? 'featured-products-section' : ''}`}>
       <div className="mb-4 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Bidzo marketplace</p><h2 className="mt-1 text-2xl font-semibold text-white">{title}</h2></div><Link to="/marketplace" className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/80">Browse Marketplace</Link></div>
-        {visibleProducts.length === 0 ? <EmptyState title={emptyTitle} description={emptyDescription} /> : <div className="grid min-w-0 grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4 xl:grid-cols-4 2xl:grid-cols-5">{visibleProducts.map((product) => <ProductCard key={product.id} id={product.id} title={text(product.name, 'Product')} description={text(product.description, 'Product details unavailable')} image={imageUrl(product.imageUrl || product.image || product.images?.[0])} price={numberText(product.price)} category={productCategory(product, categories)} condition={text(product.condition, '')} seller={sellerName(product)} rating={product.rating ?? undefined} reviews={product.reviewCount ?? product.reviews ?? undefined} verified={product.verified} createdAt={product.createdAt} badge="Direct Buy" actionLabel="View Product" actionLink={`/product/${product.id}`} wishlistItemType="PRODUCT" wishlistProductId={Number(product.id)} availableQuantity={product.availableQuantity} showSellerMeta compact={title === 'Recently added'} />)}</div>}
+        {visibleProducts.length === 0 ? <EmptyState title={emptyTitle} description={emptyDescription} /> : <div className="grid min-w-0 grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4 xl:grid-cols-4 2xl:grid-cols-5">{visibleProducts.map((product) => <ProductCard key={product.id} id={product.id} title={text(product.name, 'Product')} description={text(product.description, 'Product details unavailable')} image={imageUrl(product.imageUrl || product.image || product.images?.[0])} images={(product.images || []).map((value) => imageUrl(value))} price={numberText(product.price)} category={productCategory(product, categories)} condition={text(product.condition, '')} seller={sellerName(product)} rating={product.rating ?? undefined} reviews={product.reviewCount ?? product.reviews ?? undefined} verified={product.verified} createdAt={product.createdAt} badge="Direct Buy" actionLabel="View Product" actionLink={`/product/${product.id}`} wishlistItemType="PRODUCT" wishlistProductId={Number(product.id)} availableQuantity={product.availableQuantity} showSellerMeta compact={title === 'Recently added'} />)}</div>}
     </section>
   );
 }
@@ -500,6 +501,7 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [reducedMotion, setReducedMotion] = useState(false);
+  const customerLocation = useCustomerLocation();
 
   useEffect(() => {
     if (authReady && user && user.type !== 'customer') navigate(getPortalHome(user), { replace: true });
@@ -508,7 +510,7 @@ export function HomePage() {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      const [data, auctionItems] = await Promise.all([getHomeData(), getAuctions()]);
+      const [data, auctionItems] = await Promise.all([getHomeData(customerLocation ? { latitude: customerLocation.latitude, longitude: customerLocation.longitude, radiusKm: 25 } : undefined), getAuctions()]);
       const homeAuctions = auctionItems.map(toHomeAuction);
       setHomeData({
         ...data,
@@ -521,7 +523,7 @@ export function HomePage() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, [customerLocation?.latitude, customerLocation?.longitude]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 1000);

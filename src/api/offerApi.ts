@@ -227,6 +227,38 @@ export async function deleteOffer(id: number | string): Promise<void> {
   await fetchJson(`/api/admin/offers/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+export async function getVendorOffers(): Promise<Offer[]> {
+  const response = await fetchJson<unknown>('/api/vendor/offers');
+  return listValue<unknown>(unwrap(response as Envelope<unknown>, 'Failed to load vendor offers'))
+    .map(normalizeOffer)
+    .filter((offer): offer is Offer => Boolean(offer));
+}
+
+export async function getVendorOffer(id: number | string): Promise<Offer> {
+  const response = await fetchJson<unknown>(`/api/vendor/offers/${encodeURIComponent(id)}`);
+  const offer = normalizeOffer(unwrap<unknown>(response as Envelope<unknown>, backendErrorMessage(response) || 'Failed to load vendor offer'));
+  if (!offer) throw new Error('Failed to load vendor offer');
+  return offer;
+}
+
+export async function createVendorOffer(request: OfferRequest): Promise<Offer> {
+  const response = await fetchJson<unknown>('/api/vendor/offers', { method: 'POST', body: JSON.stringify(normalizeOfferRequest(request)) });
+  const offer = normalizeOffer(unwrap<unknown>(response as Envelope<unknown>, 'Failed to create vendor offer'));
+  if (!offer) throw new Error('Failed to create vendor offer');
+  return offer;
+}
+
+export async function updateVendorOffer(id: number | string, request: OfferRequest): Promise<Offer> {
+  const response = await fetchJson<unknown>(`/api/vendor/offers/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(normalizeOfferRequest(request)) });
+  const offer = normalizeOffer(unwrap<unknown>(response as Envelope<unknown>, 'Failed to update vendor offer'));
+  if (!offer) throw new Error('Failed to update vendor offer');
+  return offer;
+}
+
+export async function deleteVendorOffer(id: number | string): Promise<void> {
+  await fetchJson(`/api/vendor/offers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
 export async function getCustomerOffers(): Promise<Offer[]> {
   const response = await fetchJson<unknown>('/api/customer/offers');
   const rawOffers = listValue<unknown>(unwrap(response as Envelope<unknown>, 'Failed to load available offers'));

@@ -73,6 +73,7 @@ import { CustomerCartPage } from './pages/CustomerCartPage';
 import { PromotionalBannersAdminPage } from './pages/PromotionalBannersAdminPage';
 import { OffersAdminPage } from './pages/OffersAdminPage';
 import { CustomerOffersPage } from './pages/CustomerOffersPage';
+import { VendorOffersPage } from './pages/VendorOffersPage';
 import { getStoredAuthToken, handleUnauthorized, isJwtExpired } from './api/apiClient';
 import { getVendorVerificationStatus } from './api/vendorVerificationApi';
 
@@ -358,6 +359,7 @@ function App() {
             <Route path="/vendor/create-auction-wizard" element={<VendorCreateAuctionWizardPage />} />
             <Route path="/vendor/edit-auction" element={<VendorEditAuctionPage />} />
             <Route path="/vendor/auction-analytics" element={<VendorAuctionAnalyticsPage />} />
+            <Route path="/vendor/offers" element={<VendorOffersPage />} />
             <Route path="/vendor/messages" element={<VendorMessagesPage />} />
             <Route path="/vendor/notifications" element={<VendorNotificationsPage />} />
             <Route path="/vendor/wallet" element={<WalletPage />} />

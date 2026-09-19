@@ -17,10 +17,10 @@ export function SectionShell({ title, subtitle, children, breadcrumbs, compact =
           </nav>
         )}
 
-        <div className={`${compact ? 'mb-3 gap-1' : 'mb-4 gap-2'} flex flex-col sm:flex-row sm:items-end sm:justify-between`}>
+        <div className={`${compact ? 'mb-3 gap-1' : 'mb-5 gap-2'} flex min-w-0 flex-col sm:flex-row sm:items-end sm:justify-between`}>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">{title}</p>
-            <h1 className="mt-1 text-2xl font-extrabold leading-tight text-white sm:text-3xl">{subtitle}</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">{title}</p>
+            <h1 className="mt-1 text-2xl font-bold leading-tight tracking-tight text-white sm:text-3xl">{subtitle}</h1>
           </div>
         </div>
         {children}

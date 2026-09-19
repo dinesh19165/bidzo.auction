@@ -16,6 +16,7 @@ import {
   LoaderCircle,
   Lock,
   Mail,
+  MapPin,
   Phone,
   PackageCheck,
   Search,
@@ -44,7 +45,8 @@ import {
   verifyRegistrationOtp,
   verifyResetOtp,
 } from '../api/authApi';
-import { getVendorDocuments, uploadVendorDocument, type VendorDocumentRecord } from '../api/vendorApi';
+import { getVendorDocuments, getVendorProfile, saveVendorKyc, updateVendorProfile, uploadVendorDocument, type VendorDocumentRecord } from '../api/vendorApi';
+import { reverseGeocode } from '../utils/customerLocation';
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 
 function friendlyAuthError(error: unknown, fallback: string): string {
@@ -229,53 +231,18 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState((location.state as { message?: string } | null)?.message ?? '');
   const expiryRole = typeof window !== 'undefined' ? sessionStorage.getItem('bidzo_expired_login_role') : null;
-  const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor'>((location.state as { role?: 'customer' | 'vendor' } | null)?.role ?? (expiryRole === 'vendor' ? 'vendor' : 'customer'));
+  const locationRole = (location.state as { role?: 'customer' | 'vendor' } | null)?.role;
+  const [selectedRole, setSelectedRole] = useState<'customer' | 'vendor'>(locationRole ?? (expiryRole === 'vendor' ? 'vendor' : 'customer'));
+
+  useEffect(() => {
+    if (locationRole) setSelectedRole(locationRole);
+  }, [locationRole]);
 
   useEffect(() => {
     if (expiryRole) sessionStorage.removeItem('bidzo_expired_login_role');
   }, [expiryRole]);
 
-  const roleOptions: Array<{ value: 'customer' | 'vendor'; label: string; description: string; features: string[] }> = [
-    {
-      value: 'customer',
-      label: 'Customer',
-      description: 'Buy products, bid in auctions and manage your orders.',
-      features: ['Buy products', 'Participate in auctions', 'Track orders'],
-    },
-    {
-      value: 'vendor',
-      label: 'Vendor',
-      description: 'Sell products, create auctions and grow your business.',
-      features: ['Sell products', 'Create and manage auctions', 'Manage orders and sales'],
-    },
-  ];
-
-  const roleCopy = selectedRole === 'customer'
-    ? {
-        heading: 'Customer Login',
-        description: 'Sign in to buy products, bid in live auctions and manage your account.',
-        onboardingTitle: 'Customer onboarding',
-        onboardingMessage: 'Protected checkout, instant bidding access, and order updates stay in one secure experience.',
-      }
-    : {
-        heading: 'Vendor Login',
-        description: 'Sign in to manage your products, auctions and payouts.',
-        onboardingTitle: 'Vendor onboarding',
-        onboardingMessage: 'Seller verification, approval steps, and daily visibility into orders and sales stay streamlined.',
-      };
-
-  const onboardingSteps = selectedRole === 'customer'
-    ? [
-        { title: 'Email Verification' },
-        { title: 'Phone Verification' },
-        { title: 'Bidding Access' },
-      ]
-    : [
-        { title: 'Email Verification' },
-        { title: 'Phone Verification' },
-        { title: 'KYC Verification' },
-        { title: 'Seller Approval' },
-      ];
+  const roleHeading = selectedRole === 'vendor' ? 'Vendor Login' : 'Customer Login';
 
   useEffect(() => {
     if (user) {
@@ -365,41 +332,9 @@ export function LoginPage() {
               Sign in to continue to your account
             </p>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {roleOptions.map((option) => {
-                const isActive = selectedRole === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setSelectedRole(option.value)}
-                    aria-pressed={isActive}
-                    className={`group min-h-[158px] cursor-pointer rounded-[18px] border-2 p-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-2 ${theme === 'dark' ? 'focus-visible:ring-offset-slate-950' : 'focus-visible:ring-offset-white'} ${isActive ? (option.value === 'vendor' ? (theme === 'dark' ? 'border-cyan-400/70 bg-cyan-500/10 text-white shadow-[0_8px_24px_rgba(34,211,238,0.14)]' : 'border-cyan-500 bg-cyan-50 text-slate-950 shadow-[0_8px_24px_rgba(6,182,212,0.14)]') : (theme === 'dark' ? 'border-blue-400/70 bg-blue-500/10 text-white shadow-[0_8px_24px_rgba(59,130,246,0.16)]' : 'border-blue-500 bg-blue-50 text-slate-950 shadow-[0_8px_24px_rgba(59,130,246,0.14)]')) : (theme === 'dark' ? 'border-white/10 bg-slate-950/50 text-slate-300 hover:border-white/25 hover:bg-slate-900/80 hover:shadow-lg' : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md')}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <span className={`flex h-10 w-10 items-center justify-center rounded-full border transition duration-200 group-hover:scale-105 ${isActive ? (option.value === 'vendor' ? (theme === 'dark' ? 'border-cyan-300/30 bg-cyan-400/15 text-cyan-200' : 'border-cyan-200 bg-cyan-100 text-cyan-700') : (theme === 'dark' ? 'border-blue-300/30 bg-blue-400/15 text-blue-200' : 'border-blue-200 bg-blue-100 text-blue-700')) : (theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-500')}`}>
-                        {option.value === 'vendor' ? <Briefcase className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />}
-                      </span>
-                      {isActive ? <CheckCircle2 className={`h-5 w-5 ${option.value === 'vendor' ? 'text-cyan-500' : 'text-blue-500'}`} /> : <span className={`h-5 w-5 rounded-full border ${theme === 'dark' ? 'border-white/20' : 'border-slate-300'}`} aria-hidden="true" />}
-                    </div>
-                    <p className="mt-2 text-[17px] font-semibold leading-5">{option.label}</p>
-                    <p className={`mt-1 text-[13px] leading-5 ${isActive ? (theme === 'dark' ? 'text-slate-200' : 'text-slate-700') : (theme === 'dark' ? 'text-slate-400' : 'text-slate-600')}`}>{option.description}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {option.features.map((feature) => (
-                        <span key={feature} className={`rounded-full px-2 py-0.5 text-[11px] leading-4 ${isActive ? (option.value === 'vendor' ? (theme === 'dark' ? 'bg-cyan-950/50 text-cyan-100' : 'bg-cyan-100 text-cyan-800') : (theme === 'dark' ? 'bg-blue-950/50 text-blue-100' : 'bg-blue-100 text-blue-800')) : (theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-700')}`}>
-                          {feature}
-                        </span>
-                      ))}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
             <div className="mt-5 space-y-5">
               <div className={`rounded-xl border p-4 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
-                <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>{roleCopy.heading}</p>
-                <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{roleCopy.description}</p>
+                <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>{roleHeading}</p>
               </div>
               {notice ? <p className="text-sm text-emerald-300">{notice}</p> : null}
               <label className="block">
@@ -1041,6 +976,12 @@ export function KYCPage() {
   const location = useLocation();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locationForm, setLocationForm] = useState({ businessAddress: '', city: '', state: '', pincode: '', latitude: null as number | null, longitude: null as number | null });
+  const [locationDetected, setLocationDetected] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const initialLocationRef = useRef<typeof locationForm | null>(null);
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
@@ -1050,8 +991,78 @@ export function KYCPage() {
   const [draggingField, setDraggingField] = useState<'aadhaar' | 'pan' | 'selfie' | null>(null);
   const [uploadingField, setUploadingField] = useState<'aadhaar' | 'pan' | 'selfie' | null>(null);
   const [documentErrors, setDocumentErrors] = useState<Record<'aadhaar' | 'pan' | 'selfie', string | null>>({ aadhaar: null, pan: null, selfie: null });
+  const [kycError, setKycError] = useState<string | null>(null);
 
   const kycStorageKey = 'bidzo_vendor_kyc_documents';
+
+  useEffect(() => {
+    let active = true;
+    getVendorProfile().then((profile) => {
+      if (!active) return;
+      const latitude = profile.latitude === null || profile.latitude === undefined || profile.latitude === '' ? Number.NaN : Number(profile.latitude);
+      const longitude = profile.longitude === null || profile.longitude === undefined || profile.longitude === '' ? Number.NaN : Number(profile.longitude);
+      const savedLocation = {
+        businessAddress: String(profile.businessAddress ?? ''),
+        city: String(profile.city ?? ''),
+        state: String(profile.state ?? ''),
+        pincode: String(profile.pincode ?? ''),
+        latitude: Number.isFinite(latitude) ? latitude : null,
+        longitude: Number.isFinite(longitude) ? longitude : null,
+      };
+      initialLocationRef.current = savedLocation;
+      setLocationForm(savedLocation);
+      setLocationDetected(Number.isFinite(latitude) && Number.isFinite(longitude));
+      setLocationError(null);
+    }).catch(() => {
+      if (active) setLocationError('Unable to load saved business location. You can enter it manually.');
+    }).finally(() => {
+      if (active) setProfileLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const detectBusinessLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Current location is not available in this browser. Please enter your location manually.');
+      return;
+    }
+    setLocationLoading(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const detected = await reverseGeocode(coords.latitude, coords.longitude);
+        setLocationForm((current) => ({
+          ...current,
+          businessAddress: detected.displayName || current.businessAddress,
+          city: detected.city || current.city,
+          state: detected.state || current.state,
+          pincode: detected.pincode || current.pincode,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        }));
+        setLocationDetected(true);
+      } catch (error) {
+        setLocationError(error instanceof Error ? error.message : 'Unable to identify this location. Please enter it manually.');
+      } finally {
+        setLocationLoading(false);
+      }
+    }, (error) => {
+      setLocationLoading(false);
+      setLocationError(error.code === error.PERMISSION_DENIED ? 'Location permission was denied. Please enter your business location manually.' : 'Unable to access your current location. Please enter it manually.');
+    }, { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 });
+  };
+
+  const validateBusinessLocation = () => {
+    const hasLocationDetails = Boolean(locationForm.businessAddress.trim() || locationForm.city.trim() || locationForm.state.trim() || locationForm.pincode.trim() || locationForm.latitude !== null || locationForm.longitude !== null);
+    if (!hasLocationDetails) return null;
+    if (!locationForm.businessAddress.trim()) return 'Business address is required when location details are provided.';
+    if (!locationForm.city.trim()) return 'City is required when location details are provided.';
+    if (!locationForm.state.trim()) return 'State is required when location details are provided.';
+    if ((locationForm.latitude !== null && (locationForm.latitude < -90 || locationForm.latitude > 90)) || (locationForm.longitude !== null && (locationForm.longitude < -180 || locationForm.longitude > 180))) return 'The detected latitude or longitude is outside the supported range.';
+    return null;
+  };
 
   const formatFileSize = (bytes: number) => {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
@@ -1133,8 +1144,15 @@ export function KYCPage() {
       return;
     }
 
+    const locationValidationError = validateBusinessLocation();
+    if (locationValidationError) {
+      setLocationError(locationValidationError);
+      return;
+    }
+
     setIsSubmitting(true);
     setDocumentErrors({ aadhaar: null, pan: null, selfie: null });
+    setKycError(null);
 
     try {
       const routeState = location.state as { vendorId?: string | number; vendorProfileId?: string | number } | null;
@@ -1146,6 +1164,27 @@ export function KYCPage() {
 
       if (vendorProfileId === undefined) {
         throw new Error('Vendor profile ID is missing. Please authenticate and reopen the KYC flow from the vendor dashboard.');
+      }
+
+      const hasLocationDetails = Boolean(locationForm.businessAddress.trim() || locationForm.city.trim() || locationForm.state.trim() || locationForm.pincode.trim() || locationForm.latitude !== null || locationForm.longitude !== null);
+      const normalizedLocation = {
+        businessAddress: locationForm.businessAddress.trim(),
+        city: locationForm.city.trim(),
+        state: locationForm.state.trim(),
+        pincode: locationForm.pincode.trim(),
+        latitude: hasLocationDetails ? locationForm.latitude : null,
+        longitude: hasLocationDetails ? locationForm.longitude : null,
+      };
+      const locationChanged = JSON.stringify(normalizedLocation) !== JSON.stringify(initialLocationRef.current);
+      if (locationChanged) {
+        try {
+          await updateVendorProfile(normalizedLocation);
+          initialLocationRef.current = normalizedLocation;
+        } catch (error) {
+          setLocationError(error instanceof Error ? error.message : 'Unable to save business location.');
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       console.debug('[Bidzo vendor KYC] vendor profile id resolved', {
@@ -1204,6 +1243,20 @@ export function KYCPage() {
 
       if (!hasIdProof || !hasPan) {
         throw new Error('The backend did not confirm both Aadhaar and PAN document rows were created.');
+      }
+
+      try {
+        const idProofUrl = nextDocuments.aadhaar?.documentUrl ?? nextDocuments.aadhaar?.url ?? '';
+        await saveVendorKyc(vendorProfileId, {
+          documentType: 'ID_PROOF',
+          documentNumber: nextDocuments.aadhaar?.documentNumber ?? '',
+          documentUrl: idProofUrl,
+          status: 'PENDING',
+          remarks: '',
+        });
+      } catch (error) {
+        setKycError(error instanceof Error ? error.message : 'Unable to save KYC record.');
+        return;
       }
 
       navigate('/login', { replace: true, state: { role: 'vendor' } });
@@ -1323,6 +1376,48 @@ export function KYCPage() {
           </div>
           <ProgressIndicator activeStep={2} />
           <p className="text-sm text-slate-300">Upload the identity documents required to complete seller verification.</p>
+          <section className="mt-5 rounded-[20px] border border-blue-400/20 bg-blue-500/10 p-4 sm:p-5" aria-labelledby="business-location-heading">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200"><MapPin className="h-5 w-5" /></span>
+              <div>
+                <h3 id="business-location-heading" className="text-lg font-semibold text-white">Business Location</h3>
+                <p className="mt-1 text-sm leading-5 text-slate-300">Add your business/store location. This location will be used to show your products to nearby customers.</p>
+              </div>
+            </div>
+            {profileLoading ? <p className="mt-4 text-sm text-slate-400">Loading saved business location...</p> : null}
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <label className="block md:col-span-2">
+                <span className="mb-2 block text-sm font-medium text-slate-200">Business Address</span>
+                <textarea value={locationForm.businessAddress} onChange={(event) => setLocationForm((current) => ({ ...current, businessAddress: event.target.value }))} placeholder="Enter complete business/store address" rows={3} className="w-full resize-y rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/50" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-200">City</span>
+                <input value={locationForm.city} onChange={(event) => setLocationForm((current) => ({ ...current, city: event.target.value }))} placeholder="Enter city" className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/50" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-200">State</span>
+                <input value={locationForm.state} onChange={(event) => setLocationForm((current) => ({ ...current, state: event.target.value }))} placeholder="Select or enter state" className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/50" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-200">Pincode</span>
+                <input value={locationForm.pincode} onChange={(event) => setLocationForm((current) => ({ ...current, pincode: event.target.value }))} placeholder="Enter pincode" inputMode="numeric" className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/50" />
+              </label>
+              <div className="flex items-end">
+                <button type="button" onClick={detectBusinessLocation} disabled={locationLoading} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-blue-300/30 bg-blue-600/20 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-600/30 disabled:cursor-not-allowed disabled:opacity-60">
+                  {locationLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                  {locationLoading ? 'Detecting location...' : 'Use my current location'}
+                </button>
+              </div>
+            </div>
+            {locationDetected ? <div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-2 text-sm text-emerald-100"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" /><div><p className="font-semibold">Location detected</p><p className="mt-1 break-words text-emerald-200">{locationForm.city}{locationForm.state ? `, ${locationForm.state}` : ''}</p><p className="mt-1 text-emerald-200">{locationForm.pincode || 'Pincode not available'}</p></div></div>
+                <button type="button" onClick={() => { setLocationDetected(false); setLocationForm((current) => ({ ...current, latitude: null, longitude: null })); }} className="shrink-0 text-xs font-semibold text-emerald-200 underline hover:text-white">Change location</button>
+              </div>
+            </div> : null}
+            {locationError ? <p role="alert" className="mt-3 text-sm leading-5 text-amber-200">{locationError}</p> : null}
+            <p className="mt-3 text-xs leading-5 text-slate-400">Latitude and longitude are captured automatically when available. You can continue with manual location details if permission is denied.</p>
+          </section>
           <div className="mt-4 rounded-[24px] border border-dashed border-blue-400/20 bg-blue-500/10 p-6 text-center text-sm text-slate-300 sm:p-8">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-950/50">
               <Upload className="h-5 w-5 text-blue-200" />
@@ -1345,6 +1440,7 @@ export function KYCPage() {
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
             <div className="flex items-center gap-2 text-white"><CircleAlert className="h-4 w-4 text-amber-300" /> Required documents and their approval status are checked by the backend.</div>
           </div>
+          {kycError ? <div role="alert" className="mt-3 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-3 text-sm text-amber-200">{kycError}</div> : null}
           <button onClick={submitKyc} disabled={!hasAllRequiredDocuments || isSubmitting} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
             {isSubmitting ? 'Submitting verification…' : 'Submit KYC'} <ArrowRight className="h-4 w-4" />
           </button>

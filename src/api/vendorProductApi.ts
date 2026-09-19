@@ -21,9 +21,13 @@ export interface VendorProductApiResponse extends VendorProduct {
   stock?: number | null;
   imageUrl?: string | null;
   image?: string | null;
+  videoUrl?: string | null;
+  videoPublicId?: string | null;
   images?: Array<{
+    id?: number | string;
     url?: string | null;
     imageUrl?: string | null;
+    isPrimary?: boolean;
   }>;
 
   specifications?: Array<{
@@ -46,6 +50,8 @@ export interface VendorProductCreateRequest {
   // Category-specific fields.
   // Names must exactly match the existing frontend fields.
   fields?: Record<string, string>;
+  videoUrl?: string | null;
+  videoPublicId?: string | null;
 }
 
 export function formatCurrency(
@@ -81,6 +87,8 @@ export function getProductImage(
   product: VendorProductApiResponse
 ): string {
   const directImage =
+    product.images?.find((image) => image.isPrimary)?.url ||
+    product.images?.find((image) => image.isPrimary)?.imageUrl ||
     product.imageUrl ||
     product.image ||
     product.images?.[0]?.url ||
@@ -112,9 +120,7 @@ export async function getVendorProducts(): Promise<
 export async function createVendorProduct(
   payload: VendorProductCreateRequest
 ): Promise<VendorProductApiResponse> {
-  const response = await fetchJson<
-    ApiResponse<VendorProductApiResponse>
-  >('/api/products', {
+  const response = await fetchJson<ApiResponse<VendorProductApiResponse>>('/api/products', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -134,9 +140,7 @@ export async function updateVendorProduct(
   id: number,
   payload: Partial<VendorProductCreateRequest>
 ): Promise<VendorProductApiResponse> {
-  const response = await fetchJson<
-    ApiResponse<VendorProductApiResponse>
-  >(`/api/products/${id}`, {
+  const response = await fetchJson<ApiResponse<VendorProductApiResponse>>(`/api/products/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
@@ -188,4 +192,14 @@ export async function deleteVendorProduct(id: number): Promise<void> {
   }
 
   throw new Error('Unable to delete vendor product');
+}
+
+export async function deleteProductImage(productId: number, imageId: number | string): Promise<void> {
+  const response = await fetchJson<ApiResponse<unknown>>(`/api/products/${productId}/images/${imageId}`, { method: 'DELETE' });
+  if (!response?.success) throw new Error(response?.message || 'Unable to remove product image');
+}
+
+export async function setProductPrimaryImage(productId: number, imageId: number | string): Promise<void> {
+  const response = await fetchJson<ApiResponse<unknown>>(`/api/products/${productId}/images/${imageId}/primary`, { method: 'PUT' });
+  if (!response?.success) throw new Error(response?.message || 'Unable to set primary product image');
 }

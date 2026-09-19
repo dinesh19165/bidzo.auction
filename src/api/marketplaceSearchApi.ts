@@ -17,6 +17,7 @@ export interface MarketplaceSearchResult {
   sellingType?: string | null;
   title: string;
   image: string | null;
+  images?: string[];
   price: number | null;
   currentBid: number | null;
   category: MarketplaceCategory | null;
@@ -52,6 +53,9 @@ export interface MarketplaceSearchOptions {
   sort?: string;
   page?: number;
   size?: number;
+  latitude?: number;
+  longitude?: number;
+  radiusKm?: number;
 }
 
 function isCurrentAuction(auction: AuctionResponse, now: number): boolean {
@@ -131,6 +135,11 @@ export async function searchMarketplace(options: MarketplaceSearchOptions = {}):
   if (options.verifiedSellersOnly) params.set('verifiedSellersOnly', 'true');
   if (options.auctionsOnly) params.set('auctionsOnly', 'true');
   if (options.buyNowOnly) params.set('buyNowOnly', 'true');
+  if (Number.isFinite(options.latitude) && Number.isFinite(options.longitude)) {
+    params.set('latitude', String(options.latitude));
+    params.set('longitude', String(options.longitude));
+    params.set('radiusKm', String(options.radiusKm ?? 25));
+  }
 
   const response = await fetchJson<ApiResponse<MarketplaceSearchPage>>(`/api/marketplace/search?${params.toString()}`, { method: 'GET' }, false);
   if (!response?.data) throw new Error(response?.message || 'Marketplace search failed');

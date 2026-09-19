@@ -8,6 +8,7 @@ import { categoryLabel, getCategories, type CategoryRecord } from '../../api/cat
 import { deduplicateMarketplaceResults, searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../../api/apiClient';
 import { StockBadge } from '../../components/common/StockBadge';
+import { useCustomerLocation } from '../../utils/customerLocation';
 
 export function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
@@ -50,6 +51,7 @@ export function SearchResultsPage() {
   const [results, setResults] = useState<MarketplaceSearchPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const customerLocation = useCustomerLocation();
 
   useEffect(() => {
     getCategories().then(setCategories).catch((error: unknown) => {
@@ -69,7 +71,7 @@ export function SearchResultsPage() {
     }
     setLoading(true);
     setError(null);
-    searchMarketplace({ query, category, page, size: 20 }).then(async (data) => {
+    searchMarketplace({ query, category, page, size: 20, latitude: customerLocation?.latitude, longitude: customerLocation?.longitude, radiusKm: 25 }).then(async (data) => {
       if (active) {
         const filteredContent = category ? data.content.filter((item) => item.type !== 'VENDOR') : data.content;
         const content = await deduplicateMarketplaceResults(filteredContent);
@@ -81,7 +83,7 @@ export function SearchResultsPage() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [categoryId, categoryName, categories, page, query]);
+  }, [categoryId, categoryName, categories, page, query, customerLocation?.latitude, customerLocation?.longitude]);
 
   const updateParams = (nextQuery: string, nextCategoryId: string) => {
     const next = new URLSearchParams();
@@ -100,7 +102,7 @@ export function SearchResultsPage() {
     {loading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div> : error ? <ErrorState title="Search failed" description={error} /> : results && results.content.length > 0 ? <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{results.content.map((item) => <MarketplaceResultCard key={`${item.type}-${item.id}`} item={item} />)}</div>
       <div className="mt-6 flex items-center justify-between text-sm text-slate-400"><span>{results.totalElements} results</span><div className="flex gap-2"><button type="button" disabled={results.first} onClick={() => setParams((current) => { current.set('page', String(Math.max(0, page - 1))); return current; })} className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-40">Previous</button><button type="button" disabled={results.last} onClick={() => setParams((current) => { current.set('page', String(page + 1)); return current; })} className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-40">Next</button></div></div>
-    </> : results ? <EmptyState title="No results found" description="Try a different search or category." /> : <EmptyState title="Search the marketplace" description="Enter a keyword or choose a category to find products, auctions, and sellers." />}
+    </> : results ? <EmptyState title={customerLocation ? 'No products available in this location' : 'No results found'} description={customerLocation ? 'Change location to explore products nearby.' : 'Try a different search or category.'} /> : <EmptyState title="Search the marketplace" description="Enter a keyword or choose a category to find products, auctions, and sellers." />}
   </SectionShell>;
 }
 

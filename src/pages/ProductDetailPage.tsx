@@ -40,7 +40,7 @@ export function ProductDetailPage() {
       try {
         const details = await getProductById(idNum);
         setProduct(details);
-        setMain(details.image);
+        setMain(details.gallery?.[0] || details.image);
         const [list, reviewData] = await Promise.all([
           getProducts(),
           getProductReviews(idNum),
@@ -153,10 +153,10 @@ export function ProductDetailPage() {
     <SectionShell title="Product details" subtitle={product.title}>
       <div className="grid min-w-0 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="w-full rounded-[28px] border border-white/10 bg-slate-900/70 p-4 shadow-2xl shadow-slate-950/30 sm:p-5">
-          <div className="grid gap-3 md:grid-cols-[1fr_120px]">
+            <div className="grid gap-3 md:grid-cols-[1fr_120px]">
             <div className="relative">
               <img
-                src={main}
+                src={main || product.image || '/logo.png'}
                 alt={product.title}
                 loading="lazy"
                 decoding="async"
@@ -174,13 +174,12 @@ export function ProductDetailPage() {
               </div>
             </div>
 
-            <div className="hidden flex-col gap-2 md:flex">
+            <div className="flex max-w-full gap-2 overflow-x-auto md:flex-col md:overflow-x-visible">
               {(product.gallery || []).map((g) => (
-                <button key={g} onClick={() => setMain(g)} className={`overflow-hidden rounded-xl border ${main === g ? 'border-blue-500' : 'border-white/10'}`}>
-                  <img src={g} loading="lazy" decoding="async" className="h-20 w-28 object-cover" />
+                <button key={g} type="button" onClick={() => setMain(g)} className={`shrink-0 overflow-hidden rounded-xl border ${main === g ? 'border-blue-500' : 'border-white/10'}`}>
+                  <img src={g} loading="lazy" decoding="async" className="h-16 w-16 object-cover md:h-20 md:w-28" />
                 </button>
               ))}
-              <div className="mt-2 rounded-xl border border-white/10 p-2 text-sm text-slate-300">Video walkthrough available on request for premium listings.</div>
             </div>
           </div>
 
@@ -214,6 +213,13 @@ export function ProductDetailPage() {
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2"><Truck className="h-4 w-4 text-blue-300" /> Express delivery</span>
             </div>
           </div>
+
+          {product.videoUrl ? (
+            <div className="rounded-[28px] border border-white/10 bg-slate-900/70 p-5 shadow-2xl shadow-slate-950/30">
+              <h4 className="text-lg font-semibold text-white">Product video</h4>
+              <video src={product.videoUrl} controls playsInline className="mt-3 aspect-video w-full max-w-xl rounded-xl bg-slate-950 object-contain" />
+            </div>
+          ) : null}
 
           <div className="rounded-[28px] border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/30">
             <h4 className="text-lg font-semibold text-white">Seller profile</h4>
@@ -276,6 +282,7 @@ export function ProductDetailPage() {
                   title={item.title}
                   description={item.description}
                   image={item.image}
+                  images={item.gallery}
                   price={item.price}
                   category={item.category}
                   condition={item.condition}

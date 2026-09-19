@@ -73,6 +73,7 @@ export function AuctionDetailPage() {
   const [auction, setAuction] = useState<AuctionResponse | null>(null);
   const [productDetails, setProductDetails] = useState<Awaited<ReturnType<typeof getProductById>> | null>(null);
   const [images, setImages] = useState<AuctionImageResponse[]>([]);
+  const [selectedImage, setSelectedImage] = useState(0);
   const [bids, setBids] = useState<BidResponse[]>([]);
   const [winner, setWinner] = useState<AuctionWinnerResponse | null>(null);
   const [registrationStatus, setRegistrationStatus] = useState<AuctionRegistrationStatusResponse | null>(null);
@@ -121,6 +122,10 @@ export function AuctionDetailPage() {
       setAuction(auctionDetails);
       if (auctionImages.length > 0) {
         setImages(auctionImages);
+      } else if (Array.isArray(auctionDetails.images) && auctionDetails.images.length > 0) {
+        setImages(auctionDetails.images.map((image, index) => ({ id: Number(image.id ?? index), url: image.url || image.imageUrl || '/logo.png', altText: auctionDetails.title, auctionId })));
+      } else if (auctionDetails.image) {
+        setImages([{ id: 0, url: auctionDetails.image, altText: auctionDetails.title, auctionId }]);
       } else if (auctionDetails.productId) {
         const productImages = await getProductImages(auctionDetails.productId);
         if (requestVersion !== auctionRequestVersion.current) return;
@@ -670,7 +675,7 @@ export function AuctionDetailPage() {
   };
 
   const gallery = images.length > 0 ? images : [{ id: 0, url: '/logo.png', altText: auction?.title || 'Auction image', auctionId: auctionId }];
-  const mainImage = gallery[0]?.url || '/logo.png';
+  const mainImage = gallery[selectedImage]?.url || gallery[0]?.url || '/logo.png';
 
   if (loading) {
     return (
@@ -712,10 +717,12 @@ export function AuctionDetailPage() {
                 <ShieldCheck className="h-4 w-4 text-blue-300" /> Verified seller
               </div>
             </div>
-            <img src={mainImage} alt={gallery[0]?.altText || auction.title} loading="lazy" decoding="async" className="mt-4 h-72 w-full rounded-[20px] object-cover" />
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {gallery.slice(0, 3).map((image) => (
-                <img key={image.id} src={image.url} alt={image.altText || auction.title} loading="lazy" decoding="async" className="h-20 w-full rounded-2xl object-cover transition duration-200 hover:scale-[1.02]" />
+            <img src={mainImage} alt={gallery[selectedImage]?.altText || auction.title} loading="lazy" decoding="async" className="mt-4 aspect-[4/3] max-h-80 w-full rounded-[20px] object-contain" />
+            <div className="mt-4 flex max-w-full gap-2 overflow-x-auto">
+              {gallery.map((image, index) => (
+                <button key={image.id} type="button" onClick={() => setSelectedImage(index)} className={`shrink-0 overflow-hidden rounded-xl border ${selectedImage === index ? 'border-blue-500' : 'border-white/10'}`}>
+                  <img src={image.url} alt={image.altText || auction.title} loading="lazy" decoding="async" className="h-16 w-16 rounded-lg object-cover sm:h-20 sm:w-20" />
+                </button>
               ))}
             </div>
             <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
@@ -724,6 +731,12 @@ export function AuctionDetailPage() {
               <p className="mt-2">Starts: {formatDateTime(auction.startAt)}</p>
               <p className="mt-2">Ends: {formatDateTime(auction.endAt)}</p>
             </div>
+            {auction.videoUrl ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <h3 className="text-sm font-semibold text-white">Auction video</h3>
+                <video src={auction.videoUrl} controls playsInline className="mt-3 aspect-video w-full max-w-xl rounded-xl bg-slate-950 object-contain" />
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">

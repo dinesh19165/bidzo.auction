@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, Camera, Check, ChevronDown, Gavel, Globe, Grid2X2, Home, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, Crosshair, Gavel, Globe, Grid2X2, Home, LoaderCircle, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -15,6 +15,106 @@ import { API_BASE_URL } from '../api/apiClient';
 import { NotificationList } from './notifications/NotificationList';
 import { useNotificationContext } from '../context/NotificationContext';
 import { useCartContext } from '../context/CartContext';
+import { getRecentCustomerLocations, getStoredCustomerLocation, reverseGeocode, saveCustomerLocation, searchCustomerLocations, type CustomerLocation } from '../utils/customerLocation';
+
+function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: CustomerLocation | null; onSelect: (location: CustomerLocation) => void; mobile?: boolean }) {
+  const { theme } = useThemeContext();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<CustomerLocation[]>([]);
+  const [recent, setRecent] = useState<CustomerLocation[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState('');
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setRecent(getRecentCustomerLocations());
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => document.removeEventListener('pointerdown', closeOnOutside);
+  }, [open]);
+
+  useEffect(() => {
+    const trimmedQuery = query.trim();
+    if (!open || trimmedQuery.length < 3) {
+      setResults([]);
+      setSearching(false);
+      return undefined;
+    }
+    setSearching(true);
+    const timer = window.setTimeout(() => {
+      searchCustomerLocations(trimmedQuery).then(setResults).catch((searchError: unknown) => {
+        setError(searchError instanceof Error ? searchError.message : 'Unable to search locations right now.');
+        setResults([]);
+      }).finally(() => setSearching(false));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [open, query]);
+
+  const selectLocation = (location: CustomerLocation) => {
+    saveCustomerLocation(location);
+    onSelect(location);
+    setOpen(false);
+    setQuery('');
+    setResults([]);
+    setError('');
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Current location is not available in this browser. Please search manually.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        selectLocation(await reverseGeocode(coords.latitude, coords.longitude));
+      } catch (locationError) {
+        setError(locationError instanceof Error ? locationError.message : 'We could not identify that location. Please search manually.');
+      } finally {
+        setLoading(false);
+      }
+    }, (geolocationError) => {
+      setLoading(false);
+      setError(geolocationError.code === geolocationError.PERMISSION_DENIED ? 'Location permission was denied. Please search for your location manually.' : 'Unable to access your current location. Please search manually.');
+    }, { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 });
+  };
+
+  const displayName = value?.city || value?.displayName || 'Location';
+  const choices = query.trim().length >= 3 ? results : recent;
+
+  return (
+    <div ref={pickerRef} className={`relative ${mobile ? 'w-full' : 'w-[160px] shrink-0'}`}>
+      <button type="button" aria-label="Location" aria-expanded={open} aria-haspopup="dialog" onClick={() => { setOpen((current) => !current); setError(''); }} className={`inline-flex h-12 w-full min-w-0 items-center gap-2 rounded-2xl border px-3 text-sm transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-100 hover:border-blue-400/40' : 'border-slate-200 bg-white text-slate-900 shadow-sm hover:border-blue-300'}`}>
+        <MapPin className="h-4 w-4 shrink-0 text-blue-500" />
+        <span className="truncate text-left">{displayName}</span>
+        <ChevronDown className={`ml-auto h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open ? <div role="dialog" aria-label="Choose your location" className={`absolute left-0 top-full z-[80] mt-2 w-[min(22rem,calc(100vw-24px))] overflow-hidden rounded-2xl border p-3 shadow-2xl ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+        <p className={`px-1 pb-2 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Location</p>
+        <button type="button" onClick={useCurrentLocation} disabled={loading} className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${theme === 'dark' ? 'text-cyan-200 hover:bg-cyan-500/10' : 'text-cyan-700 hover:bg-cyan-50'}`}>
+          {loading ? <LoaderCircle className="h-5 w-5 shrink-0 animate-spin" /> : <Crosshair className="h-5 w-5 shrink-0" />}
+          <span>{loading ? 'Finding your location...' : 'Use my current location'}</span>
+        </button>
+        <div className={`my-2 flex items-center gap-2 rounded-xl border px-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
+          <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+          <input autoFocus value={query} onChange={(event) => { setQuery(event.target.value); setError(''); }} placeholder="Search city or pincode" className={`min-h-11 min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
+          {searching ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-blue-500" /> : null}
+        </div>
+        {error ? <p role="alert" className={`px-1 py-2 text-xs leading-5 ${theme === 'dark' ? 'text-amber-200' : 'text-amber-700'}`}>{error}</p> : null}
+        {choices.length > 0 ? <div className="max-h-48 overflow-y-auto">
+          {query.trim().length < 3 && recent.length > 0 ? <p className={`px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Recently selected</p> : null}
+          {choices.map((location) => <button key={`${location.displayName}-${location.latitude}`} type="button" onClick={() => selectLocation(location)} className={`flex min-h-11 w-full items-start gap-3 rounded-xl px-2 py-2 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-800 hover:bg-slate-100'}`}><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /><span className="min-w-0"><span className="block truncate font-medium">{location.city || location.displayName}</span><span className={`block truncate text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>{[location.state, location.pincode].filter(Boolean).join(' · ')}</span></span></button>)}
+        </div> : query.trim().length >= 3 && !searching ? <p className={`px-2 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No locations found. Try a city or pincode.</p> : null}
+      </div> : null}
+    </div>
+  );
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,7 +136,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [headerSearch, setHeaderSearch] = useState('');
   const [headerCategory, setHeaderCategory] = useState('');
-  const [headerLocation, setHeaderLocation] = useState('Hyderabad');
+  const [headerLocation, setHeaderLocation] = useState<CustomerLocation | null>(() => getStoredCustomerLocation());
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -155,7 +255,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { to: '/', label: 'Home' },
     { to: '/auctions', label: 'Live Auctions' },
     { to: '/marketplace', label: 'Direct Buy' },
-    { to: '/login', label: 'Login' },
     // vendor/admin and other non-essential links intentionally omitted for mobile
   ];
 
@@ -265,7 +364,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               >
                 <span>{theme === 'dark' ? '☀️ Light' : '🌙 Dark'}</span>
               </button>
-              <Link to="/help" className={`rounded-full px-3 py-1 transition duration-300 ${theme === 'dark' ? 'text-slate-300 hover:text-white' : 'text-slate-900 hover:text-slate-700'}`}>
+              <Link
+                to="/help"
+                className={`inline-flex h-[30px] items-center justify-center rounded-full border px-3 text-[11px] font-medium leading-none transition duration-300 sm:text-[12px] ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200 hover:text-slate-700'}`}
+              >
                 {translate('help')}
               </Link>
             </div>
@@ -292,7 +394,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <button type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} className={`mobile-header-icon-control inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-md border text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          <Link to="/help" onClick={() => { setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }} className={`mobile-header-compact-control inline-flex h-[34px] shrink-0 items-center justify-center rounded-md border px-2 text-[12px] font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>{translate('help')}</Link>
+          <Link
+            to="/help"
+            onClick={() => { setLanguageMenuOpen(false); setCurrencyMenuOpen(false); }}
+            className={`mobile-header-compact-control inline-flex h-[34px] shrink-0 items-center justify-center rounded-full border px-3 text-[11px] font-medium leading-none ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}
+          >
+            {translate('help')}
+          </Link>
         </div>
 
   <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
@@ -306,7 +414,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {showMarketplaceControls && isHomePage ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
-            <label className={`inline-flex h-12 w-[160px] shrink-0 items-center gap-2 rounded-2xl border px-3 text-sm ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-100' : 'border-slate-200 bg-white text-slate-900 shadow-sm'}`}><MapPin className="h-4 w-4 text-blue-500" /><select aria-label="Location" value={headerLocation} onChange={(event) => setHeaderLocation(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none"><option>Hyderabad</option><option>Bengaluru</option><option>Mumbai</option><option>Delhi</option></select></label>
+            <CustomerLocationPicker value={headerLocation} onSelect={setHeaderLocation} />
             <div ref={categoryMenuRef} className="relative min-w-0 w-[220px] shrink-0">
               <button type="button" aria-label="Category" aria-haspopup="listbox" aria-expanded={categoryMenuOpen} onClick={() => setCategoryMenuOpen((value) => !value)} onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCategoryMenuOpen(true); } }} title={categoriesError ?? undefined} className="flex h-12 min-h-12 max-h-12 w-full items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-900 px-3 text-left text-white shadow-sm transition hover:bg-slate-800">
                 <span className="flex min-w-0 items-center gap-2"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-700'}`}><CategoryIcon iconUrl={marketplaceCategories.find((item) => String(item.id) === headerCategory)?.iconUrl} className="h-7 w-7" imageClassName="h-8 w-8 p-0" /></span><span className="truncate text-sm">{marketplaceCategories.find((item) => String(item.id) === headerCategory)?.name || 'All Categories'}</span></span><ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
@@ -360,7 +468,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {renderSearchSuggestions()}
             </div>
             <div className="mt-1.5 grid grid-cols-1 gap-2">
-              <label className={`flex h-10 min-w-0 items-center gap-1.5 rounded-lg border px-2.5 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}><MapPin className="h-3.5 w-3.5 shrink-0 text-blue-500" /><select aria-label="Location" value={headerLocation} onChange={(event) => setHeaderLocation(event.target.value)} className={`mobile-header-select min-w-0 w-full bg-transparent text-xs outline-none ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}><option>Hyderabad</option><option>Bengaluru</option><option>Mumbai</option><option>Delhi</option></select></label>
+              <CustomerLocationPicker mobile value={headerLocation} onSelect={setHeaderLocation} />
             </div>
           </div>
         ) : null}
@@ -415,17 +523,131 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {link.label}
                   </Link>
                 ))}
+                <LoginRoleMenu compact onNavigate={() => setMobileMenuOpen(false)} />
               </div>
             </motion.aside>
           </>
         ) : null}
       </AnimatePresence>
 
-      <main className="overflow-x-hidden pb-20 md:pb-0">{children}</main>
+      <main className="overflow-x-hidden pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
 
       <Footer />
       {showMarketplaceControls ? <><nav className={`fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl`} aria-label="Mobile navigation"><div className="grid grid-cols-5 gap-1"><Link to="/" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Home className="h-4 w-4" />Home</Link><Link to="/customer/cart" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><ShoppingCart className="h-4 w-4" />Cart</Link><Link to="/categories" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Grid2X2 className="h-4 w-4" />Categories</Link><button type="button" onClick={() => setMobileProfileOpen((value) => !value)} className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] ${mobileProfileOpen ? 'text-blue-500' : 'mobile-nav-item'}`}><UserRound className="h-4 w-4" />Account</button><button type="button" onClick={() => setMobileMenuOpen(true)} className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Menu className="h-4 w-4" />More</button></div></nav>{mobileProfileOpen && user ? <div ref={mobileProfileRef} className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-9rem)] overflow-y-auto overflow-x-hidden rounded-xl border p-3 shadow-2xl md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}><Link to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Dashboard</Link>{user.type === 'customer' ? <><Link to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Orders</Link><Link to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wishlist</Link><Link to="/wallet" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wallet</Link><Link to="/customer/rewards" onClick={() => setMobileProfileOpen(false)} className={`block whitespace-normal break-words rounded-md px-3 py-2.5 text-sm leading-5 ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Rewards / Referral &amp; Earn</Link></> : null}<button onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-2 min-h-11 w-full rounded-md bg-amber-500 px-3 py-2.5 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button></div> : null}</> : null}
     </div>
+  );
+}
+
+function LoginRoleMenu({ compact = false, onNavigate }: { compact?: boolean; onNavigate?: () => void }) {
+  const { theme } = useThemeContext();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointer);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current || !menuRef.current) return;
+
+    const updatePosition = () => {
+      const triggerRect = triggerRef.current?.getBoundingClientRect();
+      const menuRect = menuRef.current?.getBoundingClientRect();
+      if (!triggerRect || !menuRect) return;
+
+      const safeMargin = 12;
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight;
+      const width = Math.min(320, Math.max(0, viewportWidth - safeMargin * 2));
+      const height = Math.min(menuRect.height, viewportHeight - safeMargin * 2);
+      const spaceBelow = viewportHeight - triggerRect.bottom - safeMargin;
+      const top = spaceBelow >= height || spaceBelow >= triggerRect.top - safeMargin
+        ? Math.min(triggerRect.bottom + 8, viewportHeight - safeMargin - height)
+        : Math.max(safeMargin, triggerRect.top - 8 - height);
+      const left = Math.min(Math.max(safeMargin, triggerRect.right - width), viewportWidth - safeMargin - width);
+      setMenuPosition({ top, left, width });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open]);
+
+  const selectRole = (role: 'customer' | 'vendor') => {
+    setOpen(false);
+    onNavigate?.();
+    navigate('/login', { state: { role } });
+  };
+
+  const triggerClass = compact
+    ? `flex min-h-[48px] w-full items-center rounded-2xl border px-4 py-3 text-sm transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-100 text-slate-900 hover:bg-slate-200'}`
+    : `rounded-full border px-3 py-2 text-sm transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-50'}`;
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setOpen(false);
+          if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={triggerClass}
+      >
+        Login
+      </button>
+      {open ? createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label="Login to Bidzo"
+          style={{ position: 'fixed', top: menuPosition?.top ?? 12, left: menuPosition?.left ?? 12, width: menuPosition?.width ?? 320, visibility: menuPosition ? 'visible' : 'hidden' }}
+          className={`z-[70] overflow-hidden rounded-2xl border p-2 shadow-2xl ${theme === 'dark' ? 'border-white/10 bg-slate-900/95 shadow-black/50' : 'border-slate-200 bg-white/95 shadow-slate-300/40'} backdrop-blur-xl`}
+        >
+          <div className={`border-b px-3 pb-2 pt-1 text-sm font-semibold ${theme === 'dark' ? 'border-white/10 text-white' : 'border-slate-200 text-slate-950'}`}>Login to Bidzo</div>
+          <button type="button" role="menuitem" onClick={() => selectRole('customer')} className={`flex min-h-16 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${theme === 'dark' ? 'text-slate-200 hover:bg-blue-500/15 hover:text-white' : 'text-slate-800 hover:bg-blue-50'}`}>
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${theme === 'dark' ? 'bg-blue-400/15 text-blue-200' : 'bg-blue-100 text-blue-700'}`}><UserRound className="h-5 w-5" /></span>
+            <span className="min-w-0"><span className="block text-sm font-semibold">Customer Login</span><span className={`mt-0.5 block text-xs leading-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Buy products, bid and manage orders.</span></span>
+          </button>
+          <button type="button" role="menuitem" onClick={() => selectRole('vendor')} className={`flex min-h-16 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${theme === 'dark' ? 'text-slate-200 hover:bg-emerald-500/15 hover:text-white' : 'text-slate-800 hover:bg-emerald-50'}`}>
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${theme === 'dark' ? 'bg-emerald-400/15 text-emerald-200' : 'bg-emerald-100 text-emerald-700'}`}><Briefcase className="h-5 w-5" /></span>
+            <span className="min-w-0"><span className="block text-sm font-semibold">Vendor Login</span><span className={`mt-0.5 block text-xs leading-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Sell products, manage auctions and grow your business.</span></span>
+          </button>
+        </div>,
+        document.body,
+      ) : null}
+    </>
   );
 }
 
@@ -608,7 +830,7 @@ function AuthActions() {
       {user && isCustomer ? <Link to="/customer/offers" className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-2.5 py-2 text-xs text-rose-100 transition hover:bg-rose-500/20"><Tag className="h-4 w-4" /><span className="hidden xl:inline">Offers</span></Link> : null}
       {!user ? (
         <>
-          <Link to="/login" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10">Login</Link>
+          <LoginRoleMenu />
         </>
       ) : (
         <div className="relative">

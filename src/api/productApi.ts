@@ -36,7 +36,9 @@ export interface ProductApiResponse {
   vendorId?: number | null;
   image?: string | null;
   imageUrl?: string | null;
-  images?: Array<{ url?: string | null; imageUrl?: string | null }> | string[] | null;
+  videoUrl?: string | null;
+  videoPublicId?: string | null;
+  images?: Array<{ url?: string | null; imageUrl?: string | null; isPrimary?: boolean }> | string[] | null;
   specifications?: ProductSpecificationResponse[];
 }
 
@@ -64,6 +66,8 @@ export interface ProductListItem {
   isAuction: boolean;
   isDirectBuy: boolean;
   gallery?: string[];
+  videoUrl?: string | null;
+  videoPublicId?: string | null;
   stock?: number;
   specifications?: Array<{ label: string; value: string }>;
   qna?: Array<{ question: string; answer: string }>;
@@ -131,7 +135,7 @@ function resolveImageUrl(value?: string | null): string {
 function findPrimaryProductImage(response: ProductApiResponse): string {
   const directImage = response.imageUrl || response.image || null;
   if (Array.isArray(response.images)) {
-    const firstImage = response.images[0];
+    const firstImage = response.images.find((image) => typeof image !== 'string' && image?.isPrimary) || response.images[0];
     if (typeof firstImage === 'string') {
       return resolveImageUrl(firstImage);
     }
@@ -177,6 +181,8 @@ function mapProduct(response: ProductApiResponse, imageOverride?: string): Produ
     rating: undefined,
     verified: undefined,
     image: imageOverride || findPrimaryProductImage(response),
+    videoUrl: response.videoUrl || null,
+    videoPublicId: response.videoPublicId || null,
     location: undefined,
     badge,
     reviews: undefined,
@@ -227,7 +233,8 @@ export async function getProducts(): Promise<ProductListItem[]> {
   const products = await Promise.all(response.data.map(async (product) => {
     try {
       const productImages = await getProductImages(product.id);
-      const primaryImage = productImages[0]?.url ? resolveImageUrl(productImages[0].url) : undefined;
+      const primary = productImages.find((image) => (image as ProductApiImageResponse & { isPrimary?: boolean }).isPrimary) || productImages[0];
+      const primaryImage = primary?.url ? resolveImageUrl(primary.url) : undefined;
       return mapProduct(product, primaryImage);
     } catch {
       return mapProduct(product);
@@ -247,10 +254,15 @@ export async function getProductById(id: number): Promise<ProductListItem> {
 
   try {
     const images = await getProductImages(id);
-    const primaryImage = images[0]?.url ? resolveImageUrl(images[0].url) : undefined;
-    return mapProduct(response.data, primaryImage);
+    const primary = images.find((image) => (image as ProductApiImageResponse & { isPrimary?: boolean }).isPrimary) || images[0];
+    const primaryImage = primary?.url ? resolveImageUrl(primary.url) : undefined;
+    const mapped = mapProduct(response.data, primaryImage);
+    mapped.gallery = images.length > 0 ? images.map((image) => resolveImageUrl(image.url)) : [mapped.image];
+    return mapped;
   } catch {
-    return mapProduct(response.data);
+    const mapped = mapProduct(response.data);
+    mapped.gallery = [mapped.image];
+    return mapped;
   }
 }
 
