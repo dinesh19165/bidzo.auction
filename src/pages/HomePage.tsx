@@ -113,16 +113,7 @@ function TestimonialsCarousel({ testimonials }: { testimonials: HomeTestimonial[
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Community</p>
           <h2 id="customer-testimonials-heading" className="mt-1 text-xl font-bold sm:text-2xl">What Our Customers Say</h2>
         </div>
-        {testimonials.length > 1 ? (
-          <div className="hidden gap-2 sm:flex">
-            <button type="button" aria-label="Previous testimonial" onClick={() => scrollByCard(-1)} className="homepage-theme-control inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition hover:border-sky-300 hover:text-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-300">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button type="button" aria-label="Next testimonial" onClick={() => scrollByCard(1)} className="homepage-theme-control inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition hover:border-sky-300 hover:text-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-300">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        ) : null}
+        <span aria-hidden="true" />
       </div>
       <div ref={trackRef} className="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-300/80 [scrollbar-width:thin]">
         {testimonials.map((review, index) => (
@@ -141,14 +132,20 @@ function TestimonialsCarousel({ testimonials }: { testimonials: HomeTestimonial[
         ))}
       </div>
       {testimonials.length > 1 ? (
-        <div className="mt-3 flex justify-center gap-1.5" aria-label="Testimonial slides">
-          {Array.from({ length: pageCount }, (_, index) => (
-            <button key={index} type="button" aria-label={`Go to testimonial ${index + 1}`} aria-current={activeIndex === index ? 'true' : undefined} onClick={() => {
-              const track = trackRef.current;
-              const card = track?.children[index] as HTMLElement | undefined;
-              card?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-            }} className={`h-1.5 rounded-full transition-all ${activeIndex === index ? 'w-5 bg-sky-500' : 'w-1.5 bg-slate-300 hover:bg-slate-400'}`} />
-          ))}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3" aria-label="Testimonial navigation">
+          <div className="flex gap-2">
+            <button type="button" aria-label="Previous testimonial" onClick={() => scrollByCard(-1)} className="homepage-theme-control inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition hover:border-sky-300 hover:text-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-300"><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" aria-label="Next testimonial" onClick={() => scrollByCard(1)} className="homepage-theme-control inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition hover:border-sky-300 hover:text-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-300"><ChevronRight className="h-4 w-4" /></button>
+          </div>
+          <div className="flex justify-center gap-1.5" aria-label="Testimonial slides">
+            {Array.from({ length: pageCount }, (_, index) => (
+              <button key={index} type="button" aria-label={`Go to testimonial ${index + 1}`} aria-current={activeIndex === index ? 'true' : undefined} onClick={() => {
+                const track = trackRef.current;
+                const card = track?.children[index] as HTMLElement | undefined;
+                card?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+              }} className={`h-1.5 rounded-full transition-all ${activeIndex === index ? 'w-5 bg-sky-500' : 'w-1.5 bg-slate-300 hover:bg-slate-400'}`} />
+            ))}
+          </div>
         </div>
       ) : null}
     </section>
@@ -373,12 +370,14 @@ function HomeBanner({ banners, children }: { banners: HomeBannerResponse[]; chil
   }, [banner?.id]);
 
   const hasBannerImage = Boolean(!imageFailed && desktopImage);
+  const bannerRecord = banner as (HomeBannerResponse & { offerPrice?: unknown; price?: unknown }) | undefined;
+  const bannerPrice = bannerRecord?.offerPrice ?? bannerRecord?.price;
 
   return (
     <section className={`home-hero relative overflow-hidden rounded-[28px] text-white transition-opacity duration-500 ${hasBannerImage ? 'home-hero-has-banner' : 'bg-[var(--app-bg)]'} ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
       {hasBannerImage ? <picture aria-hidden="true" className="home-hero-background absolute inset-0 z-0 block"><source media="(max-width: 767px)" srcSet={mobileImage || desktopImage || undefined} /><img src={desktopImage || undefined} alt="" onError={() => setImageFailed(true)} className="h-full w-full object-contain object-center" /></picture> : null}
       <div aria-hidden="true" className="home-hero-overlay pointer-events-none absolute inset-0 z-10" />
-      <div className="relative z-20 flex items-center py-5 sm:py-7 lg:py-9 [&>section]:!bg-transparent">{children}</div>
+      <div className="relative z-20 flex items-center py-5 sm:py-7 lg:py-9 [&>section]:!bg-transparent">{children}{bannerPrice !== null && bannerPrice !== undefined && String(bannerPrice).trim() ? <p className="absolute bottom-3 left-6 rounded-lg bg-slate-950/70 px-3 py-1.5 text-sm font-bold text-white sm:left-10">Offer Price: {String(bannerPrice)}</p> : null}</div>
       {visibleBanners.length > 1 ? <>
         <button type="button" aria-label="Previous banner" onClick={() => setActiveIndex((current) => (current - 1 + visibleBanners.length) % visibleBanners.length)} className="absolute left-4 top-1/2 z-30 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/60 text-white transition hover:bg-slate-950/85"><ChevronLeft className="h-4 w-4" /></button>
         <button type="button" aria-label="Next banner" onClick={() => setActiveIndex((current) => (current + 1) % visibleBanners.length)} className="absolute right-4 top-1/2 z-30 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/60 text-white transition hover:bg-slate-950/85"><ChevronRight className="h-4 w-4" /></button>
@@ -397,20 +396,23 @@ function AuctionTile({ auction, status }: { auction: AuctionResponse; status: Ho
     return () => window.clearInterval(timer);
   }, [auction.endAt]);
   return (
-    <Link to={`/auctions/${auction.id}`} aria-label={`View ${status === 'RUNNING' ? 'live' : 'scheduled'} auction: ${title}`} className="home-auction-card group block rounded-[28px] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:border-blue-400/40">
-      <div className="relative h-44 overflow-hidden rounded-[20px] bg-slate-950/60">
+    <Link to={`/auctions/${auction.id}`} aria-label={`View ${status === 'RUNNING' ? 'live' : 'scheduled'} auction: ${title}`} className="home-auction-card group block overflow-hidden rounded-xl border border-white/10 bg-slate-900/80 p-3 shadow-lg shadow-slate-950/20 transition hover:-translate-y-1 hover:border-blue-400/40">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-slate-950/60">
         <img src={imageUrl(auction.imageUrl || auction.image)} alt={title} className="h-full w-full object-cover" loading="lazy" />
-        <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${status === 'RUNNING' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-amber-500/15 text-amber-200'}`}>{status === 'RUNNING' ? 'Live' : 'Scheduled'}</span>
+        <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${status === 'RUNNING' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-amber-500/15 text-amber-200'}`}>{status === 'RUNNING' ? 'Live' : 'Scheduled'}</span>
       </div>
-      <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
-      <div className="mt-3 space-y-2 text-sm text-slate-400">
-        <p>Current bid: <span className="font-semibold text-white">{currentBid == null ? 'Unavailable' : formatCurrency(String(currentBid))}</span></p>
-        <p>Starting price: <span className="font-semibold text-white">{auction.startingPrice == null ? 'Unavailable' : formatCurrency(String(auction.startingPrice))}</span></p>
-            <p className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4" /> {remaining}</p>
-        <p className="inline-flex items-center gap-2"><Gavel className="h-4 w-4" /> {auction.bidCount == null ? 'Bid count unavailable' : `${auction.bidCount} bids`}</p>
-        <p>{sellerName(auction)}</p>
+      <div className="mt-2 flex min-w-0 items-baseline justify-between gap-2">
+        <h3 className="min-w-0 truncate text-sm font-semibold text-white">{title}</h3>
+        <span className="shrink-0 text-base font-bold text-white">{currentBid == null ? 'Unavailable' : formatCurrency(String(currentBid))}</span>
       </div>
-      <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 transition group-hover:text-cyan-200">View auction <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" /></span>
+      <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.1em] text-slate-400">Auction</p>
+      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-400">
+        <span className="truncate">{sellerName(auction)}</span>
+        {typeof auction.bidCount === 'number' ? <span>{auction.bidCount} bids</span> : null}
+        <span className="inline-flex items-center gap-1 font-medium text-red-400"><Clock3 className="h-3 w-3" />{remaining}</span>
+      </div>
+      <p className="mt-1 truncate text-[10px] text-slate-500">Starting price: {auction.startingPrice == null ? 'Unavailable' : formatCurrency(String(auction.startingPrice))}</p>
+      <span className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 transition group-hover:text-cyan-200">View auction <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" /></span>
     </Link>
   );
 }

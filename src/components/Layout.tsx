@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, Crosshair, Gavel, Globe, Grid2X2, Home, LoaderCircle, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, CircleHelp, Crosshair, Gavel, Globe, Grid2X2, Home, LoaderCircle, LogOut, MapPin, Menu, Mic, Moon, Search, ShoppingBag, ShoppingCart, Store, Sun, Tag, UserRound, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -55,9 +55,9 @@ function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: Cu
     return () => window.clearTimeout(timer);
   }, [open, query]);
 
-  const selectLocation = (location: CustomerLocation) => {
-    saveCustomerLocation(location);
-    onSelect(location);
+  const selectLocation = (selectedLocation: CustomerLocation) => {
+    saveCustomerLocation(selectedLocation);
+    onSelect(selectedLocation);
     setOpen(false);
     setQuery('');
     setResults([]);
@@ -87,33 +87,32 @@ function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: Cu
 
   const displayName = value?.city || value?.displayName || 'Location';
   const choices = query.trim().length >= 3 ? results : recent;
+  const controlClass = mobile ? 'h-10 w-full' : 'h-12 w-[200px]';
 
-  return (
-    <div ref={pickerRef} className={`relative ${mobile ? 'w-full' : 'w-[160px] shrink-0'}`}>
-      <button type="button" aria-label="Location" aria-expanded={open} aria-haspopup="dialog" onClick={() => { setOpen((current) => !current); setError(''); }} className={`inline-flex h-12 w-full min-w-0 items-center gap-2 rounded-2xl border px-3 text-sm transition ${theme === 'dark' ? 'border-white/10 bg-slate-900/70 text-slate-100 hover:border-blue-400/40' : 'border-slate-200 bg-white text-slate-900 shadow-sm hover:border-blue-300'}`}>
-        <MapPin className="h-4 w-4 shrink-0 text-blue-500" />
-        <span className="truncate text-left">{displayName}</span>
-        <ChevronDown className={`ml-auto h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+  return <div ref={pickerRef} className={`relative shrink-0 ${mobile ? 'min-w-0 flex-1' : ''}`}>
+    <button type="button" aria-label="Location" aria-expanded={open} aria-haspopup="dialog" onClick={() => { setOpen((current) => !current); setError(''); }} className={`inline-flex ${controlClass} min-w-0 items-center gap-2 rounded-2xl border border-blue-100 bg-white px-3 text-sm text-slate-800 shadow-[0_2px_5px_rgba(59,130,246,0.16)] transition hover:border-blue-200 ${mobile ? 'rounded-xl' : ''}`}>
+      <MapPin className="h-4 w-4 shrink-0 text-blue-500" />
+      <span className="min-w-0 flex-1 truncate text-left">{displayName}</span>
+      <ChevronDown className={`h-4 w-4 shrink-0 text-slate-700 transition-transform ${open ? 'rotate-180' : ''}`} />
+    </button>
+    {open ? <div role="dialog" aria-label="Choose your location" className={`absolute left-0 top-full z-[80] mt-2 w-[min(22rem,calc(100vw-24px))] overflow-hidden rounded-2xl border p-3 shadow-2xl ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+      <p className={`px-1 pb-2 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Location</p>
+      <button type="button" onClick={useCurrentLocation} disabled={loading} className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${theme === 'dark' ? 'text-cyan-200 hover:bg-cyan-500/10' : 'text-cyan-700 hover:bg-cyan-50'}`}>
+        {loading ? <LoaderCircle className="h-5 w-5 shrink-0 animate-spin" /> : <Crosshair className="h-5 w-5 shrink-0" />}
+        <span>{loading ? 'Finding your location...' : 'Use my current location'}</span>
       </button>
-      {open ? <div role="dialog" aria-label="Choose your location" className={`absolute left-0 top-full z-[80] mt-2 w-[min(22rem,calc(100vw-24px))] overflow-hidden rounded-2xl border p-3 shadow-2xl ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
-        <p className={`px-1 pb-2 text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Location</p>
-        <button type="button" onClick={useCurrentLocation} disabled={loading} className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${theme === 'dark' ? 'text-cyan-200 hover:bg-cyan-500/10' : 'text-cyan-700 hover:bg-cyan-50'}`}>
-          {loading ? <LoaderCircle className="h-5 w-5 shrink-0 animate-spin" /> : <Crosshair className="h-5 w-5 shrink-0" />}
-          <span>{loading ? 'Finding your location...' : 'Use my current location'}</span>
-        </button>
-        <div className={`my-2 flex items-center gap-2 rounded-xl border px-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
-          <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
-          <input autoFocus value={query} onChange={(event) => { setQuery(event.target.value); setError(''); }} placeholder="Search city or pincode" className={`min-h-11 min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
-          {searching ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-blue-500" /> : null}
-        </div>
-        {error ? <p role="alert" className={`px-1 py-2 text-xs leading-5 ${theme === 'dark' ? 'text-amber-200' : 'text-amber-700'}`}>{error}</p> : null}
-        {choices.length > 0 ? <div className="max-h-48 overflow-y-auto">
-          {query.trim().length < 3 && recent.length > 0 ? <p className={`px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>Recently selected</p> : null}
-          {choices.map((location) => <button key={`${location.displayName}-${location.latitude}`} type="button" onClick={() => selectLocation(location)} className={`flex min-h-11 w-full items-start gap-3 rounded-xl px-2 py-2 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-800 hover:bg-slate-100'}`}><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /><span className="min-w-0"><span className="block truncate font-medium">{location.city || location.displayName}</span><span className={`block truncate text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>{[location.state, location.pincode].filter(Boolean).join(' · ')}</span></span></button>)}
-        </div> : query.trim().length >= 3 && !searching ? <p className={`px-2 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No locations found. Try a city or pincode.</p> : null}
-      </div> : null}
-    </div>
-  );
+      <div className={`my-2 flex items-center gap-2 rounded-xl border px-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
+        <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+        <input autoFocus value={query} onChange={(event) => { setQuery(event.target.value); setError(''); }} placeholder="Search city or pincode" className={`min-h-11 min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
+        {searching ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-blue-500" /> : null}
+      </div>
+      {error ? <p role="alert" className="px-1 py-2 text-xs leading-5 text-amber-700">{error}</p> : null}
+      {choices.length > 0 ? <div className="max-h-48 overflow-y-auto">
+        {query.trim().length < 3 && recent.length > 0 ? <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Recently selected</p> : null}
+        {choices.map((locationOption) => <button key={`${locationOption.displayName}-${locationOption.latitude}`} type="button" onClick={() => selectLocation(locationOption)} className="flex min-h-11 w-full items-start gap-3 rounded-xl px-2 py-2 text-left text-sm text-slate-800 transition hover:bg-slate-100"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /><span className="min-w-0"><span className="block truncate font-medium">{locationOption.city || locationOption.displayName}</span><span className="block truncate text-xs text-slate-500">{[locationOption.state, locationOption.pincode].filter(Boolean).join(' · ')}</span></span></button>)}
+      </div> : query.trim().length >= 3 && !searching ? <p className="px-2 py-3 text-sm text-slate-500">No locations found. Try a city or pincode.</p> : null}
+    </div> : null}
+  </div>;
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -141,6 +140,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState<MarketplaceSearchResult[]>([]);
   const [searchSuggestionsLoading, setSearchSuggestionsLoading] = useState(false);
   const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(false);
@@ -149,6 +149,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
   const isHomePage = location.pathname === '/';
   const showMarketplaceControls = !user || user.type === 'customer' || user.role === 'CUSTOMER';
+  useEffect(() => {
+    const updateHeaderScrollState = () => setIsHeaderScrolled(window.scrollY > 24);
+    updateHeaderScrollState();
+    window.addEventListener('scroll', updateHeaderScrollState, { passive: true });
+    return () => window.removeEventListener('scroll', updateHeaderScrollState);
+  }, []);
   useEffect(() => {
     let active = true;
     setCategoriesLoading(true);
@@ -282,12 +288,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className={`border-b transition duration-300 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
           <div className={`mx-auto hidden flex-col gap-0 px-4 py-0 text-xs transition duration-300 lg:flex ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
-            <p className={`inline-flex flex-wrap items-center gap-1.5 rounded-full px-2.5 py-0 text-sm font-medium transition duration-300 ${theme === 'dark' ? 'bg-blue-500/10 text-slate-100' : 'bg-slate-100 text-slate-950 border border-slate-200'}`}>
-              <span className="font-medium">{translate('freeShipping')}</span>
-              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{translate('onOrdersOver', { amount: '₹5,000' })}</span>
-            </p>
-            <div ref={headerDropdownsRef} className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-              <div className="relative">
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+            <CustomerLocationPicker value={headerLocation} onSelect={setHeaderLocation} />
+            <div ref={headerDropdownsRef} className="flex flex-wrap items-center justify-end gap-2">
+              <div className="relative hidden">
                 <button
                   type="button"
                   onClick={() => {
@@ -322,59 +326,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 ) : null}
               </div>
 
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrencyMenuOpen((value) => !value);
-                    setLanguageMenuOpen(false);
-                    setMobileProfileOpen(false);
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
-                  aria-expanded={currencyMenuOpen}
-                  aria-label="Select currency"
-                >
-                  {currencyLabel}
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
-                {currencyMenuOpen ? (
-                  <div className={`absolute left-0 top-full z-[60] mt-2 w-48 overflow-hidden rounded-xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-200/40'}`}>
-                    {currencyOptions.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => {
-                          setCurrency(option.key);
-                          setCurrencyMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}
-                      >
-                        <span>{option.label}</span>
-                        {currency === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
               <button
                 type="button"
                 onClick={toggleTheme}
-                className={`theme-toggle-pill inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-300 ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-50'}`}
+                className={`theme-toggle-pill hidden items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-300 ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-50'}`}
                 aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
                 <span>{theme === 'dark' ? '☀️ Light' : '🌙 Dark'}</span>
               </button>
-              <Link
-                to="/help"
-                className={`inline-flex h-[30px] items-center justify-center rounded-full border px-3 text-[11px] font-medium leading-none transition duration-300 sm:text-[12px] ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200 hover:text-slate-700'}`}
-              >
-                {translate('help')}
-              </Link>
+            </div>
             </div>
           </div>
         </div>
 
         <div ref={mobileUtilityRef} className={`relative flex flex-nowrap items-center gap-1 border-t px-3 py-0 lg:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/90' : 'border-slate-200 bg-white/95'}`}>
+          <CustomerLocationPicker mobile value={headerLocation} onSelect={setHeaderLocation} />
           <div className="relative min-w-0 flex-1">
             <button type="button" onClick={() => { setLanguageMenuOpen((value) => !value); setCurrencyMenuOpen(false); setMobileProfileOpen(false); }} aria-expanded={languageMenuOpen} aria-label="Select language" className={`mobile-header-compact-control flex h-[34px] w-full items-center justify-center gap-1 rounded-md border px-1.5 text-[12px] font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
               <Globe className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{languageLabel}</span><ChevronDown className="h-3 w-3 shrink-0" />
@@ -413,11 +379,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
            </Link>
           </div>
 
-          {showMarketplaceControls && isHomePage ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
-            <CustomerLocationPicker value={headerLocation} onSelect={setHeaderLocation} />
-            <div ref={categoryMenuRef} className="relative min-w-0 w-[220px] shrink-0">
-              <button type="button" aria-label="Category" aria-haspopup="listbox" aria-expanded={categoryMenuOpen} onClick={() => setCategoryMenuOpen((value) => !value)} onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCategoryMenuOpen(true); } }} title={categoriesError ?? undefined} className="flex h-12 min-h-12 max-h-12 w-full items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-900 px-3 text-left text-white shadow-sm transition hover:bg-slate-800">
-                <span className="flex min-w-0 items-center gap-2"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-700'}`}><CategoryIcon iconUrl={marketplaceCategories.find((item) => String(item.id) === headerCategory)?.iconUrl} className="h-7 w-7" imageClassName="h-8 w-8 p-0" /></span><span className="truncate text-sm">{marketplaceCategories.find((item) => String(item.id) === headerCategory)?.name || 'All Categories'}</span></span><ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+          {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
+            <div ref={categoryMenuRef} className="relative min-w-0 shrink-0">
+              <button type="button" aria-label="Category" aria-haspopup="listbox" aria-expanded={categoryMenuOpen} onClick={() => setCategoryMenuOpen((value) => !value)} onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCategoryMenuOpen(true); } }} title={categoriesError ?? undefined} className={`flex h-10 min-h-10 items-center gap-2 px-1 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:text-white' : 'text-slate-800 hover:text-blue-700'}`}>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center"><CategoryIcon iconUrl={marketplaceCategories.find((item) => String(item.id) === headerCategory)?.iconUrl} className="h-6 w-6" imageClassName="h-6 w-6 p-0" /></span><span className="max-w-[10rem] truncate">{marketplaceCategories.find((item) => String(item.id) === headerCategory)?.name || 'All Categories'}</span><ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
               </button>
               {categoryMenuOpen ? <div role="listbox" aria-label="Categories" onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); }} className={`absolute left-0 top-full z-[60] mt-2 max-h-80 w-full overflow-y-auto overflow-x-hidden rounded-2xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'}`}>
                 <button type="button" role="option" aria-selected={!headerCategory} onClick={() => { setHeaderCategory(''); setCategoryMenuOpen(false); }} className={`flex min-h-[60px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${!headerCategory ? 'bg-blue-500/10 text-blue-200' : theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"><CategoryIcon className="h-9 w-9" /></span><span className="truncate">All Categories</span></button>
@@ -444,8 +409,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div> : null}
 
-          <div className="hidden items-center gap-3 md:flex">
-            <AuthActions />
+          <div className="hidden items-center gap-2 md:flex">
+            <Link to="/auctions" className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"><Gavel className="h-4 w-4" />Live Auction</Link>
+            <MainHeaderActions />
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-1.5 lg:hidden">
@@ -468,22 +434,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {renderSearchSuggestions()}
             </div>
             <div className="mt-1.5 grid grid-cols-1 gap-2">
-              <CustomerLocationPicker mobile value={headerLocation} onSelect={setHeaderLocation} />
             </div>
           </div>
         ) : null}
 
-        {showMarketplaceControls ? <nav className={`border-t px-3 py-1 lg:py-2 transition duration-300 sm:px-6 lg:px-8 ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Primary shopping navigation">
-          <div className="mx-auto flex flex-nowrap items-center justify-center gap-1.5 sm:gap-3">
-            <Link to="/auctions" className={`mobile-header-action inline-flex h-10 min-w-0 flex-[1.45] items-center justify-center gap-1 whitespace-nowrap rounded-[10px] border px-2 text-[13px] font-semibold text-white shadow-lg transition hover:-translate-y-0.5 sm:flex-none sm:gap-2 sm:px-5 sm:text-sm ${isLiveAuctionsPage ? 'border-blue-200/50 bg-blue-500 shadow-blue-500/25' : 'border-blue-500/40 bg-blue-600 hover:bg-blue-500'}`}>
-              <Gavel className="h-4 w-4" /> Live Auctions
-            </Link>
-            <Link to="/marketplace" className={`mobile-header-action inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-[10px] border px-2 text-[13px] font-semibold text-white shadow-lg transition hover:-translate-y-0.5 sm:flex-none sm:gap-2 sm:px-5 sm:text-sm ${isDirectBuyPage ? 'border-red-200/50 bg-red-500 shadow-red-500/25' : 'border-red-500/40 bg-red-600 hover:bg-red-500'}`}>
-              <ShoppingBag className="h-4 w-4" /> Buy
-            </Link>
-            <Link to="/register/vendor" className="mobile-header-action inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-[10px] border border-emerald-200/40 bg-emerald-600 px-2 text-[13px] font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 sm:flex-none sm:gap-2 sm:px-5 sm:text-sm">
-              <Tag className="h-4 w-4" /> Sell
-            </Link>
+        {showMarketplaceControls ? <nav className={`category-navigation border-t px-3 transition duration-300 sm:px-6 lg:px-8 ${isHeaderScrolled ? 'py-1' : 'py-2'} ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Product categories">
+          <div className="mx-auto flex min-w-max items-center gap-2 overflow-x-auto scrollbar-hidden">
+            {marketplaceCategories.map((category) => <Link key={category.id} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
+              <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
+            </Link>)}
           </div>
         </nav> : null}
 
@@ -538,7 +497,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function LoginRoleMenu({ compact = false, onNavigate }: { compact?: boolean; onNavigate?: () => void }) {
+function LoginRoleMenu({ compact = false, onNavigate, onOpenChange, triggerLabel = 'Login' }: { compact?: boolean; onNavigate?: () => void; onOpenChange?: (open: boolean) => void; triggerLabel?: string }) {
   const { theme } = useThemeContext();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -551,11 +510,15 @@ function LoginRoleMenu({ compact = false, onNavigate }: { compact?: boolean; onN
 
     const handleOutsidePointer = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setOpen(false);
+        onOpenChange?.(false);
+      }
     };
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpen(false);
+        onOpenChange?.(false);
         triggerRef.current?.focus();
       }
     };
@@ -566,7 +529,7 @@ function LoginRoleMenu({ compact = false, onNavigate }: { compact?: boolean; onN
       document.removeEventListener('pointerdown', handleOutsidePointer);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [open]);
+  }, [onOpenChange, open]);
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current || !menuRef.current) return;
@@ -600,6 +563,7 @@ function LoginRoleMenu({ compact = false, onNavigate }: { compact?: boolean; onN
 
   const selectRole = (role: 'customer' | 'vendor') => {
     setOpen(false);
+    onOpenChange?.(false);
     onNavigate?.();
     navigate('/login', { state: { role } });
   };
@@ -613,23 +577,32 @@ function LoginRoleMenu({ compact = false, onNavigate }: { compact?: boolean; onN
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          const nextOpen = !open;
+          setOpen(nextOpen);
+          onOpenChange?.(nextOpen);
+        }}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') setOpen(false);
+          if (event.key === 'Escape') {
+            setOpen(false);
+            onOpenChange?.(false);
+          }
           if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             setOpen(true);
+            onOpenChange?.(true);
           }
         }}
         aria-haspopup="menu"
         aria-expanded={open}
         className={triggerClass}
       >
-        Login
+        {triggerLabel}
       </button>
       {open ? createPortal(
         <div
           ref={menuRef}
+          data-login-role-menu="true"
           role="menu"
           aria-label="Login to Bidzo"
           style={{ position: 'fixed', top: menuPosition?.top ?? 12, left: menuPosition?.left ?? 12, width: menuPosition?.width ?? 320, visibility: menuPosition ? 'visible' : 'hidden' }}
@@ -649,6 +622,66 @@ function LoginRoleMenu({ compact = false, onNavigate }: { compact?: boolean; onN
       ) : null}
     </>
   );
+}
+
+function MainHeaderActions() {
+  const { theme, toggleTheme } = useThemeContext();
+  const { currency, setCurrency } = useLocaleContext();
+  const { user, logout } = useAuth();
+  const { cart } = useCartContext();
+  const [open, setOpen] = useState(false);
+  const [loginMenuOpen, setLoginMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const cartItemCount = cart.items.reduce((total, item) => total + Math.max(0, Number(item.quantity) || 0), 0);
+  useEffect(() => {
+    if (!open && !loginMenuOpen) return;
+    const handleOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!menuRef.current?.contains(target) && !target?.closest('[data-login-role-menu]')) {
+        setOpen(false);
+        setLoginMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer);
+  }, [loginMenuOpen, open]);
+
+  const itemClass = `flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10 hover:text-white' : 'text-slate-800 hover:bg-slate-100'}`;
+  const iconClass = `flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-600'}`;
+  const closeMenu = () => setOpen(false);
+  const currencyOptions = [
+    { key: 'INR', label: 'INR ₹' },
+    { key: 'USD', label: 'USD $' },
+    { key: 'EUR', label: 'EUR €' },
+    { key: 'GBP', label: 'GBP £' },
+    { key: 'AED', label: 'AED د.إ' },
+  ] as const;
+
+  return <div ref={menuRef} className="relative">
+    <button type="button" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-800 hover:bg-slate-100'}`}>
+      <UserRound className="h-4 w-4" />
+      <span>Account</span>
+      <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+    </button>
+    {open || loginMenuOpen ? <div role="menu" aria-label="Account menu" className={`absolute right-0 top-full z-[70] mt-2 max-h-[calc(100vh-5rem)] w-64 max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border p-2 shadow-2xl ${loginMenuOpen ? 'invisible pointer-events-none' : ''} ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+      <div className={`border-b px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide ${theme === 'dark' ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-500'}`}>Account</div>
+      <div className="mt-1">
+        {user ? <Link role="menuitem" to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} onClick={closeMenu} className={itemClass}><span className={iconClass}><UserRound className="h-4 w-4" /></span><span>My Account</span></Link> : <LoginRoleMenu compact triggerLabel="My Account" onNavigate={closeMenu} onOpenChange={setLoginMenuOpen} />}
+        <Link role="menuitem" to="/register/vendor" onClick={closeMenu} className={itemClass}><span className={iconClass}><Store className="h-4 w-4" /></span><span>Seller</span></Link>
+        <button role="menuitem" type="button" onClick={() => { toggleTheme(); closeMenu(); }} className={itemClass}><span className={iconClass}>{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</span><span>{theme === 'dark' ? 'Light' : 'Dark'} mode</span></button>
+        <div className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>
+          <span className={iconClass}><Globe className="h-4 w-4" /></span>
+          <label htmlFor="account-currency" className="flex-1">Currency</label>
+          <select id="account-currency" value={currency} onChange={(event) => setCurrency(event.target.value as typeof currency)} className={`max-w-[7rem] rounded-lg border px-2 py-1.5 text-xs outline-none ${theme === 'dark' ? 'border-white/10 bg-slate-950 text-slate-200' : 'border-slate-200 bg-white text-slate-800'}`}>
+            {currencyOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+          </select>
+        </div>
+        <Link role="menuitem" to="/help" onClick={closeMenu} className={itemClass}><span className={iconClass}><CircleHelp className="h-4 w-4" /></span><span>Help</span></Link>
+        <Link role="menuitem" to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} onClick={closeMenu} className={itemClass}><span className={iconClass}><ShoppingCart className="h-4 w-4" /></span><span className="flex-1">Cart</span>{cartItemCount > 0 ? <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[10px] font-bold leading-5 text-white">{cartItemCount}</span> : null}</Link>
+        {user ? <button role="menuitem" type="button" onClick={() => { logout(); closeMenu(); }} className={`${itemClass} mt-1 border-t pt-3 ${theme === 'dark' ? 'border-white/10 text-amber-200 hover:bg-amber-500/10' : 'border-slate-200 text-amber-700 hover:bg-amber-50'}`}><span className={iconClass}><LogOut className="h-4 w-4" /></span><span>Logout</span></button> : null}
+      </div>
+    </div> : null}
+  </div>;
 }
 
 function AuthActions() {

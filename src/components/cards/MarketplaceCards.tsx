@@ -262,11 +262,11 @@ export const ProductCard = memo(function ProductCard({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="product-card-shell group relative flex h-full w-full max-w-full flex-col overflow-hidden rounded-xl border shadow-lg transition-all duration-200 hover:border-blue-400/40"
+      className="product-card-shell group relative flex w-full max-w-full flex-col overflow-hidden rounded-xl border shadow-lg transition-all duration-200 hover:border-blue-400/40"
     >
-      <div className="relative overflow-hidden">
+      <div className="flex min-w-0 flex-col gap-2 p-3">
         <div
-          className="product-card-image group/image relative aspect-[4/3] w-full touch-pan-y overflow-hidden rounded-t-xl"
+          className="product-card-image group/image relative aspect-[4/3] w-full shrink-0 touch-pan-y overflow-hidden rounded-lg"
           onPointerDown={handleImagePointerDown}
           onPointerUp={handleImagePointerUp}
           onPointerCancel={handleImagePointerUp}
@@ -277,8 +277,9 @@ export const ProductCard = memo(function ProductCard({
           aria-label={`View ${title}`}
         >
           <div className="flex h-full transition-transform duration-200 ease-out" style={{ transform: `translateX(-${activeImage * (100 / galleryImages.length)}%)`, width: `${galleryImages.length * 100}%`, maxWidth: 'none' }}>
-            {galleryImages.map((galleryImage) => <img key={galleryImage} src={galleryImage} alt={title} loading="lazy" decoding="async" draggable={false} className="h-full min-w-0 shrink-0 object-cover" style={{ width: `${100 / galleryImages.length}%`, maxWidth: 'none' }} />)}
+            {galleryImages.map((galleryImage) => <img key={galleryImage} src={galleryImage} alt={title} loading="lazy" decoding="async" draggable={false} className="product-card-image-media h-full min-w-0 shrink-0 object-cover" style={{ width: `${100 / galleryImages.length}%`, maxWidth: 'none' }} />)}
           </div>
+          <div className="product-card-image-hover pointer-events-none absolute inset-0 bg-slate-950/5 opacity-0" />
           {galleryImages.length > 1 ? <>
             <button type="button" aria-label="Previous product image" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); moveImage(-1); }} className="absolute left-2 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/70 text-white opacity-0 shadow-lg transition-opacity group-hover/image:opacity-100 md:flex" tabIndex={-1}><ArrowLeft className="h-4 w-4" /></button>
             <button type="button" aria-label="Next product image" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); moveImage(1); }} className="absolute right-2 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/70 text-white opacity-0 shadow-lg transition-opacity group-hover/image:opacity-100 md:flex" tabIndex={-1}><ArrowRight className="h-4 w-4" /></button>
@@ -313,79 +314,33 @@ export const ProductCard = memo(function ProductCard({
             </button>
           </div>
         </div>
-        {verified ? (
-          <div className="absolute bottom-3 left-3 rounded-md bg-slate-950/80 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-emerald-300 shadow-lg shadow-slate-950/40">
-            <CheckCircle2 className="mr-1 inline-block h-3.5 w-3.5" /> Verified
-          </div>
-        ) : null}
-      </div>
+          {verified ? <span className="absolute bottom-1 left-1 rounded bg-slate-950/80 p-1 text-emerald-300"><CheckCircle2 className="h-3 w-3" /></span> : null}
 
-      <div className="product-card-body flex flex-1 flex-col p-3">
-        <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.14em] text-slate-400">
-          <span>{category}</span>
-          <span className="truncate text-right">{condition}</span>
-        </div>
-        <div className="mt-1 min-h-0 space-y-0.5">
-          <h3 className="product-card-title line-clamp-2 break-words text-[15px] font-semibold leading-5">{title}</h3>
-          <p className="product-card-description line-clamp-1 break-words text-[11px] leading-4 text-slate-400">{description}</p>
-        </div>
-
-        <div className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-1.5">
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <p className="product-card-price text-lg font-bold">{priceValue}</p>
-              {oldPrice ? <p className="text-xs text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
+        <div className="product-card-body flex min-w-0 flex-col">
+          <div className="flex min-w-0 items-baseline justify-between gap-2">
+            <h3 className="product-card-title min-w-0 truncate text-sm font-semibold leading-5">{title}</h3>
+            <div className="flex shrink-0 items-baseline gap-1.5">
+              <p className="product-card-price text-base font-bold">{priceValue}</p>
+              {oldPrice ? <p className="text-[10px] text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
             </div>
-            <p className="mt-0.5 text-[9px] uppercase tracking-[0.12em] text-slate-400">{priceLabel}</p>
-            {createdAt ? <p className="mt-0.5 text-[9px] text-slate-500">Added {new Date(createdAt).toLocaleDateString('en-IN')}</p> : null}
-            {discount ? <p className="mt-0.5 text-[9px] uppercase tracking-[0.12em] text-emerald-300">{discount}</p> : null}
           </div>
-          {isAuction ? (
-            <div className="inline-flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-1 text-[10px] text-blue-200">
-              <Clock3 className="h-3 w-3" />
-              <span>{countdown > 0 ? formatCountdown(countdown) : 'Auction Ended'}</span>
+          <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.1em] text-slate-400">{category}</p>
+          <p className="product-card-description mt-0.5 line-clamp-1 break-words text-[11px] leading-4 text-slate-400">{description || condition}</p>
+          {showSellerMeta && seller ? <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="truncate">{seller}</span>
+            {rating !== undefined ? <span className="inline-flex shrink-0 items-center gap-0.5 text-amber-300"><Star className="h-2.5 w-2.5" />{rating}</span> : null}
+            {reviews !== undefined ? <span className="shrink-0">({reviews})</span> : null}
+          </div> : null}
+          <div className="mt-1 flex min-w-0 flex-wrap items-center justify-between gap-1.5">
+            <div className="min-w-0">
+              {discount ? <p className="truncate text-[9px] font-medium text-emerald-300">{discount}</p> : null}
             </div>
-          ) : null}
-        </div>
-        {!isAuction ? <StockBadge availableQuantity={availableQuantity} className="mt-1" /> : null}
-
-        {showSellerMeta && seller ? <div className="product-card-vendor mt-2 rounded-lg border p-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-[11px] font-semibold text-blue-200">
-                {seller.charAt(0)}
-              </div>
-              <div className="min-w-0">
-                <div className="product-card-vendor-name flex items-center gap-1 text-[11px] font-semibold">
-                  <span className="truncate">{seller}</span>
-                  {verified ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" /> : null}
-                </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px] text-slate-400">
-                  {rating !== undefined ? <span className="inline-flex items-center gap-1 text-amber-300"><Star className="h-3 w-3" /> {rating}</span> : null}
-                  {reviews !== undefined ? <span>{reviews} Reviews</span> : null}
-                </div>
-              </div>
-            </div>
-            {verified ? <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-emerald-300">Verified</span> : null}
-          </div>
-        </div> : null}
-
-        <div className="product-card-actions mt-auto pt-3">
-          <div className={`${showAddToCart ? 'flex flex-wrap' : 'flex min-w-0 w-full'} items-center gap-1.5`}>
-            <Link to={actionLink ?? `/customer/product/${id}`} className="group/btn relative inline-flex h-[42px] min-h-[42px] min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden rounded-[10px] bg-blue-600 px-2 text-[12px] font-semibold leading-none text-white shadow-md shadow-blue-600/15 transition-colors duration-200 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60">
-              <span className="relative z-10 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{isAuction ? translate('watchAuction') : actionLabel || translate('buyNow')}</span>
-              <ArrowRight className="relative z-10 h-3 w-3" />
-            </Link>
-            <button type="button" onClick={handleShare} className="product-card-secondary-action inline-flex h-[42px] min-h-[42px] w-[42px] min-w-[42px] shrink-0 items-center justify-center rounded-[10px] border p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50" aria-label="Share listing">
-              <Share2 className="h-4 w-4" />
-            </button>
-            <button type="button" onClick={toggleFavorite} disabled={favoritePending} className="product-card-secondary-action inline-flex h-[42px] min-h-[42px] w-[42px] min-w-[42px] shrink-0 items-center justify-center rounded-[10px] border p-1.5 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 disabled:cursor-wait disabled:opacity-60" aria-label="Favorite listing">
-              <Heart className={`h-4 w-4 transition-colors duration-200 ${favorited ? 'fill-current text-rose-500' : ''}`} />
-            </button>
-            {showAddToCart ? <button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex h-[42px] min-h-[42px] min-w-0 flex-1 items-center justify-center gap-1 rounded-[10px] border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"><ShoppingCart className="h-3 w-3" />{cartPending ? 'Adding...' : 'Add to Cart'}</button> : null}
+            {isAuction ? <span className="inline-flex shrink-0 items-center gap-1 text-[9px] text-blue-200"><Clock3 className="h-3 w-3" />{countdown > 0 ? formatCountdown(countdown) : 'Ended'}</span> : <StockBadge availableQuantity={availableQuantity} className="text-[9px]" />}
           </div>
         </div>
       </div>
+
+      {showAddToCart ? <div className="product-card-actions border-t px-3 py-2"><button type="button" onClick={addToCart} disabled={cartPending} className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2 text-[10px] font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"><ShoppingCart className="h-3 w-3" />{cartPending ? 'Adding...' : 'Add'}</button></div> : null}
     </motion.article>
       {quickOpen && ReactDOM.createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center">

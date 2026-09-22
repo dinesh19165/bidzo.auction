@@ -213,7 +213,7 @@ input.peer.sr-only {
 }
 
 .product-card-shell {
-  min-height: 410px;
+  min-height: 0;
   border-color: var(--border-color);
   background: var(--card-bg);
   color: var(--text-primary);
@@ -222,6 +222,21 @@ input.peer.sr-only {
 
 .product-card-image {
   background: var(--surface-muted);
+}
+
+.product-card-image-media,
+.product-card-image-hover {
+  transition: transform 250ms ease, opacity 250ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .product-card-image:hover .product-card-image-media {
+    transform: scale(1.04);
+  }
+
+  .product-card-image:hover .product-card-image-hover {
+    opacity: 1;
+  }
 }
 
 .product-card-title,
