@@ -136,7 +136,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const headerDropdownsRef = useRef<HTMLDivElement>(null);
   const mobileUtilityRef = useRef<HTMLDivElement>(null);
   const mobileProfileRef = useRef<HTMLDivElement>(null);
-  const categoryMenuRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useThemeContext();
   const { language, currency, languageLabel, currencyLabel, setLanguage, setCurrency, translate, formatCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
@@ -146,7 +145,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [headerSearch, setHeaderSearch] = useState('');
   const [headerCategory, setHeaderCategory] = useState('');
   const [headerLocation, setHeaderLocation] = useState<CustomerLocation | null>(() => getStoredCustomerLocation());
-  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -275,23 +273,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   useEffect(() => {
-    if (!languageMenuOpen && !currencyMenuOpen && !mobileProfileOpen && !categoryMenuOpen) {
+    if (!languageMenuOpen && !currencyMenuOpen && !mobileProfileOpen) {
       return;
     }
 
     const handleOutsidePointer = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!headerDropdownsRef.current?.contains(target) && !mobileUtilityRef.current?.contains(target) && !mobileProfileRef.current?.contains(target) && !categoryMenuRef.current?.contains(target)) {
+      if (!headerDropdownsRef.current?.contains(target) && !mobileUtilityRef.current?.contains(target) && !mobileProfileRef.current?.contains(target)) {
         setLanguageMenuOpen(false);
         setCurrencyMenuOpen(false);
         setMobileProfileOpen(false);
-        setCategoryMenuOpen(false);
       }
     };
 
     document.addEventListener('pointerdown', handleOutsidePointer);
     return () => document.removeEventListener('pointerdown', handleOutsidePointer);
-  }, [languageMenuOpen, currencyMenuOpen, mobileProfileOpen, categoryMenuOpen]);
+  }, [languageMenuOpen, currencyMenuOpen, mobileProfileOpen]);
 
   return (
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
@@ -390,15 +387,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
-            <div ref={categoryMenuRef} className="relative min-w-0 shrink-0">
-              <button type="button" aria-label="Category" aria-haspopup="listbox" aria-expanded={categoryMenuOpen} onClick={() => setCategoryMenuOpen((value) => !value)} onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCategoryMenuOpen(true); } }} title={categoriesError ?? undefined} className={`flex h-10 min-h-10 items-center gap-2 px-1 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:text-white' : 'text-slate-800 hover:text-blue-700'}`}>
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center"><CategoryIcon iconUrl={marketplaceCategories.find((item) => String(item.id) === headerCategory)?.iconUrl} className="h-6 w-6" imageClassName="h-6 w-6 p-0" /></span><span className="max-w-[10rem] truncate">{marketplaceCategories.find((item) => String(item.id) === headerCategory)?.name || 'All Categories'}</span><ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
-              </button>
-              {categoryMenuOpen ? <div role="listbox" aria-label="Categories" onKeyDown={(event) => { if (event.key === 'Escape') setCategoryMenuOpen(false); }} className={`absolute left-0 top-full z-[60] mt-2 max-h-80 w-full overflow-y-auto overflow-x-hidden rounded-2xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950' : 'border-slate-200 bg-white'}`}>
-                <button type="button" role="option" aria-selected={!headerCategory} onClick={() => { setHeaderCategory(''); setCategoryMenuOpen(false); }} className={`flex min-h-[60px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${!headerCategory ? 'bg-blue-500/10 text-blue-200' : theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"><CategoryIcon className="h-9 w-9" /></span><span className="truncate">All Categories</span></button>
-                {categoriesLoading ? <p className="px-3 py-2 text-xs text-slate-400">Loading categories...</p> : marketplaceCategories.map((item) => <button key={item.id} type="button" role="option" aria-selected={String(item.id) === headerCategory} onClick={() => { setHeaderCategory(String(item.id)); setCategoryMenuOpen(false); }} className={`flex min-h-[60px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${String(item.id) === headerCategory ? 'bg-blue-500/10 text-blue-200' : theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"><CategoryIcon iconUrl={item.iconUrl} className="h-9 w-9" imageClassName="h-10 w-10 p-0" /></span><span className="truncate">{item.name}</span></button>)}
-              </div> : null}
-            </div>
             <div data-header-search className={`relative flex h-12 min-w-0 flex-1 items-center gap-2 rounded-2xl border px-3 transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
               <button type="button" aria-label="Search marketplace" onClick={submitHeaderSearch} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
                 <Search className="h-4 w-4" />
@@ -667,7 +655,12 @@ function MainHeaderActions() {
     { key: 'AED', label: 'AED د.إ' },
   ] as const;
 
-  return <div ref={menuRef} className="relative">
+  return <div ref={menuRef} className="relative flex items-center gap-2">
+    <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} className={`relative inline-flex min-h-10 items-center justify-center rounded-xl border px-3 py-2 transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-100'}`}>
+      <ShoppingCart className="h-4 w-4" />
+      <span className="ml-1.5 text-sm">Cart</span>
+      {cartItemCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{cartItemCount}</span> : null}
+    </Link>
     <button type="button" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-800 hover:bg-slate-100'}`}>
       <UserRound className="h-4 w-4" />
       <span>Account</span>
@@ -686,8 +679,8 @@ function MainHeaderActions() {
             {currencyOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
           </select>
         </div>
+        <Link role="menuitem" to="/customer/offers" onClick={closeMenu} className={itemClass}><span className={iconClass}><Tag className="h-4 w-4" /></span><span>Offers</span></Link>
         <Link role="menuitem" to="/help" onClick={closeMenu} className={itemClass}><span className={iconClass}><CircleHelp className="h-4 w-4" /></span><span>Help</span></Link>
-        <Link role="menuitem" to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} onClick={closeMenu} className={itemClass}><span className={iconClass}><ShoppingCart className="h-4 w-4" /></span><span className="flex-1">Cart</span>{cartItemCount > 0 ? <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[10px] font-bold leading-5 text-white">{cartItemCount}</span> : null}</Link>
         {user ? <button role="menuitem" type="button" onClick={() => { logout(); closeMenu(); }} className={`${itemClass} mt-1 border-t pt-3 ${theme === 'dark' ? 'border-white/10 text-amber-200 hover:bg-amber-500/10' : 'border-slate-200 text-amber-700 hover:bg-amber-50'}`}><span className={iconClass}><LogOut className="h-4 w-4" /></span><span>Logout</span></button> : null}
       </div>
     </div> : null}
