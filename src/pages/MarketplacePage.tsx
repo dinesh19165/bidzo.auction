@@ -12,7 +12,7 @@ import { API_BASE_URL } from '../api/apiClient';
 import { getProductById } from '../api/productApi';
 import { EmptyState, SkeletonCard, ErrorState } from '../components/loading/LoadingComponents';
 import { useLocation } from 'react-router-dom';
-import { useCustomerLocation } from '../utils/customerLocation';
+import { CUSTOMER_LOCATION_CHANGED_EVENT, useCustomerLocation } from '../utils/customerLocation';
 
 const ALL_CATEGORIES = '';
 const PAGE_SIZE = 20;
@@ -80,6 +80,16 @@ export function MarketplacePage() {
   const [error, setError] = useState<string | null>(null);
   const requestGeneration = useRef(0);
   const customerLocation = useCustomerLocation();
+  const [locationFilterEnabled, setLocationFilterEnabled] = useState(false);
+
+  useEffect(() => {
+    const handleLocationChange = (event: Event) => {
+      setLocationFilterEnabled(Boolean((event as CustomEvent).detail));
+      setPage(0);
+    };
+    window.addEventListener(CUSTOMER_LOCATION_CHANGED_EVENT, handleLocationChange);
+    return () => window.removeEventListener(CUSTOMER_LOCATION_CHANGED_EVENT, handleLocationChange);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(routeLocation.search);
@@ -111,7 +121,8 @@ export function MarketplacePage() {
     const requestFilters = { ...appliedFilters };
     setLoading(true);
     setError(null);
-    searchMarketplace({ ...requestFilters, page, size: PAGE_SIZE, latitude: customerLocation?.latitude, longitude: customerLocation?.longitude, radiusKm: 25 }).then(async (data) => {
+    const activeLocation = locationFilterEnabled ? customerLocation : null;
+    searchMarketplace({ ...requestFilters, page, size: PAGE_SIZE, latitude: activeLocation?.latitude, longitude: activeLocation?.longitude, radiusKm: 25 }).then(async (data) => {
       if (!active || generation !== requestGeneration.current) return;
       const enrichedContent = await Promise.all(data.content.map(async (item) => {
         if (item.type !== 'PRODUCT') return item;
@@ -136,7 +147,7 @@ export function MarketplacePage() {
     }).catch((err: unknown) => { if (active && generation === requestGeneration.current) setError(requestFilters.category ? 'Unable to load products for this category.' : (err instanceof Error ? err.message : 'Unable to load marketplace listings')); })
       .finally(() => { if (active && generation === requestGeneration.current) setLoading(false); });
     return () => { active = false; };
-  }, [appliedFilters, page, customerLocation?.latitude, customerLocation?.longitude]);
+  }, [appliedFilters, locationFilterEnabled, page, customerLocation?.latitude, customerLocation?.longitude]);
 
   const { translate, currencySymbol } = useLocaleContext();
   const { theme } = useThemeContext();
@@ -298,7 +309,7 @@ export function MarketplacePage() {
           ) : error ? (
             <ErrorState title="Product load failed" description={error} />
           ) : results.length === 0 ? (
-            <EmptyState title={customerLocation ? 'No products available in this location' : 'No products found'} description={customerLocation ? 'Change location to explore products nearby.' : 'Try clearing filters or adjusting search criteria.'} />
+            <EmptyState title={locationFilterEnabled && customerLocation ? 'No products available in this location' : 'No products found'} description={locationFilterEnabled && customerLocation ? 'Change location to explore products nearby.' : 'Try clearing filters or adjusting search criteria.'} />
           ) : (
             <div className={`${grid ? 'grid grid-cols-1 gap-4 justify-items-center md:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}`}>
               {results.map((product) => (

@@ -92,3 +92,8 @@ export function saveCustomerLocation(location: CustomerLocation): void {
   localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(recent));
   window.dispatchEvent(new CustomEvent<CustomerLocation>(CUSTOMER_LOCATION_CHANGED_EVENT, { detail: location }));
 }
+
+export function clearCustomerLocation(): void {
+  localStorage.removeItem(STORAGE_KEY);
+  window.dispatchEvent(new CustomEvent(CUSTOMER_LOCATION_CHANGED_EVENT, { detail: null }));
+}

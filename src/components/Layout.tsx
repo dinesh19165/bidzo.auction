@@ -15,9 +15,9 @@ import { API_BASE_URL } from '../api/apiClient';
 import { NotificationList } from './notifications/NotificationList';
 import { useNotificationContext } from '../context/NotificationContext';
 import { useCartContext } from '../context/CartContext';
-import { getRecentCustomerLocations, getStoredCustomerLocation, reverseGeocode, saveCustomerLocation, searchCustomerLocations, type CustomerLocation } from '../utils/customerLocation';
+import { clearCustomerLocation, getRecentCustomerLocations, getStoredCustomerLocation, reverseGeocode, saveCustomerLocation, searchCustomerLocations, type CustomerLocation } from '../utils/customerLocation';
 
-function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: CustomerLocation | null; onSelect: (location: CustomerLocation) => void; mobile?: boolean }) {
+function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: CustomerLocation | null; onSelect: (location: CustomerLocation | null) => void; mobile?: boolean }) {
   const { theme } = useThemeContext();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -55,7 +55,16 @@ function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: Cu
     return () => window.clearTimeout(timer);
   }, [open, query]);
 
-  const selectLocation = (selectedLocation: CustomerLocation) => {
+  const selectLocation = (selectedLocation: CustomerLocation | null) => {
+    if (!selectedLocation) {
+      clearCustomerLocation();
+      onSelect(null);
+      setOpen(false);
+      setQuery('');
+      setResults([]);
+      setError('');
+      return;
+    }
     saveCustomerLocation(selectedLocation);
     onSelect(selectedLocation);
     setOpen(false);
@@ -101,6 +110,7 @@ function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: Cu
         {loading ? <LoaderCircle className="h-5 w-5 shrink-0 animate-spin" /> : <Crosshair className="h-5 w-5 shrink-0" />}
         <span>{loading ? 'Finding your location...' : 'Use my current location'}</span>
       </button>
+      {value ? <button type="button" onClick={() => selectLocation(null)} className="flex min-h-10 w-full items-center rounded-xl px-3 py-2 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-50">Clear location filter</button> : null}
       <div className={`my-2 flex items-center gap-2 rounded-xl border px-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
         <Search className={`h-4 w-4 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
         <input autoFocus value={query} onChange={(event) => { setQuery(event.target.value); setError(''); }} placeholder="Search city or pincode" className={`min-h-11 min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
