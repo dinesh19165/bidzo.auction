@@ -32,6 +32,13 @@ export interface ProductApiResponse {
   availableQuantity?: number | null;
   quantity?: number | null;
   stock?: number | null;
+  offerPrice?: number | string | null;
+  discountedPrice?: number | string | null;
+  originalPrice?: number | string | null;
+  discountType?: string | null;
+  discountValue?: number | string | null;
+  offerEndsAt?: string | null;
+  offerActive?: boolean | null;
   sellingType?: string | null;
   vendorId?: number | null;
   image?: string | null;
@@ -76,6 +83,12 @@ export interface ProductListItem {
   actionLabel?: string;
   currentBid?: string;
   endsIn?: string;
+  offerPrice?: string;
+  originalPrice?: string;
+  discountType?: string;
+  discountValue?: string;
+  offerEndsAt?: string | null;
+  offerActive?: boolean;
 }
 
 export interface BuyNowOrderRequest {
@@ -192,6 +205,12 @@ function mapProduct(response: ProductApiResponse, imageOverride?: string): Produ
     categoryName,
     categoryObject: response.category ?? (categoryId == null && !categoryName ? null : { id: categoryId, name: categoryName }),
     availableQuantity: response.availableQuantity ?? response.quantity ?? response.stock ?? null,
+    offerPrice: response.offerPrice == null ? (response.discountedPrice == null ? undefined : formatPrice(response.discountedPrice)) : formatPrice(response.offerPrice),
+    originalPrice: response.originalPrice == null ? undefined : formatPrice(response.originalPrice),
+    discountType: response.discountType || undefined,
+    discountValue: response.discountValue == null ? undefined : String(response.discountValue),
+    offerEndsAt: response.offerEndsAt || null,
+    offerActive: response.offerActive ?? undefined,
     sellingType: sellingType === 'UNKNOWN' ? undefined : sellingType,
     isAuction,
     isDirectBuy,

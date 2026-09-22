@@ -9,6 +9,7 @@ import { useCartContext } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { StockBadge } from '../common/StockBadge';
+import { OfferPrice } from '../common/OfferPrice';
 
 interface ProductCardProps {
   id: string | number;
@@ -39,6 +40,12 @@ interface ProductCardProps {
   wishlistAuctionId?: number;
   showAddToCart?: boolean;
   availableQuantity?: number | null;
+  offerPrice?: string | number | null;
+  originalPrice?: string | number | null;
+  discountType?: string | null;
+  discountValue?: string | number | null;
+  offerEndsAt?: string | null;
+  offerActive?: boolean | null;
 }
 
 function parseCountdown(value?: string) {
@@ -95,6 +102,12 @@ export const ProductCard = memo(function ProductCard({
   wishlistAuctionId,
   showAddToCart = false,
   availableQuantity,
+  offerPrice,
+  originalPrice,
+  discountType,
+  discountValue,
+  offerEndsAt,
+  offerActive,
 }: ProductCardProps) {
   const [quickOpen, setQuickOpen] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
@@ -320,8 +333,7 @@ export const ProductCard = memo(function ProductCard({
           <div className="flex min-w-0 items-baseline justify-between gap-2">
             <h3 className="product-card-title min-w-0 truncate text-sm font-semibold leading-5">{title}</h3>
             <div className="flex shrink-0 items-baseline gap-1.5">
-              <p className="product-card-price text-base font-bold">{priceValue}</p>
-              {oldPrice ? <p className="text-[10px] text-slate-500 line-through">{formatCurrency(oldPrice)}</p> : null}
+              <OfferPrice price={priceValue} offerPrice={offerPrice} originalPrice={originalPrice || oldPrice} discountType={discountType} discountValue={discountValue || discount} offerEndsAt={offerEndsAt} offerActive={offerActive} />
             </div>
           </div>
           <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.1em] text-slate-400">{category}</p>

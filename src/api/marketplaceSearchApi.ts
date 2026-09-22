@@ -25,6 +25,13 @@ export interface MarketplaceSearchResult {
   auctionStatus: string | null;
   auctionEndsAt: string | null;
   availableQuantity?: number | null;
+  offerPrice?: number | string | null;
+  discountedPrice?: number | string | null;
+  originalPrice?: number | string | null;
+  discountType?: string | null;
+  discountValue?: number | string | null;
+  offerEndsAt?: string | null;
+  offerActive?: boolean | null;
 }
 
 export interface MarketplaceSearchPage {

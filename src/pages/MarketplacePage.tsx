@@ -13,6 +13,7 @@ import { getProductById } from '../api/productApi';
 import { EmptyState, SkeletonCard, ErrorState } from '../components/loading/LoadingComponents';
 import { useLocation } from 'react-router-dom';
 import { CUSTOMER_LOCATION_CHANGED_EVENT, useCustomerLocation } from '../utils/customerLocation';
+import { getActiveProductOffers } from '../services/productOfferService';
 
 const ALL_CATEGORIES = '';
 const PAGE_SIZE = 20;
@@ -47,6 +48,12 @@ function toCardListing(item: MarketplaceSearchResult) {
     currentBid: item.currentBid === null ? undefined : String(item.currentBid),
     endsIn: item.auctionEndsAt || undefined,
     availableQuantity: item.availableQuantity,
+    offerPrice: item.offerPrice == null ? item.discountedPrice : item.offerPrice,
+    originalPrice: item.originalPrice,
+    discountType: item.discountType || undefined,
+    discountValue: item.discountValue == null ? undefined : String(item.discountValue),
+    offerEndsAt: item.offerEndsAt,
+    offerActive: item.offerActive,
     isAuction,
     auctionId: isAuction ? item.id : undefined,
   };
@@ -124,14 +131,17 @@ export function MarketplacePage() {
     const activeLocation = locationFilterEnabled ? customerLocation : null;
     searchMarketplace({ ...requestFilters, page, size: PAGE_SIZE, latitude: activeLocation?.latitude, longitude: activeLocation?.longitude, radiusKm: 25 }).then(async (data) => {
       if (!active || generation !== requestGeneration.current) return;
+      const offers = await getActiveProductOffers();
       const enrichedContent = await Promise.all(data.content.map(async (item) => {
-        if (item.type !== 'PRODUCT') return item;
+        const offer = offers.get(String(item.id));
+        const itemWithOffer = offer ? { ...item, offerPrice: offer.discountedPrice, originalPrice: offer.price, discountType: offer.discountType, discountValue: offer.discountValue, offerEndsAt: offer.offerEndsAt, offerActive: true } : item;
+        if (item.type !== 'PRODUCT') return itemWithOffer;
 
         try {
           const product = await getProductById(item.id);
-          return { ...item, sellingType: product.sellingType || null, images: product.gallery || [] };
+          return { ...itemWithOffer, sellingType: product.sellingType || null, images: product.gallery || [] };
         } catch {
-          return item;
+          return itemWithOffer;
         }
       }));
       if (!active || generation !== requestGeneration.current) return;
@@ -334,6 +344,12 @@ export function MarketplacePage() {
                     currentBid={product.currentBid || (product.isAuction ? product.price : undefined)}
                     endsIn={product.endsIn}
                     availableQuantity={product.availableQuantity}
+                    offerPrice={product.offerPrice}
+                    originalPrice={product.originalPrice}
+                    discountType={product.discountType}
+                    discountValue={product.discountValue}
+                    offerEndsAt={product.offerEndsAt}
+                    offerActive={product.offerActive}
                     wishlistItemType={product.isAuction ? 'AUCTION' : 'PRODUCT'}
                     wishlistProductId={product.isAuction ? undefined : product.id}
                     wishlistAuctionId={product.isAuction ? product.auctionId : undefined}

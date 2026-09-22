@@ -35,6 +35,13 @@ export interface ProductResponse {
   createdAt?: string | null;
   salesCount?: number | null;
   availableQuantity?: number | null;
+  offerPrice?: number | string | null;
+  discountedPrice?: number | string | null;
+  originalPrice?: number | string | null;
+  discountType?: string | null;
+  discountValue?: number | string | null;
+  offerEndsAt?: string | null;
+  offerActive?: boolean | null;
 }
 
 export interface HomeDealResponse {

@@ -12,6 +12,8 @@ import { initializeBuyNowFlow } from '../utils/auctionFlowState';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { StockBadge } from '../components/common/StockBadge';
+import { OfferPrice } from '../components/common/OfferPrice';
+import { getActiveProductOffers } from '../services/productOfferService';
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -39,14 +41,20 @@ export function ProductDetailPage() {
       setLoading(true);
       try {
         const details = await getProductById(idNum);
-        setProduct(details);
-        setMain(details.gallery?.[0] || details.image);
+        const offer = (await getActiveProductOffers()).get(String(details.id));
+        const enrichedDetails = offer ? { ...details, offerPrice: String(offer.discountedPrice), originalPrice: String(offer.price), discountType: offer.discountType, discountValue: String(offer.discountValue), offerEndsAt: offer.offerEndsAt, offerActive: true } : details;
+        setProduct(enrichedDetails);
+        setMain(enrichedDetails.gallery?.[0] || enrichedDetails.image);
         const [list, reviewData] = await Promise.all([
           getProducts(),
           getProductReviews(idNum),
         ]);
         setReviews(reviewData);
-        setSimilarProducts(list.filter((item) => item.id !== details.id).slice(0, 3));
+        const offers = await getActiveProductOffers();
+        setSimilarProducts(list.filter((item) => item.id !== details.id).slice(0, 3).map((item) => {
+          const itemOffer = offers.get(String(item.id));
+          return itemOffer ? { ...item, offerPrice: String(itemOffer.discountedPrice), originalPrice: String(itemOffer.price), discountType: itemOffer.discountType, discountValue: String(itemOffer.discountValue), offerEndsAt: itemOffer.offerEndsAt, offerActive: true } : item;
+        }));
       } catch (err: any) {
         setError(err?.message || 'Unable to load product details');
       } finally {
@@ -201,7 +209,7 @@ export function ProductDetailPage() {
               <p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">{product.category}</p>
               <div className="rounded-full bg-amber-500/10 px-3 py-1 text-sm text-amber-300">★ {product.rating}</div>
             </div>
-            <h3 className="mt-3 text-2xl font-semibold text-white">{product.price}</h3>
+            <OfferPrice price={product.price} offerPrice={product.offerPrice} originalPrice={product.originalPrice} discountType={product.discountType} discountValue={product.discountValue} offerEndsAt={product.offerEndsAt} offerActive={product.offerActive} detail />
             <p className="mt-3 text-sm text-slate-300">{product.description}</p>
             <div className="mt-4 grid gap-2 text-sm text-slate-300">
               <p><span className="text-slate-500">Seller:</span> {product.seller} {product.verified ? <span className="ml-2 inline-flex items-center gap-1 text-emerald-300">(Verified)</span> : null}</p>
@@ -296,6 +304,12 @@ export function ProductDetailPage() {
                   wishlistItemType={item.isAuction ? 'AUCTION' : 'PRODUCT'}
                   wishlistProductId={item.isAuction ? undefined : item.id}
                   wishlistAuctionId={item.isAuction ? item.auctionId : undefined}
+                  offerPrice={item.offerPrice}
+                  originalPrice={item.originalPrice}
+                  discountType={item.discountType}
+                  discountValue={item.discountValue}
+                  offerEndsAt={item.offerEndsAt}
+                  offerActive={item.offerActive}
                 />
               );
             })
