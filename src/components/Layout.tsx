@@ -437,10 +437,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
         ) : null}
 
         {showMarketplaceControls ? <nav className={`category-navigation border-t px-3 transition duration-300 sm:px-6 lg:px-8 ${isHeaderScrolled ? 'py-1' : 'py-2'} ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Product categories">
-          <div className="mx-auto flex min-w-max items-center gap-2 overflow-x-auto scrollbar-hidden">
-            {marketplaceCategories.map((category) => <Link key={category.id} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
-              <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
-            </Link>)}
+          <div className="category-marquee-viewport mx-auto min-w-0 overflow-hidden">
+            <div className="category-marquee-track flex w-max min-w-full items-center gap-2" aria-live="off">
+              {[0, 1].map((copy) => <div key={copy} className="flex shrink-0 items-center gap-2" aria-hidden={copy === 1}>
+                {marketplaceCategories.map((category) => <Link key={`${copy}-${category.id}`} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} tabIndex={copy === 1 ? -1 : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
+                  <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
+                </Link>)}
+              </div>)}
+            </div>
           </div>
         </nav> : null}
 

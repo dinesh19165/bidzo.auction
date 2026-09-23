@@ -73,6 +73,28 @@ body {
   overflow-x: hidden;
 }
 
+@keyframes category-marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-50% - 0.25rem)); }
+}
+
+.category-marquee-track {
+  animation: category-marquee-scroll 75s linear infinite;
+  will-change: transform;
+}
+
+.category-marquee-viewport:hover .category-marquee-track,
+.category-marquee-viewport:focus-within .category-marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .category-marquee-track {
+    animation: none;
+    transform: translateX(0);
+  }
+}
+
 ::selection {
   background: var(--accent-soft);
   color: var(--text-primary);
