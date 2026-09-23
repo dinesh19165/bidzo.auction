@@ -17,6 +17,7 @@ const emptyDraft: OfferRequest = {
   offerType: 'PRODUCT',
   discountType: 'PERCENTAGE',
   discountValue: 0,
+  maximumDiscountAmount: null,
   startAt: null,
   endAt: null,
   priority: 0,
@@ -120,6 +121,7 @@ export function VendorOffersPage() {
         offerType: detail.offerType === 'CATEGORY' ? 'CATEGORY' : 'PRODUCT',
         discountType: detail.discountType,
         discountValue: detail.discountValue,
+        maximumDiscountAmount: detail.maximumDiscountAmount ?? null,
         startAt: detail.startAt,
         endAt: detail.endAt,
         active: detail.active,
@@ -140,6 +142,7 @@ export function VendorOffersPage() {
     if (new Date(draft.startAt) >= new Date(draft.endAt)) return setError('End date must be after the start date.');
     if (!Number.isFinite(Number(draft.discountValue)) || Number(draft.discountValue) <= 0) return setError('Discount value must be greater than zero.');
     if (draft.discountType === 'PERCENTAGE' && Number(draft.discountValue) > 100) return setError('Percentage discount cannot exceed 100.');
+    if (draft.maximumDiscountAmount !== null && draft.maximumDiscountAmount !== undefined && (draft.maximumDiscountAmount === '' as never || !Number.isFinite(Number(draft.maximumDiscountAmount)) || Number(draft.maximumDiscountAmount) <= 0)) return setError('Maximum discount amount must be a positive amount when entered.');
     if (draft.offerType === 'PRODUCT' && !draft.productIds?.length) return setError('Select one of your products.');
     if (draft.offerType === 'CATEGORY' && !draft.categoryIds?.length) return setError('Select one of your categories.');
 
@@ -149,6 +152,7 @@ export function VendorOffersPage() {
       offerType: draft.offerType,
       discountType: draft.discountType,
       discountValue: Number(draft.discountValue),
+      maximumDiscountAmount: draft.maximumDiscountAmount === null || draft.maximumDiscountAmount === undefined || draft.maximumDiscountAmount === '' as never ? null : Number(draft.maximumDiscountAmount),
       startAt: draft.startAt,
       endAt: draft.endAt,
       active: draft.active,
@@ -209,6 +213,7 @@ export function VendorOffersPage() {
                 <label><span className="mb-1.5 block text-sm text-slate-300">Description</span><input value={draft.description || ''} onChange={(event) => updateDraft('description', event.target.value)} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white" /></label>
                 <label><span className="mb-1.5 block text-sm text-slate-300">Discount type</span><select value={draft.discountType} onChange={(event) => updateDraft('discountType', event.target.value as DiscountType)} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white"><option value="PERCENTAGE">Percentage</option><option value="FIXED_AMOUNT">Fixed amount</option></select></label>
                 <label><span className="mb-1.5 block text-sm text-slate-300">Discount value</span><input type="number" min="0" step="any" value={draft.discountValue} onChange={(event) => updateDraft('discountValue', Number(event.target.value))} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white" /></label>
+                <label><span className="mb-1.5 block text-sm text-slate-300">Maximum discount amount</span><input type="number" min="0" step="any" value={draft.maximumDiscountAmount ?? ''} onChange={(event) => updateDraft('maximumDiscountAmount', event.target.value === '' ? null : Number(event.target.value))} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white" /></label>
                 <label><span className="mb-1.5 block text-sm text-slate-300">Start date</span><input type="datetime-local" value={toLocalInput(draft.startAt)} onChange={(event) => updateDraft('startAt', event.target.value)} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white" /></label>
                 <label><span className="mb-1.5 block text-sm text-slate-300">End date</span><input type="datetime-local" value={toLocalInput(draft.endAt)} onChange={(event) => updateDraft('endAt', event.target.value)} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white" /></label>
                 <label><span className="mb-1.5 block text-sm text-slate-300">Target type</span><select value={draft.offerType} onChange={(event) => updateDraft('offerType', event.target.value as 'PRODUCT' | 'CATEGORY')} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 text-sm text-white"><option value="PRODUCT">Product</option><option value="CATEGORY">Category</option></select></label>

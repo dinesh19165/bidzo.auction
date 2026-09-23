@@ -73,6 +73,7 @@ export function OffersAdminPage() {
     if (!draft.endAt) return setError('End date/time is required.');
     if (!Number.isFinite(Number(draft.discountValue)) || Number(draft.discountValue) <= 0) return setError('Discount value must be greater than zero.');
     if (draft.discountType === 'PERCENTAGE' && Number(draft.discountValue) > 100) return setError('Percentage discount cannot exceed 100.');
+    if (draft.maximumDiscountAmount !== null && draft.maximumDiscountAmount !== undefined && (draft.maximumDiscountAmount === '' as never || !Number.isFinite(Number(draft.maximumDiscountAmount)) || Number(draft.maximumDiscountAmount) <= 0)) return setError('Maximum discount amount must be a positive amount when entered.');
     if (draft.offerType === 'PRODUCT' && !draft.productIds?.length) return setError('Select at least one product.');
     if (draft.offerType === 'CATEGORY' && !draft.categoryIds?.length) return setError('Select at least one category.');
     if (draft.offerType === 'COUPON' && !draft.couponCode?.trim()) return setError('Coupon code is required for coupon offers.');
