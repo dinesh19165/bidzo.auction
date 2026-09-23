@@ -75,7 +75,14 @@ body {
 
 @keyframes category-marquee-scroll {
   from { transform: translateX(0); }
-  to { transform: translateX(calc(-50% - 0.25rem)); }
+  to { transform: translateX(calc(-1 * var(--category-marquee-distance, 0px))); }
+}
+
+.category-marquee-track,
+.category-marquee-list,
+.category-navigation-item {
+  max-width: none;
+  flex-shrink: 0;
 }
 
 .category-marquee-track {

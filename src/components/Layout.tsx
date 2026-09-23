@@ -152,11 +152,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [searchSuggestions, setSearchSuggestions] = useState<MarketplaceSearchResult[]>([]);
   const [searchSuggestionsLoading, setSearchSuggestionsLoading] = useState(false);
   const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(false);
+  const categoryListRef = useRef<HTMLDivElement>(null);
+  const categoryTrackRef = useRef<HTMLDivElement>(null);
+  const [categoryMarqueeDistance, setCategoryMarqueeDistance] = useState(0);
   const searchRequestGeneration = useRef(0);
   const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
   const isHomePage = location.pathname === '/';
   const showMarketplaceControls = !user || user.type === 'customer' || user.role === 'CUSTOMER';
+  useLayoutEffect(() => {
+    const categoryList = categoryListRef.current;
+    const categoryTrack = categoryTrackRef.current;
+    if (!categoryList || !categoryTrack || marketplaceCategories.length === 0) {
+      setCategoryMarqueeDistance(0);
+      return undefined;
+    }
+
+    const measureCategoryList = () => {
+      const listWidth = categoryList.getBoundingClientRect().width;
+      const listGap = Number.parseFloat(window.getComputedStyle(categoryTrack).columnGap) || 0;
+      setCategoryMarqueeDistance(listWidth + listGap);
+    };
+
+    measureCategoryList();
+    const resizeObserver = new ResizeObserver(measureCategoryList);
+    resizeObserver.observe(categoryList);
+    return () => resizeObserver.disconnect();
+  }, [isHeaderScrolled, marketplaceCategories]);
   useEffect(() => {
     const updateHeaderScrollState = () => setIsHeaderScrolled(window.scrollY > 24);
     updateHeaderScrollState();
@@ -438,8 +460,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {showMarketplaceControls ? <nav className={`category-navigation border-t px-3 transition duration-300 sm:px-6 lg:px-8 ${isHeaderScrolled ? 'py-1' : 'py-2'} ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Product categories">
           <div className="category-marquee-viewport mx-auto min-w-0 overflow-hidden">
-            <div className="category-marquee-track flex w-max min-w-full items-center gap-2" aria-live="off">
-              {[0, 1].map((copy) => <div key={copy} className="flex shrink-0 items-center gap-2" aria-hidden={copy === 1}>
+            <div ref={categoryTrackRef} className="category-marquee-track flex w-max min-w-full items-center gap-2" style={{ '--category-marquee-distance': `${categoryMarqueeDistance}px` } as React.CSSProperties} aria-live="off">
+              {[0, 1].map((copy) => <div key={copy} ref={copy === 0 ? categoryListRef : undefined} className="category-marquee-list flex shrink-0 items-center gap-2" aria-hidden={copy === 1}>
                 {marketplaceCategories.map((category) => <Link key={`${copy}-${category.id}`} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} tabIndex={copy === 1 ? -1 : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
                   <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
                 </Link>)}
