@@ -415,9 +415,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="category-marquee-viewport mx-auto min-w-0 overflow-hidden">
             <div ref={categoryTrackRef} className="category-marquee-track flex w-max min-w-full items-center gap-2" style={{ '--category-marquee-distance': `${categoryMarqueeDistance}px` } as React.CSSProperties} aria-live="off">
               {[0, 1].map((copy) => <div key={copy} ref={copy === 0 ? categoryListRef : undefined} className="category-marquee-list flex shrink-0 items-center gap-2" aria-hidden={copy === 1}>
-                {mainCategories.map((category) => <Link key={`${copy}-${category.id}`} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} onClick={() => setSelectedMainCategoryId(category.id)} tabIndex={copy === 1 ? -1 : undefined} aria-current={String(category.id) === String(selectedMainCategoryId) ? 'true' : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
+                {mainCategories.map((category) => <button key={`${copy}-${category.id}`} type="button" onClick={() => setSelectedMainCategoryId(category.id)} tabIndex={copy === 1 ? -1 : undefined} aria-current={String(category.id) === String(selectedMainCategoryId) ? 'true' : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
                   <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
-                </Link>)}
+                </button>)}
               </div>)}
             </div>
           </div>
