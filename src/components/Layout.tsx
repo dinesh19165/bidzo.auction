@@ -96,10 +96,10 @@ function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: Cu
 
   const displayName = value?.city || value?.displayName || 'Location';
   const choices = query.trim().length >= 3 ? results : recent;
-  const controlClass = mobile ? 'h-10 w-full' : 'h-12 w-[200px]';
+  const controlClass = mobile ? 'h-10 w-[clamp(120px,38vw,200px)] lg:h-12 lg:w-[200px]' : 'h-12 w-[200px]';
 
   return <div ref={pickerRef} className={`relative shrink-0 ${mobile ? 'min-w-0 flex-1' : ''}`}>
-    <button type="button" aria-label="Location" aria-expanded={open} aria-haspopup="dialog" onClick={() => { setOpen((current) => !current); setError(''); }} className={`inline-flex ${controlClass} min-w-0 items-center gap-2 rounded-2xl border border-blue-100 bg-white px-3 text-sm text-slate-800 shadow-[0_2px_5px_rgba(59,130,246,0.16)] transition hover:border-blue-200 ${mobile ? 'rounded-xl' : ''}`}>
+    <button type="button" aria-label="Location" aria-expanded={open} aria-haspopup="dialog" onClick={() => { setOpen((current) => !current); setError(''); }} className={`inline-flex ${controlClass} min-w-0 items-center gap-2 rounded-2xl border border-blue-100 bg-white px-3 text-sm text-slate-800 shadow-[0_2px_5px_rgba(59,130,246,0.16)] transition hover:border-blue-200 ${mobile ? 'rounded-xl lg:rounded-2xl' : ''}`}>
       <MapPin className="h-4 w-4 shrink-0 text-blue-500" />
       <span className="min-w-0 flex-1 truncate text-left">{displayName}</span>
       <ChevronDown className={`h-4 w-4 shrink-0 text-slate-700 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -146,6 +146,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [headerCategory, setHeaderCategory] = useState('');
   const [headerLocation, setHeaderLocation] = useState<CustomerLocation | null>(() => getStoredCustomerLocation());
   const [marketplaceCategories, setMarketplaceCategories] = useState<CategoryRecord[]>([]);
+  const [selectedMainCategoryId, setSelectedMainCategoryId] = useState<CategoryRecord['id'] | null>(null);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
@@ -160,6 +161,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
   const isHomePage = location.pathname === '/';
   const showMarketplaceControls = !user || user.type === 'customer' || user.role === 'CUSTOMER';
+  const mainCategories = marketplaceCategories.filter((category) => category.parentId === undefined || category.parentId === null || category.parentId === '');
+  const selectedMainCategory = mainCategories.find((category) => String(category.id) === String(selectedMainCategoryId));
+  const selectedSubcategories = selectedMainCategory
+    ? marketplaceCategories.filter((category) => String(category.parentId) === String(selectedMainCategory.id))
+    : [];
   useLayoutEffect(() => {
     const categoryList = categoryListRef.current;
     const categoryTrack = categoryTrackRef.current;
@@ -315,61 +321,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
-        <div className={`border-b transition duration-300 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
-          <div className={`mx-auto hidden flex-col gap-0 px-4 py-0 text-xs transition duration-300 lg:flex ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8`}>
-            <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-            <CustomerLocationPicker value={headerLocation} onSelect={setHeaderLocation} />
-            <div ref={headerDropdownsRef} className="flex flex-wrap items-center justify-end gap-2">
-              <div className="relative hidden">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLanguageMenuOpen((value) => !value);
-                    setCurrencyMenuOpen(false);
-                    setMobileProfileOpen(false);
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 transition duration-300 ${theme === 'dark' ? 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
-                  aria-expanded={languageMenuOpen}
-                  aria-label="Select language"
-                >
-                  <Globe className="h-3.5 w-3.5" /> {languageLabel}
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
-                {languageMenuOpen ? (
-                  <div className={`absolute left-0 top-full z-[60] mt-2 w-48 overflow-hidden rounded-xl border p-1 shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-200/40'}`}>
-                    {languageOptions.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => {
-                          setLanguage(option.key);
-                          setLanguageMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}
-                      >
-                        <span>{option.label}</span>
-                        {language === option.key ? <Check className="h-4 w-4 text-emerald-400" /> : null}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className={`theme-toggle-pill hidden items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-300 ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-50'}`}
-                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              >
-                <span>{theme === 'dark' ? '☀️ Light' : '🌙 Dark'}</span>
-              </button>
-            </div>
-            </div>
-          </div>
-        </div>
-
         <div ref={mobileUtilityRef} className={`relative flex flex-nowrap items-center gap-1 border-t px-3 py-0 lg:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/90' : 'border-slate-200 bg-white/95'}`}>
-          <CustomerLocationPicker mobile value={headerLocation} onSelect={setHeaderLocation} />
           <div className="relative min-w-0 flex-1">
             <button type="button" onClick={() => { setLanguageMenuOpen((value) => !value); setCurrencyMenuOpen(false); setMobileProfileOpen(false); }} aria-expanded={languageMenuOpen} aria-label="Select language" className={`mobile-header-compact-control flex h-[34px] w-full items-center justify-center gap-1 rounded-md border px-1.5 text-[12px] font-medium ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'}`}>
               <Globe className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{languageLabel}</span><ChevronDown className="h-3 w-3 shrink-0" />
@@ -400,12 +352,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
-          <div>
+          <div className="flex min-w-0 items-center gap-2">
             {/* Shared header: logo always shown and links to home */}
             <Link to="/" className="inline-flex items-center flex-shrink-0">
               {/* Slightly smaller logo on mobile to avoid horizontal overflow */}
               <Logo className="w-[104px] sm:w-[150px] h-auto object-contain" />
            </Link>
+            <CustomerLocationPicker mobile value={headerLocation} onSelect={setHeaderLocation} />
           </div>
 
           {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
@@ -462,12 +415,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="category-marquee-viewport mx-auto min-w-0 overflow-hidden">
             <div ref={categoryTrackRef} className="category-marquee-track flex w-max min-w-full items-center gap-2" style={{ '--category-marquee-distance': `${categoryMarqueeDistance}px` } as React.CSSProperties} aria-live="off">
               {[0, 1].map((copy) => <div key={copy} ref={copy === 0 ? categoryListRef : undefined} className="category-marquee-list flex shrink-0 items-center gap-2" aria-hidden={copy === 1}>
-                {marketplaceCategories.map((category) => <Link key={`${copy}-${category.id}`} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} tabIndex={copy === 1 ? -1 : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
+                {mainCategories.map((category) => <Link key={`${copy}-${category.id}`} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} onClick={() => setSelectedMainCategoryId(category.id)} tabIndex={copy === 1 ? -1 : undefined} aria-current={String(category.id) === String(selectedMainCategoryId) ? 'true' : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
                   <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
                 </Link>)}
               </div>)}
             </div>
           </div>
+          {selectedMainCategory ? <div className="category-subnavigation mx-auto min-w-0 overflow-x-auto border-t border-inherit py-1 scrollbar-hidden">
+            <div className="flex min-w-max items-center justify-center gap-2">
+              {selectedSubcategories.map((category) => <Link key={category.id} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} className="category-navigation-item inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden"><CategoryIcon iconUrl={category.iconUrl} className="h-5 w-5" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
+              </Link>)}
+            </div>
+          </div> : null}
         </nav> : null}
 
       </header>
