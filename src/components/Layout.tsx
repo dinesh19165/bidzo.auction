@@ -605,6 +605,7 @@ function MainHeaderActions() {
         {!user ? <button role="menuitem" type="button" onClick={() => { closeMenu(); navigate('/login', { replace: true, state: { role: 'customer' } }); }} className={itemClass}><span className={iconClass}><UserRound className="h-4 w-4" /></span><span>Login</span></button> : null}
         {!user ? <button role="menuitem" type="button" onClick={() => { closeMenu(); navigate('/login', { replace: true, state: { role: 'vendor' } }); }} className={itemClass}><span className={iconClass}><Store className="h-4 w-4" /></span><span>Become a Seller</span></button> : null}
         {isCustomer ? <>
+          <Link role="menuitem" to="/dashboards/customer" onClick={closeMenu} className={itemClass}><span className={iconClass}><Grid2X2 className="h-4 w-4" /></span><span>Dashboard</span></Link>
           <Link role="menuitem" to="/customer/orders" onClick={closeMenu} className={itemClass}><span className={iconClass}><ShoppingBag className="h-4 w-4" /></span><span>Orders</span></Link>
           <Link role="menuitem" to="/customer/wishlist" onClick={closeMenu} className={itemClass}><span className={iconClass}><Tag className="h-4 w-4" /></span><span>Wishlist</span></Link>
           <Link role="menuitem" to="/customer/rewards" onClick={closeMenu} className={itemClass}><span className={iconClass}><ShoppingBag className="h-4 w-4" /></span><span>Rewards</span></Link>
