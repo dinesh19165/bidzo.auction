@@ -2,7 +2,7 @@ import { Routes, Route, Navigate, useLocation, useNavigationType } from 'react-r
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Layout } from './components/Layout';
-import { AuthProvider, getPortalHome, isAdminUser, useAuth, type UserType } from './context/AuthContext';
+import { AuthProvider, getPortalHome, isAdminUser, isFranchiseAdminUser, useAuth, type UserType } from './context/AuthContext';
 import { UserProvider, CartProvider, WalletProvider, NotificationProvider, ThemeProvider, LocaleProvider, WishlistProvider } from './context';
 import { HomePage } from './pages/HomePage';
 import { AboutPage } from './pages/AboutPage';
@@ -63,7 +63,7 @@ import { SupportTicketsPage, InvoicesPage, DownloadsPage } from './pages/extra/D
 import { CommissionSettingsPage, RefundsPage, RolesPage } from './pages/extra/AdminExtras';
 import { AddMoneyPage, WithdrawPage } from './pages/extra/WalletExtras';
 import { AdminChatPage, SupportChatPage } from './pages/extra/ChatExtras';
-import { OrganizationHierarchyPage, FranchiseManagementPage, LocationManagementPage, RolePermissionPage, FranchiseDashboardPage } from './pages/extra/OrganizationExtras';
+import { OrganizationHierarchyPage, FranchiseManagementPage, LocationManagementPage, RolePermissionPage, FranchiseDashboardPage as LegacyFranchiseDashboardPage } from './pages/extra/OrganizationExtras';
 import { SuperAdminDashboardPage, FranchiseDashboardAdminPage, RolePermissionMatrixPage, ApprovalCenterPage, SystemSettingsPage, CMSPage, ReportsPage, AdminLoginPage, FranchiseManagementAdminPage, VendorManagementAdminPage, OrdersManagementAdminPage, DeliveryManagementAdminPage, WalletManagementAdminPage, AuctionManagementAdminPage, ContentManagementAdminPage, CMSBannersPage, CMSCategoriesPage, CMSFaqPage, CMSBlogPage, CMSTestimonialsPage, CMSNewsletterPage, CMSPagesPage, SettingsGeneralPage, SettingsAuctionRulesPage, SettingsRegistrationFeePage, SettingsCommissionRulesPage, SettingsPlatformChargesPage, SettingsShippingRulesPage, SettingsTaxPage, SettingsEmailPage, SettingsSmsPage, SettingsNotificationTemplatesPage, SettingsSecurityPage, SettingsLocalizationPage, ApprovalVendorsPage, ApprovalFranchisesPage, ApprovalProductsPage, ApprovalAuctionsPage, ApprovalKycPage, PermissionsRolesPage, PermissionsRoleCreatePage, PermissionsRoleDetailPage, PermissionsMatrixPage, ReportsSalesPage, ReportsRevenuePage, ReportsAuctionsPage, ReportsVendorsPage, ReportsCustomersPage, ReportsOrdersPage, ReportsDeliveryPage, ReportsWalletPage, ReportsCommissionPage, ReportsFranchisePage, FranchiseDetailPage as AdminFranchiseDetailPage, FranchiseCreatePage as AdminFranchiseCreatePage, FranchiseEditPage as AdminFranchiseEditPage, FranchiseVendorsPage as AdminFranchiseVendorsPage, FranchiseOrdersPage as AdminFranchiseOrdersPage, FranchisePerformancePage as AdminFranchisePerformancePage, VendorDetailPage as AdminVendorDetailPage, VendorEditPage as AdminVendorEditPage, VendorProductsPage as AdminVendorProductsPage, VendorAuctionsPage as AdminVendorAuctionsPage, VendorOrdersPage as AdminVendorOrdersPage, VendorWalletPage as AdminVendorWalletPage, VendorKycPage as AdminVendorKycPage, VendorPerformancePage as AdminVendorPerformancePage, AdminOrderDetailPage, DeliveryPartnersPage, DeliveryPartnerDetailPage, DeliveryAssignmentsPage, DeliveryPerformancePage, WalletTransactionsPage, WalletWithdrawalsPage, WalletRefundsPage, WalletSettlementsPage, WalletCommissionsPage, WalletTransactionDetailPage, AuctionLivePage, AuctionUpcomingPage, AuctionCompletedPage, AuctionPendingPage, AuctionDetailAdminPage, AuctionBidHistoryPage, ContentCategoriesPage, ContentBannersPage, ContentAnnouncementsPage, ContentNotificationsPage, ContentFaqPage, ContentHelpPage } from './pages/extra/EnterpriseAdminPages';
 import { CustomerProfilePage, CustomerOrdersPage, CustomerAuctionsPage, CustomerBidsPage, CustomerWonAuctionsPage, CustomerRecentlyViewedPage, CustomerWatchlistPage, CustomerSavedSearchesPage, CustomerTransactionsPage, CustomerAddressesPage, CustomerMessagesPage, CustomerReviewsPage, CustomerSupportPage, CustomerInvoicesPage, CustomerSettingsPage, CustomerOrderDetailPage, CustomerAuctionDetailPage, VendorBusinessInfoPage, VendorGstPage, VendorBankPage, VendorIdentityPage, VendorStoreVerificationPage, VendorStoreProfilePage, VendorStoreSettingsPage, VendorSubscriptionPage, VendorWalletPage, VendorWithdrawPage, VendorSalesAnalyticsPage, VendorOrdersPage, VendorCustomersPage, VendorInventoryPage, VendorProductsPage, VendorProductVariantsPage, VendorCreateProductPage, VendorEditProductPage, VendorDeleteProductPage, VendorCreateAuctionPage, VendorEditAuctionPage, VendorAuctionAnalyticsPage, VendorMessagesPage, VendorNotificationsPage, VendorReviewsPage, VendorSupportTicketsPage, VendorReportsPage } from './pages/extra/CustomerVendorExtras';
 import { BuyNowConfirmPage, BuyNowPaymentPage, BuyNowOrderSuccessPage, BuyNowInvoicePage } from './pages/extra/BuyNowFlowPages';
@@ -76,6 +76,8 @@ import { CustomerOffersPage } from './pages/CustomerOffersPage';
 import { VendorOffersPage } from './pages/VendorOffersPage';
 import { getStoredAuthToken, handleUnauthorized, isJwtExpired } from './api/apiClient';
 import { getVendorVerificationStatus } from './api/vendorVerificationApi';
+import { FranchiseAdminCreatePage } from './pages/extra/EnterpriseAdminPages';
+import { FranchiseAnalyticsPage, FranchiseCustomersPage, FranchiseDashboardPage, FranchiseEntityDetailPage, FranchiseOrdersPage, FranchiseProductsPage, FranchiseUnavailablePage, FranchiseVendorsPage } from './pages/FranchiseAdminPages';
 
 function AppRouteGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -85,6 +87,10 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
   const isVendorRoute = pathname === '/dashboards/vendor' || pathname.startsWith('/vendor');
   const isVendorDashboardRoute = pathname === '/dashboards/vendor' || pathname === '/vendor/dashboard';
   const isAdminRoute = pathname === '/dashboards/admin' || pathname.startsWith('/admin');
+  const isFranchiseCreateRoute = pathname === '/admin/franchise/create';
+  const isFranchiseAdminCreateRoute = pathname === '/admin/franchise/admins/create';
+  const isFranchiseEditRoute = pathname.startsWith('/admin/franchise/') && pathname.endsWith('/edit');
+  const isFranchiseRoute = pathname === '/franchise' || pathname.startsWith('/franchise/');
   const isAdminLoginRoute = pathname === '/admin/login';
   const isKycRoute = pathname === '/kyc';
 
@@ -130,6 +136,11 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to={getPortalHome(user)} replace />;
   }
 
+  if (isFranchiseRoute) {
+    if (!user) return <Navigate to="/admin/login" replace />;
+    if (!isFranchiseAdminUser(user)) return <Navigate to={getPortalHome(user)} replace />;
+  }
+
   if (isAdminRoute && !isAdminLoginRoute) {
     if (!user) {
       return <Navigate to="/admin/login" replace />;
@@ -137,6 +148,10 @@ function AppRouteGuard({ children }: { children: React.ReactNode }) {
     if (!isAdminUser(user)) {
       return <Navigate to={getPortalHome(user)} replace />;
     }
+    if ((isFranchiseCreateRoute || isFranchiseAdminCreateRoute || isFranchiseEditRoute) && user.role !== 'SUPER_ADMIN') {
+      return <Navigate to={getPortalHome(user)} replace />;
+    }
+    if (isFranchiseAdminUser(user)) return <Navigate to="/franchise/dashboard" replace />;
   }
   const isAuthEntryRoute = ['/login', '/register', '/register/customer', '/register/vendor', '/onboarding'].includes(pathname);
 
@@ -370,12 +385,23 @@ function App() {
             <Route path="/vendor/reports" element={<VendorReportsPage />} />
             <Route path="/dashboards/admin" element={<AdminDashboardApiPage />} />
             <Route path="/admin/dashboard" element={<AdminDashboardApiPage />} />
+            <Route path="/franchise/dashboard" element={<FranchiseDashboardPage />} />
+            <Route path="/franchise/vendors" element={<FranchiseVendorsPage />} />
+            <Route path="/franchise/vendors/:id" element={<FranchiseEntityDetailPage resource="vendor" />} />
+            <Route path="/franchise/products" element={<FranchiseProductsPage />} />
+            <Route path="/franchise/products/:id" element={<FranchiseEntityDetailPage resource="product" />} />
+            <Route path="/franchise/orders" element={<FranchiseOrdersPage />} />
+            <Route path="/franchise/orders/:id" element={<FranchiseEntityDetailPage resource="order" />} />
+            <Route path="/franchise/analytics" element={<FranchiseAnalyticsPage />} />
+            <Route path="/franchise/customers" element={<FranchiseCustomersPage />} />
+            <Route path="/franchise/product-inspections" element={<FranchiseUnavailablePage title="Product Inspection" description="A franchise-scoped product inspection endpoint is not exposed in the frontend API contract." />} />
+            <Route path="/franchise/advertisements" element={<FranchiseUnavailablePage title="Advertisements" description="A franchise-scoped advertisement endpoint is not exposed in the frontend API contract." />} />
             <Route path="/admin/organization-hierarchy" element={<OrganizationHierarchyPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin/franchises" element={<FranchiseManagementPage />} />
             <Route path="/admin/locations" element={<LocationManagementPage />} />
             <Route path="/admin/roles" element={<RolePermissionPage />} />
-            <Route path="/admin/franchise-dashboard" element={<FranchiseDashboardPage />} />
+            <Route path="/admin/franchise-dashboard" element={<LegacyFranchiseDashboardPage />} />
             <Route path="/admin/franchise" element={<FranchiseManagementAdminPage />} />
             <Route path="/admin/users" element={<AdminResourcePage resource="users" />} />
             <Route path="/admin/customers" element={<AdminResourcePage resource="customers" />} />
@@ -442,6 +468,7 @@ function App() {
             <Route path="/admin/reports/franchise" element={<ReportsFranchisePage />} />
             <Route path="/admin/franchise" element={<FranchiseManagementAdminPage />} />
             <Route path="/admin/franchise/create" element={<AdminFranchiseCreatePage />} />
+            <Route path="/admin/franchise/admins/create" element={<FranchiseAdminCreatePage />} />
             <Route path="/admin/franchise/:id" element={<AdminFranchiseDetailPage />} />
             <Route path="/admin/franchise/:id/edit" element={<AdminFranchiseEditPage />} />
             <Route path="/admin/franchise/:id/vendors" element={<AdminFranchiseVendorsPage />} />

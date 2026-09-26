@@ -20,7 +20,12 @@ export function isAdminUser(user: Pick<User, 'role' | 'type'> | null | undefined
   return user?.type === 'admin' || ADMIN_ROLES.includes((user?.role || '') as typeof ADMIN_ROLES[number]);
 }
 
+export function isFranchiseAdminUser(user: Pick<User, 'role' | 'type'> | null | undefined): boolean {
+  return String(user?.role || '').trim().toUpperCase() === 'FRANCHISE_ADMIN';
+}
+
 export function getPortalHome(user: Pick<User, 'role' | 'type'> | null | undefined): string {
+  if (isFranchiseAdminUser(user)) return '/franchise/dashboard';
   if (isAdminUser(user)) return '/admin/super-dashboard';
   if (user?.type === 'vendor') return '/dashboards/vendor';
   if (user?.type === 'delivery') return '/delivery';
@@ -105,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     const me = await authMe(loginResponse.token);
-    const role = me.role || loginResponse.role || 'CUSTOMER';
+    const role = String(me.role || loginResponse.role || 'CUSTOMER').trim().toUpperCase();
     const type: UserType = ADMIN_ROLES.includes(role as typeof ADMIN_ROLES[number])
       ? 'admin'
       : role === 'VENDOR'

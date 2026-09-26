@@ -44,15 +44,7 @@ export function Footer() {
             <span>All rights reserved</span>
           </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold text-[var(--text-primary)]">Shopping</p>
-          <ul className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
-            <li><Link to="/marketplace" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Direct Buy</Link></li>
-            <li><Link to="/auctions" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Auctions</Link></li>
-            <li><Link to="/wishlist" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Wishlist</Link></li>
-            <li><Link to="/blog" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Blog</Link></li>
-          </ul>
-        </div>
+       
         <div>
           <p className="text-sm font-semibold text-[var(--text-primary)]">Support</p>
           <ul className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
@@ -67,7 +59,7 @@ export function Footer() {
           <ul className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
             <li><Link to="/about" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">About us</Link></li>
             <li><Link to="/privacy" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Privacy</Link></li>
-            <li><Link to="/terms" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Terms</Link></li>
+            <li><Link to="/terms" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Terms & Condations</Link></li>
           </ul>
         </div>
         <div>

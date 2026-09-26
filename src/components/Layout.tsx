@@ -139,6 +139,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useThemeContext();
   const { language, currency, languageLabel, currencyLabel, setLanguage, setCurrency, translate, formatCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
+  const { cart } = useCartContext();
   const { unreadCount } = useNotificationContext();
   const location = useLocation();
   const navigate = useNavigate();
@@ -160,7 +161,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
   const isHomePage = location.pathname === '/';
-  const showMarketplaceControls = !user || user.type === 'customer' || user.role === 'CUSTOMER';
+  const cartItemCount = cart.items.reduce((total, item) => total + Math.max(0, Number(item.quantity) || 0), 0);
+  const isCustomerUser = Boolean(user && (user.type === 'customer' || user.role === 'CUSTOMER'));
+  const showMarketplaceControls = !user || isCustomerUser;
+  const showCustomerHeaderItems = isCustomerUser;
   const mainCategories = marketplaceCategories.filter((category) => category.parentId === undefined || category.parentId === null || category.parentId === '');
   const selectedMainCategory = mainCategories.find((category) => String(category.id) === String(selectedMainCategoryId));
   const selectedSubcategories = selectedMainCategory
@@ -358,7 +362,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {/* Slightly smaller logo on mobile to avoid horizontal overflow */}
               <Logo className="w-[104px] sm:w-[150px] h-auto object-contain" />
            </Link>
-            <CustomerLocationPicker mobile value={headerLocation} onSelect={setHeaderLocation} />
+            {showCustomerHeaderItems ? <CustomerLocationPicker mobile value={headerLocation} onSelect={setHeaderLocation} /> : null}
           </div>
 
           {showMarketplaceControls ? <div className="hidden min-w-0 flex-1 items-center gap-3 lg:flex">
@@ -383,15 +387,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div> : null}
 
           <div className="hidden items-center gap-2 md:flex">
-            <Link to="/auctions" className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"><Gavel className="h-4 w-4" />Live Auction</Link>
-            <MainHeaderActions />
+            {showCustomerHeaderItems ? (
+              <>
+                <Link to="/auctions" className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"><Gavel className="h-4 w-4" />Live Auction</Link>
+                <MainHeaderActions />
+              </>
+            ) : (
+              <MainHeaderActions />
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-1.5 lg:hidden">
-            {showMarketplaceControls ? <>
-              <button type="button" aria-label="Notifications" onClick={() => navigate(user?.type === 'vendor' ? '/vendor/notifications' : '/customer/notifications')} className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}><Bell className="h-4 w-4" />{unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}</button>
-              <Link to="/customer/offers" aria-label="Offers" className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20' : 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'}`}><Tag className="h-4 w-4" /></Link>
-            </> : null}
+            {showMarketplaceControls ? (
+              isCustomerUser ? (
+                <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+                  <ShoppingCart className="h-4 w-4" />
+                  {cartItemCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{cartItemCount > 99 ? '99+' : cartItemCount}</span> : null}
+                </Link>
+              ) : (
+                <>
+                  <button type="button" aria-label="Notifications" onClick={() => navigate(user?.type === 'vendor' ? '/vendor/notifications' : '/customer/notifications')} className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}><Bell className="h-4 w-4" />{unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}</button>
+                  <Link to="/customer/offers" aria-label="Offers" className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20' : 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'}`}><Tag className="h-4 w-4" /></Link>
+                </>
+              )
+            ) : null}
           </div>
         </div>
 
@@ -466,7 +485,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {link.label}
                   </Link>
                 ))}
-                <LoginRoleMenu compact onNavigate={() => setMobileMenuOpen(false)} />
+                {!user ? <LoginRoleMenu compact onNavigate={() => setMobileMenuOpen(false)} /> : null}
               </div>
             </motion.aside>
           </>
@@ -549,7 +568,7 @@ function LoginRoleMenu({ compact = false, onNavigate, onOpenChange, triggerLabel
     setOpen(false);
     onOpenChange?.(false);
     onNavigate?.();
-    navigate('/login', { state: { role } });
+    navigate('/login', { replace: true, state: { role } });
   };
 
   const triggerClass = compact
@@ -620,6 +639,7 @@ function MainHeaderActions() {
   const cartItemCount = cart.items.reduce((total, item) => total + Math.max(0, Number(item.quantity) || 0), 0);
   const isCustomer = user?.type === 'customer' || user?.role === 'CUSTOMER';
   const isVendor = user?.type === 'vendor' || user?.role === 'VENDOR';
+  const showCart = isCustomer;
   useEffect(() => {
     if (!open && !loginMenuOpen) return;
     const handleOutsidePointer = (event: PointerEvent) => {
@@ -633,47 +653,38 @@ function MainHeaderActions() {
     return () => document.removeEventListener('pointerdown', handleOutsidePointer);
   }, [loginMenuOpen, open]);
 
-  const itemClass = `flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10 hover:text-white' : 'text-slate-800 hover:bg-slate-100'}`;
+  const itemClass = `flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm whitespace-nowrap transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10 hover:text-white' : 'text-slate-800 hover:bg-slate-100'}`;
   const iconClass = `flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-600'}`;
   const closeMenu = () => setOpen(false);
-  const currencyOptions = [
-    { key: 'INR', label: 'INR ₹' },
-    { key: 'USD', label: 'USD $' },
-    { key: 'EUR', label: 'EUR €' },
-    { key: 'GBP', label: 'GBP £' },
-    { key: 'AED', label: 'AED د.إ' },
-  ] as const;
 
   return <div ref={menuRef} className="relative flex items-center gap-2">
-    <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} className={`relative inline-flex min-h-10 items-center justify-center rounded-xl border px-3 py-2 transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-100'}`}>
+    {showCart ? <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} className={`relative inline-flex min-h-10 items-center justify-center rounded-xl border px-3 py-2 transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10' : 'border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-100'}`}>
       <ShoppingCart className="h-4 w-4" />
       <span className="ml-1.5 text-sm">Cart</span>
       {cartItemCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{cartItemCount}</span> : null}
-    </Link>
+    </Link> : null}
     <button type="button" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-800 hover:bg-slate-100'}`}>
       <UserRound className="h-4 w-4" />
       <span>Account</span>
       <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
     </button>
-    {open || loginMenuOpen ? <div role="menu" aria-label="Account menu" className={`absolute right-0 top-full z-[70] mt-2 max-h-[calc(100vh-5rem)] w-64 max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border p-2 shadow-2xl ${loginMenuOpen ? 'invisible pointer-events-none' : ''} ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+    {open || loginMenuOpen ? <div role="menu" aria-label="Account menu" className={`absolute right-0 top-full z-[70] mt-2 max-h-[calc(100vh-5rem)] w-[min(17rem,calc(100vw-1rem))] min-w-[15rem] overflow-hidden rounded-2xl border p-2 shadow-2xl ${loginMenuOpen ? 'invisible pointer-events-none' : ''} ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
       <div className={`border-b px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide ${theme === 'dark' ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-500'}`}>Account</div>
-      <div className="mt-1">
-        {user ? <Link role="menuitem" to={isVendor ? '/dashboards/vendor' : '/dashboards/customer'} onClick={closeMenu} className={itemClass}><span className={iconClass}><UserRound className="h-4 w-4" /></span><span>Login</span></Link> : <LoginRoleMenu compact triggerLabel="Login" onNavigate={closeMenu} onOpenChange={setLoginMenuOpen} />}
-        {user ? <Link role="menuitem" to="/register/vendor" onClick={closeMenu} className={itemClass}><span className={iconClass}><Store className="h-4 w-4" /></span><span>Seller</span></Link> : <button role="menuitem" type="button" onClick={() => navigate('/login', { state: { role: 'vendor' } })} className={itemClass}><span className={iconClass}><Store className="h-4 w-4" /></span><span>Seller</span></button>}
-        <button role="menuitem" type="button" onClick={() => { toggleTheme(); closeMenu(); }} className={itemClass}><span className={iconClass}>{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</span><span>{theme === 'dark' ? 'Light' : 'Dark'} mode</span></button>
-        <div className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>
-          <span className={iconClass}><Globe className="h-4 w-4" /></span>
-          <label htmlFor="account-currency" className="flex-1">Currency</label>
-          <select id="account-currency" value={currency} onChange={(event) => setCurrency(event.target.value as typeof currency)} className={`max-w-[7rem] rounded-lg border px-2 py-1.5 text-xs outline-none ${theme === 'dark' ? 'border-white/10 bg-slate-950 text-slate-200' : 'border-slate-200 bg-white text-slate-800'}`}>
-            {currencyOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
-          </select>
-        </div>
+      <div className="mt-1 space-y-1">
+        {!user ? <button role="menuitem" type="button" onClick={() => { closeMenu(); navigate('/login', { replace: true, state: { role: 'customer' } }); }} className={itemClass}><span className={iconClass}><UserRound className="h-4 w-4" /></span><span>Login</span></button> : null}
+        {!user ? <button role="menuitem" type="button" onClick={() => { closeMenu(); navigate('/login', { replace: true, state: { role: 'vendor' } }); }} className={itemClass}><span className={iconClass}><Store className="h-4 w-4" /></span><span>Become a Seller</span></button> : null}
         {isCustomer ? <>
           <Link role="menuitem" to="/customer/orders" onClick={closeMenu} className={itemClass}><span className={iconClass}><ShoppingBag className="h-4 w-4" /></span><span>Orders</span></Link>
           <Link role="menuitem" to="/customer/wishlist" onClick={closeMenu} className={itemClass}><span className={iconClass}><Tag className="h-4 w-4" /></span><span>Wishlist</span></Link>
           <Link role="menuitem" to="/customer/rewards" onClick={closeMenu} className={itemClass}><span className={iconClass}><ShoppingBag className="h-4 w-4" /></span><span>Rewards</span></Link>
           <Link role="menuitem" to="/customer/offers" onClick={closeMenu} className={itemClass}><span className={iconClass}><Tag className="h-4 w-4" /></span><span>Offers</span></Link>
         </> : null}
+        {(isCustomer || isVendor) ? (
+          <Link role="menuitem" to={isVendor ? '/vendor/notifications' : '/customer/notifications'} onClick={closeMenu} className={itemClass}>
+            <span className={iconClass}><Bell className="h-4 w-4" /></span>
+            <span>Notifications</span>
+          </Link>
+        ) : null}
         <Link role="menuitem" to="/help" onClick={closeMenu} className={itemClass}><span className={iconClass}><CircleHelp className="h-4 w-4" /></span><span>Help</span></Link>
         {user ? <button role="menuitem" type="button" onClick={() => { logout(); closeMenu(); }} className={`${itemClass} mt-1 border-t pt-3 ${theme === 'dark' ? 'border-white/10 text-amber-200 hover:bg-amber-500/10' : 'border-slate-200 text-amber-700 hover:bg-amber-50'}`}><span className={iconClass}><LogOut className="h-4 w-4" /></span><span>Logout</span></button> : null}
       </div>

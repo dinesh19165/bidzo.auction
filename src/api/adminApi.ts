@@ -23,6 +23,21 @@ export interface AdminQuery {
   active?: boolean;
 }
 
+export interface CreateFranchiseRequest {
+  name: string;
+  city: string;
+  state: string;
+  status: string;
+  adminId?: string;
+}
+
+export interface CreateFranchiseAdminRequest {
+  username: string;
+  email: string;
+  password: string;
+  phoneNumber: string;
+}
+
 interface ApiEnvelope<T> {
   data?: T;
   success?: boolean;
@@ -122,6 +137,11 @@ export const getAdminCustomerBids = (id: string | number) => list<AdminRecord>(`
 export const getAdminCustomerPayments = (id: string | number) => list<AdminRecord>(`/api/admin/customers/${id}/payments`);
 
 export const getAdminVendors = (query?: AdminQuery) => list<AdminRecord>('/api/admin/vendors', query);
+export const getAdminFranchises = () => list<AdminRecord>('/api/admin/franchises');
+export const getAvailableFranchiseAdmins = () => list<AdminRecord>('/api/admin/franchises/available-admins');
+export const createFranchiseAdmin = (payload: CreateFranchiseAdminRequest) => fetchJson<AdminRecord | ApiEnvelope<AdminRecord>>('/api/admin/franchise-admins', { method: 'POST', body: JSON.stringify(payload) });
+export const assignFranchiseAdmin = (franchiseId: string | number, adminUserId: number) => fetchJson<AdminRecord | ApiEnvelope<AdminRecord>>(`/api/admin/franchises/${encodeURIComponent(String(franchiseId))}/admin`, { method: 'PUT', body: JSON.stringify({ adminUserId }) });
+export const createAdminFranchise = (payload: CreateFranchiseRequest) => fetchJson<AdminRecord | ApiEnvelope<AdminRecord>>('/api/admin/franchises', { method: 'POST', body: JSON.stringify(payload) });
 export const getAdminVendorsPaginated = (query?: AdminQuery) => paginated<AdminRecord>('/api/admin/vendors/paginated', query);
 export const activateAdminVendor = (userId: string | number) => fetchJson<AdminRecord>(`/api/admin/vendors/${userId}/activate`, { method: 'PUT' });
 export const deactivateAdminVendor = (userId: string | number) => fetchJson<AdminRecord>(`/api/admin/vendors/${userId}/deactivate`, { method: 'PUT' });

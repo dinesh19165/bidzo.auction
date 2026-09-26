@@ -1,7 +1,7 @@
 import { uploadToCloudinary } from '../../services/cloudinaryUpload';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, Bell, Boxes, CheckCircle2, Clock3, CreditCard, Download, Eye, EyeOff, FileText, Filter, Gavel, Globe, LayoutGrid, Megaphone, MessageSquare, Plus, Search, Settings2, ShieldCheck, Store, TrendingUp, Truck, Users, Wallet2 } from 'lucide-react';
 import { AdminShell } from '../../components/admin/AdminShell';
 import { Card } from '../../components/common/Card';
@@ -15,6 +15,7 @@ import { approveVendor, getPendingVendorApprovals, rejectVendor, requestVendorCh
 import { approveVendorDocument } from '../../api/vendorApi';
 import { approveAdminWithdrawal, getAdminWalletSummary, getAdminWalletTransactions, getPendingAdminWithdrawals, rejectAdminWithdrawal, type AdminWalletSummary, type AdminWalletTransaction, type AdminWithdrawal } from '../../api/adminWalletApi';
 import { createAdminNotificationTemplate, deleteAdminNotificationTemplate, getAdminAuctionRules, getAdminCommissionRules, getAdminEmailSettings, getAdminGeneralSettings, getAdminLocalizationSettings, getAdminNotificationTemplates, getAdminPlatformCharges, getAdminRegistrationFeeSettings, getAdminSecuritySettings, getAdminShippingRules, getAdminSmsSettings, getAdminTaxSettings, updateAdminAuctionRules, updateAdminCommissionRules, updateAdminEmailSettings, updateAdminGeneralSettings, updateAdminLocalizationSettings, updateAdminPlatformCharges, updateAdminRegistrationFeeSettings, updateAdminSecuritySettings, updateAdminShippingRules, updateAdminSmsSettings, updateAdminTaxSettings, type NotificationTemplate } from '../../api/adminSettingsApi';
+import { assignFranchiseAdmin, createAdminFranchise, createFranchiseAdmin, getAdminFranchises, getAvailableFranchiseAdmins, type AdminRecord } from '../../api/adminApi';
 import { createBanner, createBlog, createFaq, createPage, createTestimonial, deleteBanner, deleteBlog, deleteFaq, deletePage, deleteTestimonial, getBanners, getBlogs, getFaq, getPages, getTestimonials, updateBanner, updateBannerStatus, updateBlog, updateBlogStatus, updateCategoryStatus, updateFaq, updateFaqStatus, updatePage, updatePageStatus, updateTestimonial, updateTestimonialStatus } from '../../api/cmsApi';
 import { createCategory, createCategoryField, deleteCategory, deleteCategoryField, getCategories, getCategoryFields, normalizeCategoryStatus, updateCategory, updateCategoryFeatured, updateCategoryField, type CategoryFieldDefinition, type CategoryFieldRequest, type CategoryFieldType, type CategoryRecord, type CategoryStatus } from '../../api/categoryApi';
 import { EmptyState, ErrorState, SkeletonTable } from '../../components/loading/LoadingComponents';
@@ -607,6 +608,11 @@ export function AdminLoginPage() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                <div className="mt-2 flex justify-end">
+                  <Link to="/forgot-password" className="text-sm font-medium text-blue-400 transition hover:text-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:ring-offset-2 focus:ring-offset-[var(--surface-elevated)]">
+                    Forgot password?
+                  </Link>
+                </div>
               </div>
 
               {error ? <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-3 text-sm leading-6 text-rose-200">{error}</div> : null}
@@ -622,32 +628,63 @@ export function AdminLoginPage() {
 }
 
 export function FranchiseManagementAdminPage() {
-  const [rows, setRows] = useState([
-    { id: 1, name: 'Bengaluru Franchise', city: 'Bengaluru', admin: 'Asha Rao', revenue: '₹18.4L', status: 'Healthy', approval: 'Approved' },
-    { id: 2, name: 'Mumbai Franchise', city: 'Mumbai', admin: 'Nilesh V.', revenue: '₹14.2L', status: 'Stable', approval: 'Pending' },
-    { id: 3, name: 'Delhi Franchise', city: 'Delhi', admin: 'Riya Sen', revenue: '₹11.7L', status: 'Review', approval: 'Pending' },
-    { id: 4, name: 'Hyderabad Franchise', city: 'Hyderabad', admin: 'Kiran Y.', revenue: '₹9.1L', status: 'Healthy', approval: 'Approved' },
-  ]);
+  const [rows, setRows] = useState<AdminRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
 
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    getAdminFranchises().then((franchises) => {
+      if (active) setRows(franchises);
+    }).catch((reason: unknown) => {
+      if (active) setError(reason instanceof Error ? reason.message : 'Unable to load franchises.');
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const field = (row: AdminRecord, keys: string[]) => {
+    for (const key of keys) {
+      const candidate = row[key];
+      if (candidate !== undefined && candidate !== null && candidate !== '') return candidate;
+    }
+    return '';
+  };
+  const display = (input: unknown) => {
+    if (input === undefined || input === null || input === '') return '—';
+    if (typeof input === 'object' && !Array.isArray(input)) {
+      const object = input as Record<string, unknown>;
+      return String(object.name ?? object.fullName ?? object.businessName ?? object.email ?? object.label ?? '—');
+    }
+    return String(input);
+  };
+  const statusValue = (row: AdminRecord) => display(field(row, ['status', 'approvalStatus', 'state']));
+  const statusOptions = Array.from(new Set(rows.map(statusValue).filter((item) => item !== '—')));
   const filtered = useMemo(() => rows.filter((row) => {
     const q = search.toLowerCase();
-    const matchesSearch = !q || [row.name, row.city, row.admin].join(' ').toLowerCase().includes(q);
-    const matchesStatus = status === 'All' || row.status === status;
+    const matchesSearch = !q || [field(row, ['name', 'franchiseName', 'title']), field(row, ['city']), field(row, ['adminName', 'admin', 'adminUser'])].map(display).join(' ').toLowerCase().includes(q);
+    const matchesStatus = status === 'All' || statusValue(row) === status;
     return matchesSearch && matchesStatus;
   }), [rows, search, status]);
 
-  const updateStatus = (id: number, next: string) => setRows((prev) => prev.map((row) => row.id === id ? { ...row, approval: next, status: next === 'Approved' ? 'Healthy' : next === 'Rejected' ? 'Review' : row.status } : row));
+  const activeCount = rows.filter((row) => ['ACTIVE', 'APPROVED', 'HEALTHY'].includes(statusValue(row).toUpperCase())).length;
+  const pendingCount = rows.filter((row) => ['PENDING', 'REVIEW'].includes(statusValue(row).toUpperCase())).length;
+  const assignedAdminCount = rows.filter((row) => Boolean(field(row, ['adminId', 'adminName', 'admin', 'adminUser']))).length;
 
   return (
-    <AdminShell title="Enterprise admin" subtitle="Franchise management" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Add franchise</PrimaryButton>}>
+    <AdminShell title="Enterprise admin" subtitle="Franchise management" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise' }]} activePath="/admin/franchise" actions={<div className="flex flex-wrap gap-2"><SecondaryButton onClick={() => navigate('/admin/franchise/admins/create')} icon={<Users className="h-4 w-4" />}>Add Franchise Admin</SecondaryButton><PrimaryButton onClick={() => navigate('/admin/franchise/create')} icon={<Plus className="h-4 w-4" />}>Add franchise</PrimaryButton></div>}>
       <div className="grid gap-4 md:grid-cols-4">
         {[
-          ['Active franchises', '24'],
-          ['Revenue this month', '₹86.3L'],
-          ['Pending', '3'],
-          ['Performance score', '91%'],
+          ['Total franchises', rows.length],
+          ['Active franchises', activeCount],
+          ['Pending', pendingCount],
+          ['Assigned admins', assignedAdminCount],
         ].map(([label, value]) => (
           <Card key={label} className="p-5"><p className="text-sm text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{value}</p></Card>
         ))}
@@ -661,28 +698,18 @@ export function FranchiseManagementAdminPage() {
           </div>
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white">
             <option>All</option>
-            <option>Healthy</option>
-            <option>Stable</option>
-            <option>Review</option>
+            {statusOptions.map((option) => <option key={option}>{option}</option>)}
           </select>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <Table columns={[
-            { key: 'name', label: 'Franchise' },
-            { key: 'city', label: 'City' },
-            { key: 'admin', label: 'Admin' },
-            { key: 'revenue', label: 'Revenue' },
-            { key: 'status', label: 'Status', render: (row: any) => <Badge className={row.status === 'Healthy' ? 'bg-emerald-500/10 text-emerald-200' : row.status === 'Review' ? 'bg-amber-500/10 text-amber-200' : 'bg-blue-500/10 text-blue-200'}>{row.status}</Badge> },
-            { key: 'approval', label: 'Approval', render: (row: any) => <Badge className={row.approval === 'Approved' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}>{row.approval}</Badge> },
-            { key: 'actions', label: 'Actions', render: (row: any) => (
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => updateStatus(row.id, 'Approved')} className="rounded-full bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-200">Approve</button>
-                <button onClick={() => updateStatus(row.id, 'Rejected')} className="rounded-full bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-200">Reject</button>
-              </div>
-            ) },
-          ]} data={filtered} className="p-0" />
-        </div>
+        <div className="mt-4">{loading ? <SkeletonTable /> : error ? <ErrorState title="Unable to load franchises" description={error} /> : filtered.length === 0 ? <EmptyState title="No franchises found" description={rows.length === 0 ? 'No franchises have been created yet.' : 'No franchises match the current filters.'} /> : <Table columns={[
+          { key: 'name', label: 'Franchise', render: (row: AdminRecord) => display(field(row, ['name', 'franchiseName', 'title'])) },
+          { key: 'city', label: 'City', render: (row: AdminRecord) => display(field(row, ['city'])) },
+          { key: 'admin', label: 'Admin', render: (row: AdminRecord) => display(field(row, ['adminName', 'admin', 'adminUser', 'assignedAdmin'])) },
+          { key: 'status', label: 'Status', render: (row: AdminRecord) => <Badge>{statusValue(row)}</Badge> },
+          { key: 'created', label: 'Created', render: (row: AdminRecord) => display(field(row, ['createdAt', 'createdDate'])) },
+          { key: 'actions', label: 'Actions', render: (row: AdminRecord) => field(row, ['id', 'franchiseId']) ? <Link className="text-blue-500 hover:underline" to={`/admin/franchise/${encodeURIComponent(String(field(row, ['id', 'franchiseId'])))}/edit`}>Assign admin</Link> : '—' },
+        ]} data={filtered} className="p-0" />}</div>
       </Card>
     </AdminShell>
   );
@@ -3329,8 +3356,165 @@ export function WalletCommissionsPage() { return <AdminShell title="Enterprise a
 export function WalletTransactionDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Transaction details" breadcrumbs={[{ label: 'Admin' }, { label: 'Wallet', to: '/admin/wallet' }, { label: 'Transaction details' }]} activePath="/admin/wallet" actions={<PrimaryButton icon={<FileText className="h-4 w-4" />}>Download</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>ID: W-101</p><p>Type: Vendor payout</p><p>Amount: ₹1,24,000</p><p>Status: Completed</p></div></Card></AdminShell>; }
 
 export function FranchiseDetailPage() { return <AdminShell title="Enterprise admin" subtitle="Franchise details" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Details' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Store className="h-4 w-4" />}>Update</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Name: Bengaluru Franchise</p><p>City: Bengaluru</p><p>Admin: Asha Rao</p><p>Revenue: ₹18.4L</p><p>Status: Healthy</p></div></Card></AdminShell>; }
-export function FranchiseCreatePage() { return <AdminShell title="Enterprise admin" subtitle="Create franchise" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Create' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Plus className="h-4 w-4" />}>Save</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>New franchise onboarding form placeholder.</p><p>Includes basic organization, city, admin, and compliance fields.</p></div></Card></AdminShell>; }
-export function FranchiseEditPage() { return <AdminShell title="Enterprise admin" subtitle="Edit franchise" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Edit' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<Settings2 className="h-4 w-4" />}>Save changes</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Update franchise profile, contact details, and policies.</p></div></Card></AdminShell>; }
+export function FranchiseCreatePage() {
+  const navigate = useNavigate();
+  const [admins, setAdmins] = useState<AdminRecord[]>([]);
+  const [adminsLoading, setAdminsLoading] = useState(true);
+  const [adminsError, setAdminsError] = useState('');
+  const [form, setForm] = useState({ name: '', city: '', state: '', status: 'ACTIVE', adminId: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setAdminsLoading(true);
+    getAvailableFranchiseAdmins().then((availableAdmins) => {
+      if (active) setAdmins(availableAdmins);
+    }).catch((reason: unknown) => {
+      if (active) setAdminsError(reason instanceof Error ? reason.message : 'Unable to load available Franchise Admins.');
+    }).finally(() => {
+      if (active) setAdminsLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const adminId = (admin: AdminRecord) => String(admin.id ?? '');
+  const adminName = (admin: AdminRecord) => String(admin.name ?? admin.fullName ?? admin.username ?? admin.email ?? adminId(admin));
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    const name = form.name.trim();
+    const city = form.city.trim();
+    const state = form.state.trim();
+    if (!name || !city || !state || !form.status) {
+      setError('Franchise name, city, state, and status are required.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await createAdminFranchise({ name, city, state, status: form.status, ...(form.adminId ? { adminId: form.adminId } : {}) });
+      setSuccess('Franchise created successfully. Returning to Franchise Management...');
+      window.setTimeout(() => navigate('/admin/franchise'), 700);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Unable to create franchise.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <AdminShell title="Enterprise admin" subtitle="Create franchise" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Create' }]} activePath="/admin/franchise">
+    <form onSubmit={submit}>
+      <Card className="p-6">
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">Franchise Name</span><input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400" /></label>
+          <label className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">City</span><input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} required className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400" /></label>
+          <label className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">State</span><input value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value }))} required className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400" /></label>
+          <label className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">Status</span><select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} required className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400"><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label>
+          <label className="space-y-2 text-sm text-slate-300 md:col-span-2"><span className="font-medium text-white">Franchise Admin <span className="text-slate-500">(optional)</span></span>{adminsLoading ? <div className="rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-slate-400">Loading available admins...</div> : adminsError ? <p className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-200">{adminsError} You can continue without assigning an admin.</p> : admins.length === 0 ? <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-200">No Franchise Admins available. You can assign one later.</p> : <select value={form.adminId} onChange={(event) => setForm((current) => ({ ...current, adminId: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400"><option value="">No admin assigned</option>{admins.map((admin) => <option key={adminId(admin)} value={adminId(admin)}>{adminName(admin)}</option>)}</select>}</label>
+        </div>
+        {error ? <p role="alert" className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-200">{error}</p> : null}
+        {success ? <p role="status" className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-200">{success}</p> : null}
+        <div className="mt-6 flex flex-wrap justify-end gap-3"><SecondaryButton type="button" onClick={() => navigate('/admin/franchise')} disabled={saving}>Cancel</SecondaryButton><PrimaryButton type="submit" disabled={saving || adminsLoading} icon={<Plus className="h-4 w-4" />}>{saving ? 'Saving...' : 'Save franchise'}</PrimaryButton></div>
+      </Card>
+    </form>
+  </AdminShell>;
+}
+export function FranchiseEditPage() {
+  const { id = '' } = useParams();
+  const navigate = useNavigate();
+  const [admins, setAdmins] = useState<AdminRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingError, setLoadingError] = useState('');
+  const [adminId, setAdminId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getAvailableFranchiseAdmins().then((availableAdmins) => {
+      if (active) setAdmins(availableAdmins);
+    }).catch((reason: unknown) => {
+      if (active) setLoadingError(reason instanceof Error ? reason.message : 'Unable to load available Franchise Admins.');
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const getAdminId = (admin: AdminRecord) => String(admin.id ?? '');
+  const getAdminName = (admin: AdminRecord) => String(admin.name ?? admin.fullName ?? admin.username ?? admin.email ?? getAdminId(admin));
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    const selectedAdminUserId = Number(adminId);
+    if (!id || !Number.isInteger(selectedAdminUserId) || selectedAdminUserId <= 0) {
+      setError('Select a Franchise Admin before assigning.');
+      return;
+    }
+    try {
+      setSaving(true);
+      await assignFranchiseAdmin(id, selectedAdminUserId);
+      setSuccess('Franchise Admin assigned successfully. Returning to Franchise Management...');
+      window.setTimeout(() => navigate('/admin/franchise'), 700);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Unable to assign the Franchise Admin.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <AdminShell title="Enterprise admin" subtitle="Assign Franchise Admin" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Assign Admin' }]} activePath="/admin/franchise">
+    <form onSubmit={submit}><Card className="p-6"><div className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">Franchise Admin</span>{loading ? <div className="rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-slate-400">Loading available admins...</div> : loadingError ? <p role="alert" className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-rose-200">{loadingError}</p> : admins.length === 0 ? <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-amber-200">No Franchise Admins available. Create one before assigning.</p> : <select value={adminId} onChange={(event) => setAdminId(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400"><option value="">Select a Franchise Admin</option>{admins.map((admin) => <option key={getAdminId(admin)} value={getAdminId(admin)}>{getAdminName(admin)}</option>)}</select>}</div>{error ? <p role="alert" className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-200">{error}</p> : null}{success ? <p role="status" className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-200">{success}</p> : null}<div className="mt-6 flex flex-wrap justify-end gap-3"><SecondaryButton type="button" onClick={() => navigate('/admin/franchise')} disabled={saving}>Cancel</SecondaryButton><PrimaryButton type="submit" disabled={saving || loading || admins.length === 0} icon={<Settings2 className="h-4 w-4" />}>{saving ? 'Assigning...' : 'Assign admin'}</PrimaryButton></div></Card></form>
+  </AdminShell>;
+}
+
+export function FranchiseAdminCreatePage() {
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ username: '', email: '', password: '', phoneNumber: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    const username = form.username.trim();
+    const email = form.email.trim();
+    const phoneNumber = form.phoneNumber.trim();
+    if (!username || !email || !form.password || !phoneNumber) {
+      setError('Username, email, password, and phone number are required.');
+      return;
+    }
+    try {
+      setSaving(true);
+      await createFranchiseAdmin({ username, email, password: form.password, phoneNumber });
+      try {
+        await getAvailableFranchiseAdmins();
+      } catch {
+        // The create succeeded; the destination page will retry the available-admins request.
+      }
+      setSuccess('Franchise Admin created successfully. Opening franchise assignment...');
+      window.setTimeout(() => navigate('/admin/franchise/create'), 700);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Unable to create Franchise Admin.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <AdminShell title="Enterprise admin" subtitle="Add Franchise Admin" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Add Franchise Admin' }]} activePath="/admin/franchise">
+    <form onSubmit={submit}><Card className="p-6"><div className="grid gap-4 md:grid-cols-2"><label className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">Username</span><input value={form.username} onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))} required autoComplete="username" className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400" /></label><label className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">Email</span><input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required autoComplete="email" className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400" /></label><label className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">Password</span><input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} required autoComplete="new-password" className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400" /></label><label className="space-y-2 text-sm text-slate-300"><span className="font-medium text-white">Phone Number</span><input type="tel" value={form.phoneNumber} onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))} required autoComplete="tel" className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-white outline-none focus:border-blue-400" /></label></div>{error ? <p role="alert" className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-200">{error}</p> : null}{success ? <p role="status" className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-200">{success}</p> : null}<div className="mt-6 flex flex-wrap justify-end gap-3"><SecondaryButton type="button" onClick={() => navigate('/admin/franchise')} disabled={saving}>Cancel</SecondaryButton><PrimaryButton type="submit" disabled={saving} icon={<Users className="h-4 w-4" />}>{saving ? 'Creating...' : 'Create Franchise Admin'}</PrimaryButton></div></Card></form>
+  </AdminShell>;
+}
 export function FranchiseVendorsPage() { return <AdminShell title="Enterprise admin" subtitle="Franchise vendors" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise' }, { label: 'Vendors' }]} activePath="/admin/franchise"><EmptyState title="Franchise vendor data unavailable" description="The franchise vendor API is not currently available." /></AdminShell>; }
 export function FranchiseOrdersPage() { return <AdminShell title="Enterprise admin" subtitle="Franchise orders" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise' }, { label: 'Orders' }]} activePath="/admin/franchise"><EmptyState title="Franchise order data unavailable" description="The franchise order API is not currently available." /></AdminShell>; }
 export function FranchisePerformancePage() { return <AdminShell title="Enterprise admin" subtitle="Franchise performance" breadcrumbs={[{ label: 'Admin' }, { label: 'Franchise', to: '/admin/franchise' }, { label: 'Performance' }]} activePath="/admin/franchise" actions={<PrimaryButton icon={<TrendingUp className="h-4 w-4" />}>View report</PrimaryButton>}><Card className="p-6"><div className="space-y-3 text-sm text-slate-300"><p>Revenue this month: ₹86.3L</p><p>Order conversion: 21.4%</p><p>Customer retention: 72%</p></div></Card></AdminShell>; }

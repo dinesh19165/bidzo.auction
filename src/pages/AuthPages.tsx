@@ -37,11 +37,13 @@ import { useThemeContext } from '../context/ThemeContext';
 import { getOtpDeliveryPreference, normalizeOtpDeliveryChannel, type OtpDeliveryChannel } from '../api/adminSettingsApi';
 import {
   forgotPassword,
+  getStoredResetToken,
   getStoredVendorProfileId,
   resendRegistrationOtp,
   resetPassword,
   resolveVendorProfileId,
   setStoredVendorProfileId,
+  validatePasswordRules,
   verifyRegistrationOtp,
   verifyResetOtp,
 } from '../api/authApi';
@@ -332,7 +334,7 @@ export function LoginPage() {
               Sign in to continue to your account
             </p>
 
-            <div className="mt-5 space-y-5">
+            <div className="mt-4 space-y-3">
               <div className={`rounded-xl border p-4 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
                 <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>{roleHeading}</p>
               </div>
@@ -352,7 +354,7 @@ export function LoginPage() {
                     placeholder="Email address or 10-digit phone"
                   />
                 </div>
-                {touched.identifier && errors.identifier ? <FieldError message={errors.identifier} /> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use your registered Bidzo account details.</p>}
+                {touched.identifier && errors.identifier ? <FieldError message={errors.identifier} /> : <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use your registered Bidzo account details.</p>}
               </label>
 
               <label className="block">
@@ -374,17 +376,15 @@ export function LoginPage() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                {touched.password && errors.password ? <FieldError message={errors.password} /> : <p className={`mt-2 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use the password from your latest Bidzo account setup.</p>}
-              </label>
-
-              <label className={`flex items-center gap-2 text-sm transition ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
-                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className={`h-4 w-4 rounded border ${theme === 'dark' ? 'border-white/20 bg-slate-950 text-blue-500' : 'border-slate-400 bg-white text-blue-600'}`} />
-                <span>Remember me</span>
+                {touched.password && errors.password ? <FieldError message={errors.password} /> : <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use the password from your latest Bidzo account setup.</p>}
               </label>
 
               <div className={`flex items-center justify-between gap-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>
+                <label className={`flex min-h-6 items-center gap-2 transition ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className={`h-4 w-4 min-h-0 shrink-0 rounded border ${theme === 'dark' ? 'border-white/20 bg-slate-950 text-blue-500' : 'border-slate-400 bg-white text-blue-600'}`} />
+                  <span>Remember me</span>
+                </label>
                 <Link to="/forgot-password" className={`transition ${theme === 'dark' ? 'hover:text-white' : 'text-slate-900 hover:text-slate-700'}`}>Forgot password?</Link>
-                <span className="hidden sm:block" />
               </div>
 
               <p className={`text-center text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Don't have an account? <Link to={selectedRole === 'vendor' ? '/register/vendor' : '/register/customer'} className={`font-semibold transition ${theme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-600 hover:text-cyan-700'}`}>Create an account</Link></p>
@@ -719,7 +719,7 @@ export function OTPPage() {
   const phone = state.phone || state.registrationData?.phone || '';
   const flow = state.flow || 'registration';
   const [otp, setOtp] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(600);
+  const [secondsLeft, setSecondsLeft] = useState(flow === 'reset' ? 180 : 600);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState('');
@@ -727,6 +727,7 @@ export function OTPPage() {
   const [otpChannel, setOtpChannel] = useState<OtpDeliveryChannel>('EMAIL');
   const [channelLoaded, setChannelLoaded] = useState(false);
   const [resendNotice, setResendNotice] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(flow === 'reset' ? 30 : 0);
 
   useEffect(() => {
     if (flow !== 'registration') {
@@ -778,6 +779,12 @@ export function OTPPage() {
     return () => window.clearInterval(timer);
   }, [secondsLeft]);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined;
+    const timer = window.setInterval(() => setResendCooldown((current) => Math.max(0, current - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
+
   const submit = async () => {
     if (isSubmitting) return;
     if (flow !== 'reset' && otpChannel === 'SMS' && !phone) { setError('Your phone number is missing. Please start again.'); return; }
@@ -789,8 +796,8 @@ export function OTPPage() {
     setResendNotice('');
     try {
       if (flow === 'reset') {
-        await verifyResetOtp({ email, otp });
-        navigate('/reset-password', { replace: true, state: { email, otp } });
+        const resetToken = await verifyResetOtp({ email, otp });
+        navigate('/reset-password', { replace: true, state: { email, otp, resetToken: resetToken ?? getStoredResetToken() } });
       } else {
         setMessage('Creating your account...');
         await verifyRegistrationOtp({
@@ -829,6 +836,7 @@ export function OTPPage() {
     try {
       if (flow === 'reset') {
         await forgotPassword(email);
+        setResendCooldown(30);
         setMessage(`A new password reset OTP has been sent to ${email}.`);
       } else {
         const payload = {
@@ -842,7 +850,7 @@ export function OTPPage() {
         setResendNotice(successMessage);
         setMessage(`A verification OTP has been sent to ${deliveryValue}.`);
       }
-      setOtp(''); setSecondsLeft(600);
+      setOtp(''); setSecondsLeft(flow === 'reset' ? 180 : 600);
     } catch (reason: unknown) {
       setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again."));
     } finally {
@@ -877,6 +885,7 @@ export function OTPPage() {
           {Array.from({ length: 6 }).map((_, index) => <input key={index} ref={(element) => { otpRefs.current[index] = element; }} aria-label={`OTP digit ${index + 1}`} inputMode="numeric" maxLength={1} autoComplete={index === 0 ? 'one-time-code' : 'off'} value={otp[index] || ''} onChange={(event) => updateOtpDigit(index, event.target.value)} onKeyDown={(event) => { if (event.key === 'Backspace' && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus(); }} className="h-12 w-10 rounded-xl border border-blue-400/20 bg-slate-950/60 text-center text-xl font-semibold text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-400/20 sm:h-14 sm:w-12" />)}
         </div>
         <p className={`mt-3 text-sm ${secondsLeft ? 'text-slate-400' : 'text-red-400'}`}>{secondsLeft ? `OTP expires in ${minutes}:${seconds}` : 'This OTP has expired.'}</p>
+        {flow === 'reset' && resendCooldown > 0 ? <p className="mt-2 text-sm text-slate-400">Resend available in {resendCooldown}s</p> : null}
         <div className={`mt-6 rounded-2xl border p-4 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
           A one-time code keeps your account protected while we verify your identity.
         </div>
@@ -884,8 +893,8 @@ export function OTPPage() {
           <button onClick={submit} disabled={isSubmitting || isResending || secondsLeft === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
             {isSubmitting ? <><LoaderCircle className="h-4 w-4 animate-spin" /> {flow === 'reset' ? 'Verifying…' : 'Creating account…'}</> : flow === 'reset' ? 'Verify OTP' : 'Verify account'}
           </button>
-          <button onClick={resend} disabled={isSubmitting || isResending} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
-            {isResending ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : 'Resend OTP'}
+          <button onClick={resend} disabled={isSubmitting || isResending || (flow === 'reset' && resendCooldown > 0)} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
+            {isResending ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Sending OTP…</> : flow === 'reset' && resendCooldown > 0 ? `Resend OTP (${resendCooldown}s)` : 'Resend OTP'}
           </button>
         </div>
       </div>
@@ -899,13 +908,30 @@ export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
   const submit = async () => {
-    if (!email.trim()) { setError('Enter your registered email.'); return; }
-    setIsSubmitting(true); setError('');
-    try { await forgotPassword(email.trim()); navigate('/otp', { replace: true, state: { email: email.trim(), flow: 'reset' } }); }
-    catch (reason: unknown) { setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again.")); }
-    finally { setIsSubmitting(false); }
+    if (!email.trim()) {
+      setError('Enter your registered email.');
+      setSuccessMessage('');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      await forgotPassword(email.trim());
+      setSuccessMessage('A reset OTP has been sent to your email.');
+      navigate('/otp', { replace: true, state: { email: email.trim(), flow: 'reset' } });
+    } catch (reason: unknown) {
+      setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again."));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
   return (
     <SectionShell title="Forgot password" subtitle="Reset access securely">
       <div className={`mx-auto max-w-xl rounded-[24px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
@@ -914,10 +940,11 @@ export function ForgotPasswordPage() {
         </div>
         <div className={`mt-4 flex items-center gap-3 rounded-2xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-100'}`}>
           <Mail className="h-4 w-4 text-blue-300" />
-          <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} className={`w-full bg-transparent text-sm outline-none placeholder:text-slate-500 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} placeholder="Registered email" />
+          <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); setSuccessMessage(''); }} className={`w-full bg-transparent text-sm outline-none placeholder:text-slate-500 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} placeholder="Registered email" />
         </div>
         <div className={`mt-4 grid gap-2 text-xs sm:grid-cols-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{['Enter email', 'Receive OTP', 'Verify OTP', 'New password', 'Sign in'].map((step, index) => <div key={step} className="rounded-xl border border-white/10 px-2 py-2 text-center"><span className="mr-1 font-semibold text-cyan-300">{index + 1}</span>{step}</div>)}</div>
         {error ? <p className="mt-3 text-sm text-amber-300">{error}</p> : null}
+        {successMessage ? <p className="mt-3 text-sm text-emerald-300">{successMessage}</p> : null}
         <div className={`mt-4 rounded-2xl border p-4 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
           We’ll send a one-time code to your registered email so you can securely restore access.
         </div>
@@ -931,20 +958,57 @@ export function ResetPasswordPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme } = useThemeContext();
-  const state = (location.state || {}) as { email?: string; otp?: string };
+  const state = (location.state || {}) as { email?: string; otp?: string; resetToken?: string };
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [passwordHints, setPasswordHints] = useState<string[]>([]);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    if (!state.email || !state.otp) {
+      const storedToken = getStoredResetToken();
+      if (!storedToken) {
+        setError('Verify your password reset OTP first.');
+      }
+    }
+  }, [state.email, state.otp]);
+
   const submit = async () => {
-    if (!state.email || !state.otp) { setError('Verify your password reset OTP first.'); return; }
-    if (!password) { setError('Enter a new password.'); return; }
-    if (password !== confirmPassword) { setError('Passwords do not match.'); return; }
-    setIsSubmitting(true); setError('');
-    try { await resetPassword({ email: state.email, otp: state.otp, newPassword: password }); navigate('/login', { replace: true, state: { message: 'Password reset successfully. Please sign in.' } }); }
-    catch (reason: unknown) { setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again.")); }
-    finally { setIsSubmitting(false); }
+    if (!state.email || !state.otp) {
+      setError('Verify your password reset OTP first.');
+      return;
+    }
+    const rules = validatePasswordRules(password);
+    setPasswordHints(rules);
+    if (rules.length > 0) {
+      setError('Choose a stronger password.');
+      return;
+    }
+    if (!password) {
+      setError('Enter a new password.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setIsSubmitting(true);
+    setError('');
+    setSuccessMessage('');
+    try {
+      const resetToken = state.resetToken ?? getStoredResetToken();
+      await resetPassword({ email: state.email, otp: state.otp, newPassword: password, resetToken });
+      setSuccessMessage('Password reset successful. Redirecting to login…');
+      navigate('/login', { replace: true, state: { message: 'Password reset successfully. Please sign in.' } });
+    } catch (reason: unknown) {
+      setError(friendlyAuthError(reason, "We couldn't complete your request right now. Please try again."));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
   return (
     <SectionShell title="Reset password" subtitle="Create a new password">
       <div className={`mx-auto max-w-xl rounded-[24px] border p-4 sm:p-8 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
@@ -954,17 +1018,23 @@ export function ResetPasswordPage() {
         <div className="mt-4 space-y-4">
           <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-100'}`}>
             <Lock className="h-4 w-4 text-slate-400" />
-            <input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} className={`w-full bg-transparent text-sm outline-none placeholder:text-slate-500 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} placeholder="New password" />
+            <input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); setPasswordHints(validatePasswordRules(event.target.value)); }} className={`w-full bg-transparent text-sm outline-none placeholder:text-slate-500 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} placeholder="New password" />
           </div>
           <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${theme === 'dark' ? 'border-white/10 bg-slate-950/60' : 'border-slate-300 bg-slate-100'}`}>
             <Lock className="h-4 w-4 text-slate-400" />
             <input type="password" value={confirmPassword} onChange={(event) => { setConfirmPassword(event.target.value); setError(''); }} className={`w-full bg-transparent text-sm outline-none placeholder:text-slate-500 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} placeholder="Confirm password" />
           </div>
         </div>
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+        {passwordHints.length > 0 ? (
+          <ul className="mt-3 space-y-1 text-sm text-amber-300">
+            {passwordHints.map((hint) => <li key={hint}>• {hint}</li>)}
+          </ul>
+        ) : null}
+        <div className={`mt-4 rounded-2xl border p-4 text-sm ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
           Use a strong password with letters, numbers, and special characters for better protection.
         </div>
         {error ? <p className="mt-3 text-sm text-amber-300">{error}</p> : null}
+        {successMessage ? <p className="mt-3 text-sm text-emerald-300">{successMessage}</p> : null}
         <button onClick={submit} disabled={isSubmitting} className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60 sm:w-auto">{isSubmitting ? 'Updating…' : 'Update password'}</button>
       </div>
     </SectionShell>

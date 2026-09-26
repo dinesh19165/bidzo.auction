@@ -164,7 +164,94 @@ export interface ResendRegistrationOtpRequest {
   channel: 'EMAIL' | 'SMS';
 }
 
-async function postAuthAction(path: string, payload: object, fallbackMessage: string): Promise<void> {
+export const RESET_TOKEN_STORAGE_KEY = 'bidzo_reset_token';
+export const RESET_EMAIL_STORAGE_KEY = 'bidzo_reset_email';
+
+export function setStoredResetToken(token: string | null | undefined): void {
+  if (!token || !token.trim()) {
+    sessionStorage.removeItem(RESET_TOKEN_STORAGE_KEY);
+    return;
+  }
+
+  sessionStorage.setItem(RESET_TOKEN_STORAGE_KEY, token.trim());
+}
+
+export function getStoredResetToken(): string | undefined {
+  const token = sessionStorage.getItem(RESET_TOKEN_STORAGE_KEY);
+  return token && token.trim() ? token.trim() : undefined;
+}
+
+export function clearStoredResetToken(): void {
+  sessionStorage.removeItem(RESET_TOKEN_STORAGE_KEY);
+  sessionStorage.removeItem(RESET_EMAIL_STORAGE_KEY);
+}
+
+export function resolveResetTokenValue(payload: unknown): string | undefined {
+  const entry = payload as Record<string, unknown> | undefined;
+  if (!entry) {
+    return undefined;
+  }
+
+  const candidates: unknown[] = [
+    entry.resetToken,
+    entry.token,
+    entry.accessToken,
+    entry.jwt,
+    entry.authToken,
+    (entry.data as Record<string, unknown> | undefined)?.resetToken,
+    (entry.data as Record<string, unknown> | undefined)?.token,
+    (entry.data as Record<string, unknown> | undefined)?.accessToken,
+    (entry.data as Record<string, unknown> | undefined)?.jwt,
+    (entry.data as Record<string, unknown> | undefined)?.authToken,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return undefined;
+}
+
+export function extractRetryDelaySeconds(message: string): number | undefined {
+  const normalized = message.toLowerCase();
+  const explicit = normalized.match(/(\d+)\s*(second|seconds|minute|minutes|min|mins)/i);
+  if (explicit) {
+    const amount = Number.parseInt(explicit[1], 10);
+    const unit = explicit[2].toLowerCase();
+    if (!Number.isNaN(amount)) {
+      return unit.startsWith('min') ? amount * 60 : amount;
+    }
+  }
+  if (normalized.includes('retry after') || normalized.includes('please wait') || normalized.includes('wait a moment') || normalized.includes('too many requests')) {
+    const fallback = normalized.match(/(\d+)/);
+    if (fallback) {
+      return Number.parseInt(fallback[1], 10);
+    }
+    return 30;
+  }
+  return undefined;
+}
+
+export function validatePasswordRules(password: string): string[] {
+  const nextErrors: string[] = [];
+  if (password.length < 8) {
+    nextErrors.push('Use at least 8 characters.');
+  }
+  if (!/[A-Z]/.test(password)) {
+    nextErrors.push('Include at least one uppercase letter.');
+  }
+  if (!/[0-9]/.test(password)) {
+    nextErrors.push('Include at least one number.');
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password)) {
+    nextErrors.push('Include at least one special character.');
+  }
+  return nextErrors;
+}
+
+async function postAuthAction(path: string, payload: object, fallbackMessage: string): Promise<ApiResponse<unknown> | null> {
   const response = await fetchJson<ApiResponse<unknown> | null>(path, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -172,26 +259,53 @@ async function postAuthAction(path: string, payload: object, fallbackMessage: st
   if (response?.success === false) {
     throw new Error(response.message || fallbackMessage);
   }
+  return response;
 }
 
 export function verifyRegistrationOtp(payload: OtpRequest): Promise<void> {
-  return postAuthAction('/auth/verify-registration-otp', payload, 'Invalid or expired verification OTP.');
+  return postAuthAction('/auth/verify-registration-otp', payload, 'Invalid or expired verification OTP.').then(() => undefined);
 }
 
 export function resendRegistrationOtp(payload: ResendRegistrationOtpRequest): Promise<void> {
-  return postAuthAction('/auth/resend-registration-otp', payload, 'Unable to resend the verification OTP.');
+  return postAuthAction('/auth/resend-registration-otp', payload, 'Unable to resend the verification OTP.').then(() => undefined);
 }
 
-export function forgotPassword(email: string): Promise<void> {
-  return postAuthAction('/auth/forgot-password', { email }, 'Unable to send the password reset OTP.');
+export async function forgotPassword(email: string): Promise<string | undefined> {
+  const response = await postAuthAction('/auth/forgot-password', { email }, 'Unable to send the password reset OTP.');
+  const resetToken = response ? resolveResetTokenValue(response) : undefined;
+  if (resetToken) {
+    setStoredResetToken(resetToken);
+  }
+  return resetToken;
 }
 
-export function verifyResetOtp(payload: OtpRequest): Promise<void> {
-  return postAuthAction('/auth/verify-reset-otp', payload, 'Invalid or expired password reset OTP.');
+export async function verifyResetOtp(payload: OtpRequest): Promise<string | undefined> {
+  const response = await postAuthAction('/auth/verify-reset-otp', payload, 'Invalid or expired password reset OTP.');
+  const resetToken = response ? resolveResetTokenValue(response) : undefined;
+  if (resetToken) {
+    setStoredResetToken(resetToken);
+  }
+  return resetToken;
 }
 
-export function resetPassword(payload: OtpRequest & { newPassword: string }): Promise<void> {
-  return postAuthAction('/auth/reset-password', payload, 'Unable to reset your password.');
+export async function resetPassword(payload: OtpRequest & { newPassword: string; resetToken?: string }): Promise<void> {
+  const resetToken = payload.resetToken ?? getStoredResetToken();
+  const requestBody = {
+    ...payload,
+    ...(resetToken ? { resetToken, token: resetToken } : {}),
+  };
+
+  const response = await postAuthAction('/auth/reset-password', requestBody, 'Unable to reset your password.');
+  if (response) {
+    const nextToken = resolveResetTokenValue(response);
+    if (nextToken) {
+      setStoredResetToken(nextToken);
+    } else {
+      clearStoredResetToken();
+    }
+  } else {
+    clearStoredResetToken();
+  }
 }
 
 export async function login(payload: AuthLoginDto): Promise<AuthLoginResponse> {
