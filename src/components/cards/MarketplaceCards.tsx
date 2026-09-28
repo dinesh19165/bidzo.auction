@@ -525,7 +525,7 @@ export function ReviewCard({
   const formattedDate = createdAt ? new Date(createdAt).toLocaleDateString() : null;
 
   return (
-    <article className="homepage-theme-card flex h-full min-w-0 w-full flex-col rounded-xl border p-4 transition duration-300 hover:-translate-y-0.5 hover:border-sky-300 sm:p-5">
+    <article className="homepage-theme-card flex h-full min-h-0 min-w-0 w-full flex-col rounded-xl border p-3 transition duration-300 hover:-translate-y-0.5 hover:border-sky-300 sm:p-4">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{author}</p>
@@ -534,13 +534,13 @@ export function ReviewCard({
         {imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200" /> : null}
       </div>
 
-      {formattedDate ? <p className="homepage-theme-subtle-text mt-2 text-xs">{formattedDate}</p> : null}
-      {title ? <p className="mt-3 break-words text-sm font-semibold leading-5">{title}</p> : null}
-      {quote ? <p className="mt-3 break-words text-sm leading-6">“{quote}”</p> : null}
+      {formattedDate ? <p className="homepage-theme-subtle-text mt-1.5 text-xs">{formattedDate}</p> : null}
+      {title ? <p className="mt-2 break-words text-sm font-semibold leading-5">{title}</p> : null}
+      {quote ? <p className="mt-2 break-words text-sm leading-5">“{quote}”</p> : null}
 
       {(productName || productImageUrl) ? (
-        <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-slate-100 pt-3">
-          {productImageUrl ? <img src={productImageUrl} alt={productName || 'Product'} className="h-9 w-9 shrink-0 rounded-lg object-cover" /> : null}
+        <div className="mt-3 flex min-w-0 items-center gap-2 border-t border-slate-100 pt-2">
+          {productImageUrl ? <img src={productImageUrl} alt={productName || 'Product'} className="h-8 w-8 shrink-0 rounded-lg object-cover" /> : null}
           <p className="min-w-0 truncate text-xs font-medium">{productName || 'Product review'}</p>
         </div>
       ) : null}

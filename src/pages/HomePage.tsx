@@ -77,26 +77,6 @@ function sellerName(value: ProductResponse | AuctionResponse): string {
 
 function TestimonialsCarousel({ testimonials }: { testimonials: HomeTestimonial[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return undefined;
-    const updateActiveIndex = () => {
-      const firstCard = track.firstElementChild as HTMLElement | null;
-      if (!firstCard) return;
-      const gap = Number.parseFloat(getComputedStyle(track).columnGap || '0');
-      const step = firstCard.offsetWidth + gap;
-      if (step > 0) setActiveIndex(Math.max(0, Math.round(track.scrollLeft / step)));
-    };
-    track.addEventListener('scroll', updateActiveIndex, { passive: true });
-    window.addEventListener('resize', updateActiveIndex);
-    updateActiveIndex();
-    return () => {
-      track.removeEventListener('scroll', updateActiveIndex);
-      window.removeEventListener('resize', updateActiveIndex);
-    };
-  }, [testimonials.length]);
 
   const scrollByCard = (direction: -1 | 1) => {
     const track = trackRef.current;
@@ -105,8 +85,6 @@ function TestimonialsCarousel({ testimonials }: { testimonials: HomeTestimonial[
     const gap = Number.parseFloat(getComputedStyle(track).columnGap || '0');
     track.scrollBy({ left: direction * (firstCard.offsetWidth + gap), behavior: 'smooth' });
   };
-
-  const pageCount = Math.max(1, testimonials.length);
 
   return (
     <section aria-labelledby="customer-testimonials-heading" className="homepage-theme-section mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -134,19 +112,10 @@ function TestimonialsCarousel({ testimonials }: { testimonials: HomeTestimonial[
         ))}
       </div>
       {testimonials.length > 1 ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3" aria-label="Testimonial navigation">
+        <div className="mt-2 flex items-center" aria-label="Testimonial navigation">
           <div className="flex gap-2">
             <button type="button" aria-label="Previous testimonial" onClick={() => scrollByCard(-1)} className="homepage-theme-control inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition hover:border-sky-300 hover:text-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-300"><ChevronLeft className="h-4 w-4" /></button>
             <button type="button" aria-label="Next testimonial" onClick={() => scrollByCard(1)} className="homepage-theme-control inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition hover:border-sky-300 hover:text-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-300"><ChevronRight className="h-4 w-4" /></button>
-          </div>
-          <div className="flex justify-center gap-1.5" aria-label="Testimonial slides">
-            {Array.from({ length: pageCount }, (_, index) => (
-              <button key={index} type="button" aria-label={`Go to testimonial ${index + 1}`} aria-current={activeIndex === index ? 'true' : undefined} onClick={() => {
-                const track = trackRef.current;
-                const card = track?.children[index] as HTMLElement | undefined;
-                card?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-              }} className={`h-1.5 rounded-full transition-all ${activeIndex === index ? 'w-5 bg-sky-500' : 'w-1.5 bg-slate-300 hover:bg-slate-400'}`} />
-            ))}
           </div>
         </div>
       ) : null}
