@@ -334,17 +334,17 @@ export function LoginPage() {
               Sign in to continue to your account
             </p>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-2.5">
               <div className={`rounded-xl border p-4 ${theme === 'dark' ? 'border-cyan-400/20 bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50'}`}>
                 <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-950'}`}>{roleHeading}</p>
               </div>
               {notice ? <p className="text-sm text-emerald-300">{notice}</p> : null}
               <label className="block">
-                <span className={`mb-2 flex items-center gap-2 text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-900'}`}>
+                <span className={`mb-1.5 flex items-center gap-2 text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-900'}`}>
                   <Mail className={`h-4 w-4 ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-700'}`} />
                   Email or phone number
                 </span>
-                <div className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 py-3 transition duration-200 ${touched.identifier && errors.identifier ? (theme === 'dark' ? 'border-amber-400/60 bg-amber-500/10' : 'border-amber-400 bg-amber-50') : (theme === 'dark' ? 'border-white/10 bg-slate-900/80 hover:border-cyan-400/30 focus-within:border-blue-400 focus-within:bg-slate-900 focus-within:ring-2 focus-within:ring-blue-400/15' : 'border-slate-300 bg-white hover:border-slate-400 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/15')}`}>
+                <div className={`flex min-h-11 items-center gap-3 rounded-xl border px-4 py-2.5 transition duration-200 ${touched.identifier && errors.identifier ? (theme === 'dark' ? 'border-amber-400/60 bg-amber-500/10' : 'border-amber-400 bg-amber-50') : (theme === 'dark' ? 'border-white/10 bg-slate-900/80 hover:border-cyan-400/30 focus-within:border-blue-400 focus-within:bg-slate-900 focus-within:ring-2 focus-within:ring-blue-400/15' : 'border-slate-300 bg-white hover:border-slate-400 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/15')}`}>
                   <Mail className={`h-5 w-5 shrink-0 ${theme === 'dark' ? 'text-cyan-300' : 'text-blue-600'}`} />
                   <input
                     value={identifier}
@@ -354,15 +354,15 @@ export function LoginPage() {
                     placeholder="Email address or 10-digit phone"
                   />
                 </div>
-                {touched.identifier && errors.identifier ? <FieldError message={errors.identifier} /> : <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use your registered Bidzo account details.</p>}
+                {touched.identifier && errors.identifier ? <FieldError message={errors.identifier} /> : <p className={`mt-0.5 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use your registered Bidzo account details.</p>}
               </label>
 
               <label className="block">
-                <span className={`mb-2 flex items-center gap-2 text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-900'}`}>
+                <span className={`mb-1.5 flex items-center gap-2 text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-900'}`}>
                   <Lock className={`h-4 w-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
                   Password
                 </span>
-                <div className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 py-3 transition duration-200 ${touched.password && errors.password ? (theme === 'dark' ? 'border-amber-400/60 bg-amber-500/10' : 'border-amber-400 bg-amber-50') : (theme === 'dark' ? 'border-white/10 bg-slate-900/80 hover:border-cyan-400/30 focus-within:border-blue-400 focus-within:bg-slate-900 focus-within:ring-2 focus-within:ring-blue-400/15' : 'border-slate-300 bg-white hover:border-slate-400 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/15')}`}>
+                <div className={`flex min-h-11 items-center gap-3 rounded-xl border px-4 py-2.5 transition duration-200 ${touched.password && errors.password ? (theme === 'dark' ? 'border-amber-400/60 bg-amber-500/10' : 'border-amber-400 bg-amber-50') : (theme === 'dark' ? 'border-white/10 bg-slate-900/80 hover:border-cyan-400/30 focus-within:border-blue-400 focus-within:bg-slate-900 focus-within:ring-2 focus-within:ring-blue-400/15' : 'border-slate-300 bg-white hover:border-slate-400 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/15')}`}>
                   <Lock className={`h-5 w-5 shrink-0 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-500'}`} />
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -372,19 +372,24 @@ export function LoginPage() {
                     className={`w-full bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
                     placeholder="Enter your password"
                   />
-                  <button type="button" onClick={() => setShowPassword((prev) => !prev)} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition focus:outline-none focus:ring-2 focus:ring-blue-400/50 ${theme === 'dark' ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                  <button type="button" onClick={() => setShowPassword((prev) => !prev)} className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus:outline-none focus:ring-2 focus:ring-blue-400/50 ${theme === 'dark' ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`} aria-label={showPassword ? 'Hide password' : 'Show password'}>
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                {touched.password && errors.password ? <FieldError message={errors.password} /> : <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use the password from your latest Bidzo account setup.</p>}
+                {touched.password && errors.password ? <FieldError message={errors.password} /> : <p className={`mt-0.5 text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Use the password from your latest Bidzo account setup.</p>}
               </label>
 
               <div className={`flex items-center justify-between gap-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>
-                <label className={`flex min-h-6 items-center gap-2 transition ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
-                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className={`h-4 w-4 min-h-0 shrink-0 rounded border ${theme === 'dark' ? 'border-white/20 bg-slate-950 text-blue-500' : 'border-slate-400 bg-white text-blue-600'}`} />
-                  <span>Remember me</span>
+                <label className={`flex items-center gap-2 text-sm transition ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className={`h-[18px] w-[18px] min-h-0 min-w-0 shrink-0 rounded border ${theme === 'dark' ? 'border-white/20 bg-slate-950 accent-slate-400' : 'border-slate-400 bg-white accent-slate-600'}`}
+                  />
+                  <span className="whitespace-nowrap">Remember me</span>
                 </label>
-                <Link to="/forgot-password" className={`transition ${theme === 'dark' ? 'hover:text-white' : 'text-slate-900 hover:text-slate-700'}`}>Forgot password?</Link>
+                <Link to="/forgot-password" className={`whitespace-nowrap transition ${theme === 'dark' ? 'hover:text-white' : 'text-slate-900 hover:text-slate-700'}`}>Forgot password?</Link>
               </div>
 
               <p className={`text-center text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Don't have an account? <Link to={selectedRole === 'vendor' ? '/register/vendor' : '/register/customer'} className={`font-semibold transition ${theme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-600 hover:text-cyan-700'}`}>Create an account</Link></p>
@@ -392,7 +397,7 @@ export function LoginPage() {
               <button
                 onClick={handleLogin}
                 disabled={isSubmitting}
-                className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_35px_rgba(59,130,246,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(59,130,246,0.35)] disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_35px_rgba(59,130,246,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(59,130,246,0.35)] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting ? 'Signing in…' : 'Sign in'} <ArrowRight className="h-4 w-4" />
               </button>

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Gavel, Heart, Sparkles } from 'lucide-react';
 import { getPortalHome, useAuth } from '../context/AuthContext';
 import { useLocaleContext } from '../context/LocaleContext';
+import { getCategoryPromotionAdvertisements, getHomeBannerAdvertisements, getProductPromotionAdvertisements, type PublicAdvertisementResponse } from '../api/advertisementApi';
 import { getHomeData, getHomeDeals, type AuctionResponse, type CategoryResponse, type HomeBannerResponse, type HomeDataResponse, type HomeDealResponse, type HomeReviewResponse, type ProductResponse } from '../api/homeApi';
 import { getPublicPromotionalBanners, type PromotionalBanner } from '../api/promotionalBannerApi';
 import { getAuctions, type AuctionListItem } from '../api/auctionApi';
@@ -11,7 +12,6 @@ import { API_BASE_URL } from '../api/apiClient';
 import { ProductCard, ReviewCard } from '../components/cards/MarketplaceCards';
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
 import { filterEndingSoonHomeAuctions, filterHomeAuctions, type HomeAuctionStatus } from '../utils/homeAuctions';
-import { demoDirectBuyPromotions, demoLiveAuctionPromotions, type HomePromotion } from '../data/homePromotions';
 import { useWishlist } from '../context/WishlistContext';
 import { showToast } from '../components/ui/toast';
 import { StockBadge } from '../components/common/StockBadge';
@@ -171,6 +171,21 @@ function PromotionCarousel({ title, eyebrow, items, kind }: { title: string; eye
   return <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8"><div className="mb-5 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">{eyebrow}</p><h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2></div><Link to={isAuction ? '/auctions' : '/marketplace'} className="text-sm font-semibold text-sky-300">View all</Link></div><div className="relative min-h-[300px] overflow-hidden rounded-[28px] border border-white/10 bg-slate-900 shadow-xl sm:min-h-[360px] lg:min-h-[420px]"><img src={imageUrl(promotion.imageUrl || item.imageUrl || item.image)} alt="" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/75 to-slate-950/10" /><div className="relative flex min-h-[300px] items-end p-6 sm:min-h-[360px] sm:p-10 lg:min-h-[420px] lg:p-14"><div className="max-w-xl"><span className="inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">{isAuction ? 'Live auction' : 'Direct Buy'}</span><h3 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">{text(promotion.title || itemTitle, itemTitle)}</h3><p className="mt-4 text-base leading-7 text-slate-300">{text(promotion.subtitle || item.description, isAuction ? 'Bid now on a verified live auction.' : 'Shop this promoted direct-buy listing.')}</p><Link to={href} className="mt-6 inline-flex rounded-full bg-orange-500 px-5 py-3 text-sm font-semibold text-white">{isAuction ? 'Watch auction' : 'Shop now'}</Link></div></div>{items.length > 1 ? <><button type="button" aria-label="Previous promotion" onClick={() => setActiveIndex((current) => (current - 1 + items.length) % items.length)} className="absolute left-4 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/70 text-white"><ChevronLeft className="h-5 w-5" /></button><button type="button" aria-label="Next promotion" onClick={() => setActiveIndex((current) => (current + 1) % items.length)} className="absolute right-4 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/70 text-white"><ChevronRight className="h-5 w-5" /></button><div className="absolute bottom-5 right-6 flex gap-2">{items.map((entry, index) => <button key={entry.id} type="button" aria-label={`Show promotion ${index + 1}`} onClick={() => setActiveIndex(index)} className={`h-2 rounded-full ${index === activeIndex ? 'w-6 bg-white' : 'w-2 bg-white/40'}`} />)}</div></> : null}</div></section>;
 }
 
+type HomePromotion = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  description: string;
+  eyebrow: string;
+  priceLabel: string;
+  ctaLabel: string;
+  href: string;
+  currentBid?: string;
+  startingBid?: string;
+  remainingTime?: string;
+  offerText?: string;
+};
+
 function DemoPromotionCarousel({ items }: { items: HomePromotion[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -197,11 +212,13 @@ function DemoPromotionPanel({ title, items, kind }: { title: string; items: Home
 }
 
 function DemoPromotionGrid() {
-  return <section className="home-promotions-grid mx-auto grid w-full max-w-7xl gap-5 px-4 py-3 sm:px-6 lg:grid-cols-2 lg:px-8"><DemoPromotionPanel title="Live Auctions" items={demoLiveAuctionPromotions} kind="auction" /><DemoPromotionPanel title="Direct Buy" items={demoDirectBuyPromotions} kind="direct-buy" /></section>;
+  return null;
 }
 
-function CategoryPromotionBanner() {
+function CategoryPromotionBanner({ categoryIds, productIds }: { categoryIds: Array<CategoryResponse['id']>; productIds: Array<ProductResponse['id']> }) {
   const [banners, setBanners] = useState<PromotionalBanner[]>([]);
+  const [advertisements, setAdvertisements] = useState<PublicAdvertisementResponse[]>([]);
+  const [productAdvertisements, setProductAdvertisements] = useState<PublicAdvertisementResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(false);
   const railRef = useRef<HTMLDivElement>(null);
@@ -209,6 +226,7 @@ function CategoryPromotionBanner() {
   const animationFrameRef = useRef<number | null>(null);
   const previousTimestampRef = useRef<number | null>(null);
   const firstSetWidthRef = useRef(0);
+  const isHoveredRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -226,6 +244,68 @@ function CategoryPromotionBanner() {
   }, []);
 
   useEffect(() => {
+    const uniqueCategoryIds = [...new Set(categoryIds.map(String))];
+    if (uniqueCategoryIds.length === 0) {
+      setAdvertisements([]);
+      return undefined;
+    }
+
+    let active = true;
+    setAdvertisements([]);
+    const loadCategoryAdvertisements = async () => {
+      try {
+        const results = await Promise.all(uniqueCategoryIds.map((categoryId) => getCategoryPromotionAdvertisements(categoryId).catch(() => [])));
+        if (active) {
+          const unique = new Map<number, PublicAdvertisementResponse>();
+          results.flat().filter(isCategoryAdvertisement).forEach((advertisement) => unique.set(advertisement.id, advertisement));
+          setAdvertisements([...unique.values()]);
+        }
+      } catch {
+        if (active) setAdvertisements([]);
+      }
+    };
+
+    void loadCategoryAdvertisements();
+    const timer = window.setInterval(() => void loadCategoryAdvertisements(), 5 * 60 * 1000);
+    const refreshOnFocus = () => { if (document.visibilityState === 'visible') void loadCategoryAdvertisements(); };
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [categoryIds.map(String).sort().join(',')]);
+
+  useEffect(() => {
+    const uniqueProductIds = [...new Set(productIds.map(String))];
+    if (uniqueProductIds.length === 0) {
+      setProductAdvertisements([]);
+      return undefined;
+    }
+
+    let active = true;
+    setProductAdvertisements([]);
+    const loadProductAdvertisements = async () => {
+      const results = await Promise.all(uniqueProductIds.map((productId) => getProductPromotionAdvertisements(productId).catch(() => [])));
+      if (active) {
+        const unique = new Map<number, PublicAdvertisementResponse>();
+        results.flat().filter(isProductAdvertisement).forEach((advertisement) => unique.set(advertisement.id, advertisement));
+        setProductAdvertisements([...unique.values()]);
+      }
+    };
+
+    void loadProductAdvertisements();
+    const timer = window.setInterval(() => void loadProductAdvertisements(), 5 * 60 * 1000);
+    const refreshOnFocus = () => { if (document.visibilityState === 'visible') void loadProductAdvertisements(); };
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [productIds.map(String).sort().join(',')]);
+
+  useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const updatePreference = () => setReducedMotion(mediaQuery.matches);
     updatePreference();
@@ -234,14 +314,14 @@ function CategoryPromotionBanner() {
   }, []);
 
   useEffect(() => {
-    if (reducedMotion || banners.length < 2) return undefined;
+    if (reducedMotion || banners.length + advertisements.length + productAdvertisements.length < 2) return undefined;
     const rail = railRef.current;
     if (!rail) return undefined;
 
-    const speed = 35;
+    const cycleDurationSeconds = 40;
     const measureFirstSet = () => {
       const firstCard = rail.children[0] as HTMLElement | undefined;
-      const firstClone = rail.children[banners.length] as HTMLElement | undefined;
+      const firstClone = rail.children[rail.children.length / 2] as HTMLElement | undefined;
       firstSetWidthRef.current = firstCard && firstClone ? firstClone.offsetLeft - firstCard.offsetLeft : 0;
     };
     const pauseForInteraction = () => {
@@ -257,13 +337,21 @@ function CategoryPromotionBanner() {
     const resetTimestamp = () => {
       previousTimestampRef.current = performance.now();
     };
+    const pauseOnHover = () => {
+      isHoveredRef.current = true;
+    };
+    const resumeAfterHover = () => {
+      isHoveredRef.current = false;
+      previousTimestampRef.current = performance.now();
+    };
 
     const animate = (time: number) => {
       const previousTime = previousTimestampRef.current ?? time;
       const elapsed = Math.min(time - previousTime, 100);
       previousTimestampRef.current = time;
 
-      if (!document.hidden && !interactingRef.current && firstSetWidthRef.current > 0) {
+      if (!document.hidden && !interactingRef.current && !isHoveredRef.current && firstSetWidthRef.current > 0) {
+        const speed = firstSetWidthRef.current / cycleDurationSeconds;
         rail.scrollLeft += (speed * elapsed) / 1000;
         if (rail.scrollLeft >= firstSetWidthRef.current) rail.scrollLeft -= firstSetWidthRef.current;
       }
@@ -275,6 +363,8 @@ function CategoryPromotionBanner() {
     previousTimestampRef.current = null;
     rail.addEventListener('pointerdown', pauseForInteraction);
     rail.addEventListener('touchstart', pauseForInteraction, { passive: true });
+    rail.addEventListener('pointerenter', pauseOnHover);
+    rail.addEventListener('pointerleave', resumeAfterHover);
     window.addEventListener('pointerup', resumeAfterInteraction);
     window.addEventListener('pointercancel', resumeAfterInteraction);
     window.addEventListener('pointermove', resumeWhenPointerReleased);
@@ -291,6 +381,8 @@ function CategoryPromotionBanner() {
       previousTimestampRef.current = null;
       rail.removeEventListener('pointerdown', pauseForInteraction);
       rail.removeEventListener('touchstart', pauseForInteraction);
+      rail.removeEventListener('pointerenter', pauseOnHover);
+      rail.removeEventListener('pointerleave', resumeAfterHover);
       window.removeEventListener('pointerup', resumeAfterInteraction);
       window.removeEventListener('pointercancel', resumeAfterInteraction);
       window.removeEventListener('pointermove', resumeWhenPointerReleased);
@@ -300,24 +392,152 @@ function CategoryPromotionBanner() {
       window.removeEventListener('resize', measureFirstSet);
       document.removeEventListener('visibilitychange', resetTimestamp);
     };
-  }, [banners.length, reducedMotion]);
+  }, [banners.length, advertisements.length, productAdvertisements.length, reducedMotion]);
 
   if (loading) {
     return <section aria-label="Promotional banners" className="mx-auto w-full max-w-7xl min-w-0 px-4 py-3 sm:px-6 lg:px-8"><div className="flex min-w-0 gap-3 overflow-hidden">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-[200px] w-[min(82vw,360px)] shrink-0 animate-pulse rounded-2xl bg-white/10 sm:w-[300px] lg:w-[calc((100%-1.5rem)/3)]" />)}</div></section>;
   }
 
-  if (banners.length === 0) return null;
+  const promotionItems = [
+    ...banners.map((banner) => ({ id: `banner-${banner.id}`, title: banner.title, description: banner.subtitle, imageUrl: banner.imageUrl, targetUrl: banner.buttonLink, buttonText: banner.buttonText, isAdvertisement: false })),
+    ...advertisements.map((advertisement) => ({ id: `advertisement-${advertisement.id}`, title: advertisement.title || 'Category promotion', description: advertisement.description, imageUrl: advertisement.bannerImageUrl, targetUrl: advertisement.targetUrl, buttonText: undefined, isAdvertisement: true })),
+    ...productAdvertisements.map((advertisement) => {
+      const product = advertisement.product && typeof advertisement.product === 'object' ? advertisement.product as Record<string, unknown> : undefined;
+      const category = advertisement.category && typeof advertisement.category === 'object' ? advertisement.category as Record<string, unknown> : undefined;
+      const relatedName = String(product?.name ?? category?.name ?? '').trim();
+      return {
+        id: `advertisement-${advertisement.id}`,
+        title: advertisement.title || relatedName || 'Product promotion',
+        description: advertisement.description || (relatedName && relatedName !== advertisement.title ? relatedName : undefined),
+        imageUrl: advertisement.bannerImageUrl,
+        targetUrl: advertisement.targetUrl,
+        buttonText: undefined,
+        isAdvertisement: true,
+      };
+    }),
+  ];
 
-  const renderLink = (banner: PromotionalBanner, children: ReactNode, key: string) => {
-    const href = banner.buttonLink?.trim() || '/marketplace';
-    const cardStyle = { position: 'relative' as const, overflow: 'hidden' as const };
-    if (/^https?:\/\//i.test(href)) return <a key={key} href={href} style={cardStyle} className="group flex h-40 w-[min(92vw,600px)] shrink-0 rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:h-44 sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">{children}</a>;
-    return <Link key={key} to={href} style={cardStyle} className="group flex h-40 w-[min(92vw,600px)] shrink-0 rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:h-44 sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">{children}</Link>;
-  };
+  if (promotionItems.length === 0) return null;
 
-  const renderBanner = (banner: PromotionalBanner, key: string) => renderLink(banner, <><img src={banner.imageUrl} alt={banner.title} style={{ position: 'absolute', inset: 0, display: 'block', width: '100%', height: '100%', margin: 0, padding: 0, objectFit: 'cover', objectPosition: 'center' }} className="transition duration-500 group-hover:scale-105" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white/85 via-white/35 to-transparent dark:from-slate-950/80 dark:via-slate-950/45" /><div className="relative z-10 flex h-full w-[62%] flex-col items-start justify-center gap-1.5 p-4 sm:gap-2 sm:p-5"><h2 className="line-clamp-2 text-lg font-bold leading-tight sm:line-clamp-1 sm:text-2xl">{banner.title}</h2>{banner.subtitle ? <p className="line-clamp-2 text-xs font-medium leading-5 text-slate-700 dark:text-slate-200 sm:text-sm">{banner.subtitle}</p> : null}{banner.buttonText?.trim() ? <span className="mt-1 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-slate-950 shadow-sm transition group-hover:bg-white">{banner.buttonText.trim()} <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" /></span> : null}</div></>, key);
+  const renderBanner = (banner: (typeof promotionItems)[number], key: string) => (
+    <AdvertisementTarget key={key} targetUrl={banner.targetUrl || (!banner.isAdvertisement ? '/marketplace' : undefined)} label={[banner.title, banner.description].filter(Boolean).join('. ') || 'Promotion'} className="group relative flex h-40 w-[min(92vw,600px)] shrink-0 overflow-hidden rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:h-44 sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">
+      {banner.imageUrl ? <img src={banner.imageUrl} alt={banner.title || 'Promotion'} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="absolute inset-0 h-full w-full object-contain transition duration-500" /> : null}
+      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white/85 via-white/35 to-transparent dark:from-slate-950/80 dark:via-slate-950/45" />
+      <div className="relative z-10 flex h-full w-[62%] flex-col items-start justify-center gap-1.5 p-4 sm:gap-2 sm:p-5"><h2 className="line-clamp-2 text-lg font-bold leading-tight sm:line-clamp-1 sm:text-2xl">{banner.title}</h2>{banner.description ? <p className="line-clamp-2 text-xs font-medium leading-5 text-slate-700 dark:text-slate-200 sm:text-sm">{banner.description}</p> : null}{banner.buttonText?.trim() ? <span className="mt-1 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-slate-950 shadow-sm transition group-hover:bg-white">{banner.buttonText.trim()} <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" /></span> : null}</div>
+    </AdvertisementTarget>
+  );
 
-  return <section aria-label="Promotional banners" className="mx-auto w-full max-w-7xl min-w-0 overflow-hidden px-4 py-3 sm:px-6 lg:px-8"><div ref={railRef} style={{ scrollBehavior: 'auto' }} className="scrollbar-hidden flex min-w-0 gap-3 overflow-x-auto overflow-y-hidden pb-2">{banners.map((banner, index) => renderBanner(banner, `banner-${banner.id}-${index}`))}{banners.map((banner, index) => renderBanner(banner, `banner-clone-${banner.id}-${index}`))}</div></section>;
+  return <section aria-label="Promotional banners" className="mx-auto w-full max-w-7xl min-w-0 overflow-hidden px-4 py-3 sm:px-6 lg:px-8"><div ref={railRef} style={{ scrollBehavior: 'auto' }} className="scrollbar-hidden flex min-w-0 gap-3 overflow-x-auto overflow-y-hidden pb-2">{promotionItems.map((banner, index) => renderBanner(banner, `${banner.id}-${index}`))}{promotionItems.map((banner, index) => renderBanner(banner, `clone-${banner.id}-${index}`))}</div></section>;
+}
+
+function advertisementPlacements(advertisement: PublicAdvertisementResponse): string[] {
+  return [advertisement.advertisementType, advertisement.placement]
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim().toUpperCase().replace(/[\s-]+/g, '_'));
+}
+
+function isCategoryAdvertisement(advertisement: PublicAdvertisementResponse): boolean {
+  return advertisementPlacements(advertisement).includes('CATEGORY_BANNER');
+}
+
+function isProductAdvertisement(advertisement: PublicAdvertisementResponse): boolean {
+  return advertisementPlacements(advertisement).includes('PRODUCT_PROMOTION');
+}
+
+function AdvertisementTarget({ targetUrl, label, className, children }: { targetUrl?: string; label: string; className: string; children: ReactNode }) {
+  const href = targetUrl?.trim();
+  if (!href) return <div className={className}>{children}</div>;
+  if (/^(https?:)?\/\//i.test(href)) return <a href={href} aria-label={label} className={className}>{children}</a>;
+  return <Link to={href} aria-label={label} className={className}>{children}</Link>;
+}
+
+function CategoryAdvertisementRail({ categoryId }: { categoryId: CategoryResponse['id'] | null }) {
+  const [advertisements, setAdvertisements] = useState<PublicAdvertisementResponse[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (categoryId === null) {
+      setAdvertisements([]);
+      setLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const items = await getCategoryPromotionAdvertisements(categoryId);
+        if (active) setAdvertisements(items.filter(isCategoryAdvertisement));
+      } catch {
+        if (active) setAdvertisements([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void load();
+    const timer = window.setInterval(() => void load(), 5 * 60 * 1000);
+    const refreshOnFocus = () => { if (document.visibilityState === 'visible') void load(); };
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [categoryId]);
+
+  if (categoryId === null || (!loading && advertisements.length === 0)) return null;
+  if (loading && advertisements.length === 0) return <section aria-label="Category promotions" className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8"><div className="h-[200px] w-full animate-pulse rounded-2xl bg-white/10 sm:h-[176px]" /></section>;
+
+  const renderAd = (advertisement: PublicAdvertisementResponse, key: string) => (
+    <AdvertisementTarget key={key} targetUrl={advertisement.targetUrl} label={advertisement.title || 'Category promotion'} className="group relative flex h-40 w-[min(92vw,600px)] shrink-0 overflow-hidden rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:h-44 sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">
+      {advertisement.bannerImageUrl ? <img src={advertisement.bannerImageUrl} alt={advertisement.title || 'Category promotion'} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : null}
+      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white/85 via-white/35 to-transparent dark:from-slate-950/80 dark:via-slate-950/45" />
+      <div className="relative z-10 flex h-full w-[62%] flex-col items-start justify-center gap-1.5 p-4 sm:gap-2 sm:p-5"><h2 className="line-clamp-2 text-lg font-bold leading-tight sm:line-clamp-1 sm:text-2xl">{advertisement.title || 'Category promotion'}</h2>{advertisement.description ? <p className="line-clamp-2 text-xs font-medium leading-5 text-slate-700 dark:text-slate-200 sm:text-sm">{advertisement.description}</p> : null}</div>
+    </AdvertisementTarget>
+  );
+
+  return <section aria-label="Category promotions" className="mx-auto w-full max-w-7xl min-w-0 overflow-hidden px-4 py-3 sm:px-6 lg:px-8"><div className="scrollbar-hidden flex min-w-0 gap-3 overflow-x-auto overflow-y-hidden pb-2">{advertisements.map((advertisement) => renderAd(advertisement, `category-ad-${advertisement.id}`))}</div></section>;
+}
+
+function ProductAdvertisementRail({ productIds }: { productIds: Array<ProductResponse['id']> }) {
+  const [advertisements, setAdvertisements] = useState<PublicAdvertisementResponse[]>([]);
+  const requestKey = [...new Set(productIds.map(String))].sort().join(',');
+
+  useEffect(() => {
+    if (!requestKey) {
+      setAdvertisements([]);
+      return undefined;
+    }
+
+    let active = true;
+    const ids = requestKey.split(',');
+    const load = async () => {
+      try {
+        const results = await Promise.all(ids.map((productId) => getProductPromotionAdvertisements(productId).catch(() => [])));
+        if (active) {
+          const unique = new Map<number, PublicAdvertisementResponse>();
+          results.flat().filter(isProductAdvertisement).forEach((advertisement) => unique.set(advertisement.id, advertisement));
+          setAdvertisements([...unique.values()]);
+        }
+      } catch {
+        if (active) setAdvertisements([]);
+      }
+    };
+
+    void load();
+    const timer = window.setInterval(() => void load(), 5 * 60 * 1000);
+    const refreshOnFocus = () => { if (document.visibilityState === 'visible') void load(); };
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [requestKey]);
+
+  if (advertisements.length === 0) return null;
+  return <div aria-label="Product promotions" className="scrollbar-hidden -mx-1 flex min-w-0 gap-3 overflow-x-auto px-1 pb-1">{advertisements.map((advertisement) => <AdvertisementTarget key={advertisement.id} targetUrl={advertisement.targetUrl} label={advertisement.title || 'Product promotion'} className="relative flex h-28 w-[min(82vw,360px)] shrink-0 items-end overflow-hidden rounded-xl border border-white/10 bg-slate-900 p-4 text-white shadow-lg sm:w-[360px]">{advertisement.bannerImageUrl ? <img src={advertisement.bannerImageUrl} alt={advertisement.title || 'Product promotion'} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="absolute inset-0 h-full w-full object-contain" /> : null}<span className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" /><span className="relative z-10 line-clamp-2 font-semibold">{advertisement.title || advertisement.description || 'Product promotion'}</span></AdvertisementTarget>)}</div>;
 }
 
 function toHomeAuction(item: AuctionListItem): AuctionResponse {
@@ -341,10 +561,49 @@ function HomeSkeleton() {
   return <div className="mx-auto grid max-w-7xl gap-5 px-4 py-8 sm:px-6 lg:grid-cols-4 lg:px-8">{Array.from({ length: 8 }).map((_, index) => <SkeletonCard key={index} />)}</div>;
 }
 
-function HomeBanner({ banners, children }: { banners: HomeBannerResponse[]; children: ReactNode }) {
+function HomeBanner({ advertisements, banners, children }: { advertisements: PublicAdvertisementResponse[]; banners: HomeBannerResponse[]; children: ReactNode }) {
+  const slides = [
+    ...banners.map((banner) => ({
+      id: banner.id,
+      imageUrl: mediaUrl(banner.imageUrl) || undefined,
+      mobileImageUrl: mediaUrl(banner.mobileImageUrl) || undefined,
+      title: banner.title,
+      description: banner.subtitle,
+      targetUrl: banner.buttonLink,
+      isAdvertisement: false,
+    })),
+    ...advertisements.map((advertisement) => ({
+      id: advertisement.id,
+      imageUrl: advertisement.bannerImageUrl,
+      mobileImageUrl: undefined,
+      title: advertisement.title,
+      description: advertisement.description,
+      targetUrl: advertisement.targetUrl,
+      isAdvertisement: true,
+    })),
+  ];
+  const uniqueSlides = slides.filter((slide, index, allSlides) => {
+    const image = slide.imageUrl?.trim().toLowerCase() ?? '';
+    const title = slide.title?.trim().toLowerCase() ?? '';
+    const description = slide.description?.trim().toLowerCase() ?? '';
+    const target = slide.targetUrl?.trim().toLowerCase() ?? '';
+    const identity = image || title || description || target
+      ? `${image}|${title}|${description}|${target}`
+      : String(slide.id);
+    return allSlides.findIndex((candidate) => {
+      const candidateImage = candidate.imageUrl?.trim().toLowerCase() ?? '';
+      const candidateTitle = candidate.title?.trim().toLowerCase() ?? '';
+      const candidateDescription = candidate.description?.trim().toLowerCase() ?? '';
+      const candidateTarget = candidate.targetUrl?.trim().toLowerCase() ?? '';
+      const candidateIdentity = candidateImage || candidateTitle || candidateDescription || candidateTarget
+        ? `${candidateImage}|${candidateTitle}|${candidateDescription}|${candidateTarget}`
+        : String(candidate.id);
+      return candidateIdentity === identity;
+    }) === index;
+  });
   const orderedBanners = useMemo(
-    () => [...banners].sort((left, right) => Number(left.displayOrder ?? 0) - Number(right.displayOrder ?? 0)),
-    [banners],
+    () => uniqueSlides,
+    [uniqueSlides],
   );
   const [activeIndex, setActiveIndex] = useState(0);
   const [imageFailed, setImageFailed] = useState(false);
@@ -362,8 +621,8 @@ function HomeBanner({ banners, children }: { banners: HomeBannerResponse[]; chil
   }, [visibleBanners.length]);
 
   const banner = visibleBanners[activeIndex];
-  const desktopImage = banner ? mediaUrl(banner.imageUrl) : null;
-  const mobileImage = banner ? mediaUrl(banner.mobileImageUrl) || desktopImage : null;
+  const desktopImage = banner?.imageUrl || null;
+  const mobileImage = banner?.mobileImageUrl || desktopImage;
   useEffect(() => setImageFailed(false), [banner?.id, desktopImage, mobileImage]);
   useEffect(() => {
     setIsVisible(false);
@@ -372,14 +631,12 @@ function HomeBanner({ banners, children }: { banners: HomeBannerResponse[]; chil
   }, [banner?.id]);
 
   const hasBannerImage = Boolean(!imageFailed && desktopImage);
-  const bannerRecord = banner as (HomeBannerResponse & { offerPrice?: unknown; price?: unknown }) | undefined;
-  const bannerPrice = bannerRecord?.offerPrice ?? bannerRecord?.price;
-
   return (
     <section className={`home-hero relative overflow-hidden rounded-[28px] text-white transition-opacity duration-500 ${hasBannerImage ? 'home-hero-has-banner' : 'bg-[var(--app-bg)]'} ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
       {hasBannerImage ? <picture aria-hidden="true" className="home-hero-background absolute inset-0 z-0 block"><source media="(max-width: 767px)" srcSet={mobileImage || desktopImage || undefined} /><img src={desktopImage || undefined} alt="" onError={() => setImageFailed(true)} className="h-full w-full object-contain object-center" /></picture> : null}
+      {banner?.isAdvertisement && banner.targetUrl ? <AdvertisementTarget targetUrl={banner.targetUrl} label={[banner.title, banner.description].filter(Boolean).join('. ') || 'Advertisement'} className="absolute inset-0 z-[5]" ><span className="sr-only">{banner.title || 'Advertisement'}</span></AdvertisementTarget> : null}
       <div aria-hidden="true" className="home-hero-overlay pointer-events-none absolute inset-0 z-10" />
-      <div className="relative z-20 flex items-center py-5 sm:py-7 lg:py-9 [&>section]:!bg-transparent">{children}{bannerPrice !== null && bannerPrice !== undefined && String(bannerPrice).trim() ? <p className="absolute bottom-3 left-6 rounded-lg bg-slate-950/70 px-3 py-1.5 text-sm font-bold text-white sm:left-10">Offer Price: {String(bannerPrice)}</p> : null}</div>
+      <div className="relative z-20 flex items-center py-5 sm:py-7 lg:py-9 [&>section]:!bg-transparent">{children}</div>
       {visibleBanners.length > 1 ? <>
         <button type="button" aria-label="Previous banner" onClick={() => setActiveIndex((current) => (current - 1 + visibleBanners.length) % visibleBanners.length)} className="absolute left-4 top-1/2 z-30 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/60 text-white transition hover:bg-slate-950/85"><ChevronLeft className="h-4 w-4" /></button>
         <button type="button" aria-label="Next banner" onClick={() => setActiveIndex((current) => (current + 1) % visibleBanners.length)} className="absolute right-4 top-1/2 z-30 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/60 text-white transition hover:bg-slate-950/85"><ChevronRight className="h-4 w-4" /></button>
@@ -501,6 +758,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const { user, authReady } = useAuth();
   const [homeData, setHomeData] = useState<HomeDataResponse | null>(null);
+  const [homeAdvertisements, setHomeAdvertisements] = useState<PublicAdvertisementResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
@@ -536,6 +794,30 @@ export function HomePage() {
   };
 
   useEffect(() => { void load(); }, [customerLocation?.latitude, customerLocation?.longitude]);
+
+  useEffect(() => {
+    let active = true;
+    const loadHomeAdvertisements = async () => {
+      try {
+        const advertisements = await getHomeBannerAdvertisements();
+        if (active) {
+          setHomeAdvertisements(advertisements);
+        }
+      } catch {
+        if (active) setHomeAdvertisements([]);
+      }
+    };
+
+    void loadHomeAdvertisements();
+    const timer = window.setInterval(() => void loadHomeAdvertisements(), 5 * 60 * 1000);
+    const refreshOnFocus = () => { if (document.visibilityState === 'visible') void loadHomeAdvertisements(); };
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -595,7 +877,8 @@ export function HomePage() {
   const selectedSubcategories = selectedCategory
     ? categories.filter((category) => String(category.parentId) === String(selectedCategory.id))
     : [];
-  return <><CategoryPromotionBanner /><div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8"><HomeBanner banners={homeData.banners ?? []}>
+  const promotionProductIds = [...new Set([...featured, ...recent, ...popular].map((product) => String(product.id)))];
+  return <><CategoryPromotionBanner categoryIds={categories.map((category) => category.id)} productIds={promotionProductIds} /><div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8"><HomeBanner advertisements={homeAdvertisements} banners={homeData.banners ?? []}>
     <section className="relative overflow-hidden bg-[var(--app-bg)] text-white"><div className="home-hero-content mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="max-w-4xl space-y-8"><div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10"><Sparkles className="h-4 w-4 text-amber-300" /> Trusted auctions and verified sellers</div><h1 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl"><span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-amber-300 bg-clip-text text-transparent">Buy with confidence.</span> Bid on what matters.</h1><p className="max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">Search real marketplace inventory, discover live auctions, and connect with verified sellers.</p><div className="home-hero-actions flex flex-wrap gap-3"><Link to="/auctions" className="rounded-full bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950">Browse Live Auctions</Link><Link to="/marketplace" className="rounded-full bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:bg-orange-600">Browse Marketplace</Link></div>{stats ? <div className="home-hero-stats grid gap-4 sm:grid-cols-3">{[['Live auctions', stats.liveAuctions], ['Products', stats.totalProducts], ['Verified sellers', stats.totalVendors]].map(([label, value]) => value !== null && value !== undefined ? <div key={String(label)} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5"><p className="text-xs uppercase tracking-[0.18em] text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{String(value)}</p></div> : null)}</div> : null}</div></div></section>
     </HomeBanner></div>
     <section aria-label="All Categories" className="homepage-theme-section homepage-theme-outline mx-auto w-full max-w-7xl rounded-2xl px-4 py-5 shadow-sm sm:px-6 lg:px-8"><div className="mb-4 flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Explore</p><h2 className="mt-1 text-xl font-bold sm:text-2xl">Shop by Category</h2></div><Link to="/categories" className="homepage-theme-link inline-flex shrink-0 items-center gap-1 text-sm font-semibold transition hover:text-sky-600">View all <ChevronRight className="h-4 w-4" /></Link></div>{categories.length === 0 ? <EmptyState title="No categories available" description="Categories will appear here when available." /> : <><div className="scrollbar-hidden flex snap-x gap-3 overflow-x-auto pb-1">{mainCategories.map((category) => <button type="button" key={category.id} onClick={() => setSelectedCategoryId(category.id)} className="homepage-theme-card flex h-[142px] w-[116px] shrink-0 snap-start flex-col items-center justify-between rounded-xl border p-2.5 text-center shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md sm:w-[124px]"><span className="homepage-theme-muted flex h-[92px] w-full items-center justify-center rounded-lg text-sky-600"><CategoryIcon iconUrl={category.iconUrl} className="h-16 w-16" /></span><span className="line-clamp-2 w-full text-xs font-semibold leading-4">{category.name}</span></button>)}</div>{selectedCategory ? <div className="scrollbar-hidden mt-4 flex snap-x gap-3 overflow-x-auto border-t border-sky-100 pt-4">{selectedSubcategories.map((category) => <button type="button" key={category.id} onClick={() => navigate(`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`)} className="homepage-theme-card flex h-[142px] w-[116px] shrink-0 snap-start flex-col items-center justify-between rounded-xl border p-2.5 text-center shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md sm:w-[124px]"><span className="homepage-theme-muted flex h-[92px] w-full items-center justify-center rounded-lg text-sky-600"><CategoryIcon iconUrl={category.iconUrl} className="h-16 w-16" /></span><span className="line-clamp-2 w-full text-xs font-semibold leading-4">{category.name}</span></button>)}</div> : null}</>}</section>

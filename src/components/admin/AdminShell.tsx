@@ -23,6 +23,7 @@ const navItems = [
   { label: 'Settings', to: '/admin/settings', icon: Settings2 },
   { label: 'CMS', to: '/admin/cms', icon: Megaphone },
   { label: 'Promotional Banners', to: '/admin/promotional-banners', icon: Images },
+  { label: 'Advertisements', to: '/admin/advertisements', icon: Megaphone },
   { label: 'Offers', to: '/admin/offers', icon: Percent },
   { label: 'Reports', to: '/admin/reports', icon: FileText },
   { label: 'Franchise', to: '/admin/franchise', icon: Building2 },

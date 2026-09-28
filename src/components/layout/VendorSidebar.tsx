@@ -9,6 +9,7 @@ const items = [
   { label: 'Create product', to: '/vendor/create-product-wizard' },
   { label: 'Auctions', to: '/vendor/auction-analytics' },
   { label: 'Offers', to: '/vendor/offers' },
+  { label: 'Advertisements', to: '/vendor/advertisements' },
   { label: 'Inventory', to: '/vendor/inventory' },
   { label: 'Orders', to: '/vendor/orders' },
   { label: 'Wallet', to: '/vendor/wallet' },

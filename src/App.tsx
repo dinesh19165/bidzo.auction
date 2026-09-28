@@ -74,6 +74,7 @@ import { PromotionalBannersAdminPage } from './pages/PromotionalBannersAdminPage
 import { OffersAdminPage } from './pages/OffersAdminPage';
 import { CustomerOffersPage } from './pages/CustomerOffersPage';
 import { VendorOffersPage } from './pages/VendorOffersPage';
+import { AdminAdvertisementDetailPage, AdminAdvertisementPage, FranchiseAdvertisementDetailPage, FranchiseAdvertisementPage, VendorAdvertisementCreatePage, VendorAdvertisementDetailPage, VendorAdvertisementPage } from './pages/AdvertisementPages';
 import { getStoredAuthToken, handleUnauthorized, isJwtExpired } from './api/apiClient';
 import { getVendorVerificationStatus } from './api/vendorVerificationApi';
 import { FranchiseAdminCreatePage } from './pages/extra/EnterpriseAdminPages';
@@ -375,6 +376,9 @@ function App() {
             <Route path="/vendor/edit-auction" element={<VendorEditAuctionPage />} />
             <Route path="/vendor/auction-analytics" element={<VendorAuctionAnalyticsPage />} />
             <Route path="/vendor/offers" element={<VendorOffersPage />} />
+            <Route path="/vendor/advertisements" element={<VendorAdvertisementPage />} />
+            <Route path="/vendor/advertisements/create" element={<VendorAdvertisementCreatePage />} />
+            <Route path="/vendor/advertisements/:id" element={<VendorAdvertisementDetailPage />} />
             <Route path="/vendor/messages" element={<VendorMessagesPage />} />
             <Route path="/vendor/notifications" element={<VendorNotificationsPage />} />
             <Route path="/vendor/wallet" element={<WalletPage />} />
@@ -395,7 +399,8 @@ function App() {
             <Route path="/franchise/analytics" element={<FranchiseAnalyticsPage />} />
             <Route path="/franchise/customers" element={<FranchiseCustomersPage />} />
             <Route path="/franchise/product-inspections" element={<FranchiseUnavailablePage title="Product Inspection" description="A franchise-scoped product inspection endpoint is not exposed in the frontend API contract." />} />
-            <Route path="/franchise/advertisements" element={<FranchiseUnavailablePage title="Advertisements" description="A franchise-scoped advertisement endpoint is not exposed in the frontend API contract." />} />
+            <Route path="/franchise/advertisements" element={<FranchiseAdvertisementPage />} />
+            <Route path="/franchise/advertisements/:id" element={<FranchiseAdvertisementDetailPage />} />
             <Route path="/admin/organization-hierarchy" element={<OrganizationHierarchyPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin/franchises" element={<FranchiseManagementPage />} />
@@ -421,6 +426,8 @@ function App() {
             <Route path="/admin/settings" element={<SystemSettingsPage />} />
             <Route path="/admin/cms" element={<CMSPage />} />
             <Route path="/admin/promotional-banners" element={<PromotionalBannersAdminPage />} />
+            <Route path="/admin/advertisements" element={<AdminAdvertisementPage />} />
+            <Route path="/admin/advertisements/:id" element={<AdminAdvertisementDetailPage />} />
             <Route path="/admin/offers" element={<OffersAdminPage />} />
             <Route path="/admin/cms/banners" element={<CMSBannersPage />} />
             <Route path="/admin/cms/categories" element={<CMSCategoriesPage />} />

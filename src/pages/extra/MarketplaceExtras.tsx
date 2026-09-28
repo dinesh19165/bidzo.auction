@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
 import { CategoryIcon } from '../../components/categories/CategoryIcon';
@@ -14,12 +14,49 @@ export function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMainCategoryId, setSelectedMainCategoryId] = useState<number | string | null>(null);
 
   useEffect(() => { getCategories().then(setCategories).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load categories.')).finally(() => setLoading(false)); }, []);
 
+  const mainCategories = useMemo(() => categories.filter((category) => category.parentId === undefined || category.parentId === null || category.parentId === ''), [categories]);
+  const selectedMainCategory = selectedMainCategoryId === null ? null : categories.find((category) => String(category.id) === String(selectedMainCategoryId)) ?? null;
+  const visibleCategories = selectedMainCategoryId === null ? mainCategories : categories.filter((category) => String(category.parentId) === String(selectedMainCategoryId));
+  const hasChildren = (categoryId: number | string) => categories.some((category) => String(category.parentId) === String(categoryId));
+
+  const handleCategoryClick = (category: CategoryRecord) => {
+    if (hasChildren(category.id)) {
+      setSelectedMainCategoryId(category.id);
+      return;
+    }
+    window.location.assign(`/search?categoryId=${encodeURIComponent(String(category.id))}`);
+  };
+
   return (
-    <SectionShell title="Categories" subtitle="Browse by vertical and intent">
-      {loading ? <p className="py-4 text-center text-sm text-slate-400">Loading categories...</p> : error ? <ErrorState title="Unable to load categories" description={error} /> : categories.length === 0 ? <EmptyState title="No categories found" description="Categories will appear here when they are available." /> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">{categories.map((category) => <Link key={category.id} to={`/search?categoryId=${encodeURIComponent(String(category.id))}`} className="flex min-w-0 flex-col items-center gap-2 rounded-xl border border-white/10 bg-slate-900/70 p-3 text-center text-slate-300 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-slate-900 sm:p-4"><span className="flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-sky-200 sm:h-24 sm:w-24"><CategoryIcon iconUrl={category.iconUrl} className="h-16 w-16 sm:h-[72px] sm:w-[72px]" /></span><span className="line-clamp-2 min-h-10 w-full text-base font-semibold leading-5 text-white">{category.name}</span>{category.count !== undefined && category.count !== null ? <span className="text-xs text-slate-400">{String(category.count)} products</span> : null}</Link>)}</div>}
+    <SectionShell title="Categories" subtitle={selectedMainCategory ? `Browse ${selectedMainCategory.name}` : 'Browse by vertical and intent'}>
+      {loading ? <p className="py-4 text-center text-sm text-slate-400">Loading categories...</p> : error ? <ErrorState title="Unable to load categories" description={error} /> : categories.length === 0 ? <EmptyState title="No categories found" description="Categories will appear here when they are available." /> : <>
+        {selectedMainCategory ? <div className="mb-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => setSelectedMainCategoryId(null)} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/70 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-blue-400/40 hover:text-white">
+            <ArrowLeft className="h-4 w-4" />
+            Back / All Categories
+          </button>
+          <span className="text-sm font-medium text-slate-400">{selectedMainCategory.name}</span>
+        </div> : null}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {visibleCategories.map((category) => {
+            const card = <>
+              <span className="flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-sky-200 sm:h-24 sm:w-24"><CategoryIcon iconUrl={category.iconUrl} className="h-16 w-16 sm:h-[72px] sm:w-[72px]" /></span>
+              <span className="line-clamp-2 min-h-10 w-full text-base font-semibold leading-5 text-white">{category.name}</span>
+              {category.count !== undefined && category.count !== null ? <span className="text-xs text-slate-400">{String(category.count)} products</span> : null}
+            </>;
+
+            if (hasChildren(category.id)) {
+              return <button key={category.id} type="button" onClick={() => handleCategoryClick(category)} className="flex min-w-0 flex-col items-center gap-2 rounded-xl border border-white/10 bg-slate-900/70 p-3 text-center text-slate-300 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-slate-900 sm:p-4">{card}</button>;
+            }
+
+            return <Link key={category.id} to={`/search?categoryId=${encodeURIComponent(String(category.id))}`} className="flex min-w-0 flex-col items-center gap-2 rounded-xl border border-white/10 bg-slate-900/70 p-3 text-center text-slate-300 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-slate-900 sm:p-4">{card}</Link>;
+          })}
+        </div>
+      </>}
     </SectionShell>
   );
 }
