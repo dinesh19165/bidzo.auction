@@ -395,7 +395,7 @@ function CategoryPromotionBanner({ categoryIds, productIds }: { categoryIds: Arr
   }, [banners.length, advertisements.length, productAdvertisements.length, reducedMotion]);
 
   if (loading) {
-    return <section aria-label="Promotional banners" className="mx-auto w-full max-w-7xl min-w-0 px-4 py-3 sm:px-6 lg:px-8"><div className="flex min-w-0 gap-3 overflow-hidden">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-[200px] w-[min(82vw,360px)] shrink-0 animate-pulse rounded-2xl bg-white/10 sm:w-[300px] lg:w-[calc((100%-1.5rem)/3)]" />)}</div></section>;
+    return <section aria-label="Promotional banners" className="mx-auto w-full max-w-7xl min-w-0 px-4 py-3 sm:px-6 lg:px-8"><div className="flex min-w-0 gap-3 overflow-hidden">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="aspect-[3/1] w-[min(82vw,360px)] shrink-0 animate-pulse rounded-2xl bg-white/10 sm:w-[300px] lg:w-[calc((100%-1.5rem)/3)]" />)}</div></section>;
   }
 
   const promotionItems = [
@@ -420,7 +420,7 @@ function CategoryPromotionBanner({ categoryIds, productIds }: { categoryIds: Arr
   if (promotionItems.length === 0) return null;
 
   const renderBanner = (banner: (typeof promotionItems)[number], key: string) => (
-    <AdvertisementTarget key={key} targetUrl={banner.targetUrl || (!banner.isAdvertisement ? '/marketplace' : undefined)} label={[banner.title, banner.description].filter(Boolean).join('. ') || 'Promotion'} className="group relative flex h-40 w-[min(92vw,600px)] shrink-0 overflow-hidden rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:h-44 sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">
+    <AdvertisementTarget key={key} targetUrl={banner.targetUrl || (!banner.isAdvertisement ? '/marketplace' : undefined)} label={[banner.title, banner.description].filter(Boolean).join('. ') || 'Promotion'} className="group relative flex aspect-[3/1] w-[min(92vw,600px)] shrink-0 overflow-hidden rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">
       {banner.imageUrl ? <img src={banner.imageUrl} alt={banner.title || 'Promotion'} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="absolute inset-0 h-full w-full object-contain transition duration-500" /> : null}
       <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white/85 via-white/35 to-transparent dark:from-slate-950/80 dark:via-slate-950/45" />
       <div className="relative z-10 flex h-full w-[62%] flex-col items-start justify-center gap-1.5 p-4 sm:gap-2 sm:p-5"><h2 className="line-clamp-2 text-lg font-bold leading-tight sm:line-clamp-1 sm:text-2xl">{banner.title}</h2>{banner.description ? <p className="line-clamp-2 text-xs font-medium leading-5 text-slate-700 dark:text-slate-200 sm:text-sm">{banner.description}</p> : null}{banner.buttonText?.trim() ? <span className="mt-1 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-slate-950 shadow-sm transition group-hover:bg-white">{banner.buttonText.trim()} <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" /></span> : null}</div>
@@ -487,10 +487,10 @@ function CategoryAdvertisementRail({ categoryId }: { categoryId: CategoryRespons
   }, [categoryId]);
 
   if (categoryId === null || (!loading && advertisements.length === 0)) return null;
-  if (loading && advertisements.length === 0) return <section aria-label="Category promotions" className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8"><div className="h-[200px] w-full animate-pulse rounded-2xl bg-white/10 sm:h-[176px]" /></section>;
+  if (loading && advertisements.length === 0) return <section aria-label="Category promotions" className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8"><div className="aspect-[3/1] w-full animate-pulse rounded-2xl bg-white/10" /></section>;
 
   const renderAd = (advertisement: PublicAdvertisementResponse, key: string) => (
-    <AdvertisementTarget key={key} targetUrl={advertisement.targetUrl} label={advertisement.title || 'Category promotion'} className="group relative flex h-40 w-[min(92vw,600px)] shrink-0 overflow-hidden rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:h-44 sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">
+    <AdvertisementTarget key={key} targetUrl={advertisement.targetUrl} label={advertisement.title || 'Category promotion'} className="group relative flex aspect-[3/1] w-[min(92vw,600px)] shrink-0 overflow-hidden rounded-2xl bg-sky-200 text-slate-950 shadow-lg shadow-slate-950/15 transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800 dark:text-white sm:w-[min(62vw,600px)] lg:w-[calc((100%-1.5rem)/2)] xl:w-[calc((100%-3rem)/3)]">
       {advertisement.bannerImageUrl ? <img src={advertisement.bannerImageUrl} alt={advertisement.title || 'Category promotion'} onError={(event) => { event.currentTarget.style.display = 'none'; }} className="absolute inset-0 h-full w-full object-contain object-center transition duration-500" /> : null}
       <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white/85 via-white/35 to-transparent dark:from-slate-950/80 dark:via-slate-950/45" />
       <div className="relative z-10 flex h-full w-[62%] flex-col items-start justify-center gap-1.5 p-4 sm:gap-2 sm:p-5"><h2 className="line-clamp-2 text-lg font-bold leading-tight sm:line-clamp-1 sm:text-2xl">{advertisement.title || 'Category promotion'}</h2>{advertisement.description ? <p className="line-clamp-2 text-xs font-medium leading-5 text-slate-700 dark:text-slate-200 sm:text-sm">{advertisement.description}</p> : null}</div>
