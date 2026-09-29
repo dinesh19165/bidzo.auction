@@ -258,9 +258,18 @@ input.peer.sr-only {
   transition: transform 250ms ease, opacity 250ms ease;
 }
 
+.product-card-image-media-contain {
+  object-fit: contain;
+  object-position: center;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .product-card-image:hover .product-card-image-media {
     transform: scale(1.04);
+  }
+
+  .product-card-image:hover .product-card-image-media-contain {
+    transform: none;
   }
 
   .product-card-image:hover .product-card-image-hover {

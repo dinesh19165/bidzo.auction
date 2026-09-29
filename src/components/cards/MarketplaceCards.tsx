@@ -46,6 +46,7 @@ interface ProductCardProps {
   discountValue?: string | number | null;
   offerEndsAt?: string | null;
   offerActive?: boolean | null;
+  containImage?: boolean;
 }
 
 function parseCountdown(value?: string) {
@@ -108,6 +109,7 @@ export const ProductCard = memo(function ProductCard({
   discountValue,
   offerEndsAt,
   offerActive,
+  containImage = false,
 }: ProductCardProps) {
   const [quickOpen, setQuickOpen] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
@@ -290,7 +292,7 @@ export const ProductCard = memo(function ProductCard({
           aria-label={`View ${title}`}
         >
           <div className="flex h-full transition-transform duration-200 ease-out" style={{ transform: `translateX(-${activeImage * (100 / galleryImages.length)}%)`, width: `${galleryImages.length * 100}%`, maxWidth: 'none' }}>
-            {galleryImages.map((galleryImage) => <img key={galleryImage} src={galleryImage} alt={title} loading="lazy" decoding="async" draggable={false} className="product-card-image-media h-full min-w-0 shrink-0 object-cover" style={{ width: `${100 / galleryImages.length}%`, maxWidth: 'none' }} />)}
+            {galleryImages.map((galleryImage) => <img key={galleryImage} src={galleryImage} alt={title} loading="lazy" decoding="async" draggable={false} className={`product-card-image-media h-full min-w-0 shrink-0 ${containImage ? 'product-card-image-media-contain object-contain object-center' : 'object-cover'}`} style={{ width: `${100 / galleryImages.length}%`, maxWidth: 'none' }} />)}
           </div>
           <div className="product-card-image-hover pointer-events-none absolute inset-0 bg-slate-950/5 opacity-0" />
           {galleryImages.length > 1 ? <>
