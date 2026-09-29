@@ -145,15 +145,9 @@ export function MarketplacePage() {
         }
       }));
       if (!active || generation !== requestGeneration.current) return;
-      const mode = requestFilters.auctionsOnly ? 'AUCTION' : 'DIRECT_BUY';
-      const content = enrichedContent.filter((item) => {
-        if (requestFilters.category && item.type === 'VENDOR') return false;
-        const sellingType = String(item.sellingType || (item.type === 'AUCTION' ? 'AUCTION' : '')).trim().toUpperCase();
-        return sellingType === mode;
-      });
-      setResults(content.map(toCardListing));
-      setTotalElements(content.length);
-      setTotalPages(content.length ? 1 : 0);
+      setResults(enrichedContent.map(toCardListing));
+      setTotalElements(data.totalElements);
+      setTotalPages(data.totalPages);
     }).catch((err: unknown) => { if (active && generation === requestGeneration.current) setError(requestFilters.category ? 'Unable to load products for this category.' : (err instanceof Error ? err.message : 'Unable to load marketplace listings')); })
       .finally(() => { if (active && generation === requestGeneration.current) setLoading(false); });
     return () => { active = false; };
