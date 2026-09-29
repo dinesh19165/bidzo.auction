@@ -15,7 +15,7 @@ import { buildAddressPayload, getAddresses, getAddressById, createAddress, updat
 import { useAuth } from '../../context/AuthContext';
 import type { OrderResponseDto } from '../../types';
 import { getMyBids, type BidResponse } from '../../api/bidApi';
-import { deleteVendorProduct, getVendorProducts, getProductImage, formatCurrency as formatProductCurrency, mapSellingTypeLabel, updateProductInventory, updateVendorProduct, type VendorProductApiResponse } from '../../api/vendorProductApi';
+import { deleteVendorProduct, getVendorProducts, getProductImage, formatCurrency as formatProductCurrency, mapSellingTypeLabel, updateVendorProduct, type VendorProductApiResponse } from '../../api/vendorProductApi';
 import { showToast } from '../../components/ui/toast';
 import { getVendorAuctions, type VendorAuctionApiResponse } from '../../api/vendorAuctionApi';
 import { getVendorOrders, type VendorOrderApiResponse } from '../../api/vendorOrderApi';
@@ -3413,11 +3413,16 @@ export function VendorInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [editingInventoryId, setEditingInventoryId] = useState<number | null>(null);
-  const [inventoryDraft, setInventoryDraft] = useState('');
-  const [savingInventoryId, setSavingInventoryId] = useState<number | null>(null);
   const [showKycRestriction, setShowKycRestriction] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.inventoryUpdated) {
+      showToast('Inventory updated', 'The product details were saved successfully.', 'success');
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location, navigate]);
 
   const loadProducts = async () => {
     setLoading(true);
@@ -3518,77 +3523,6 @@ export function VendorInventoryPage() {
     sellingType: product.sellingType ?? 'DIRECT_BUY',
     quantity: product.quantity ?? product.stock ?? 0,
   });
-
-  const startInventoryEdit = (product: VendorProductApiResponse) => {
-    const sellingType = String(product.sellingType || '').trim().toUpperCase();
-    if (sellingType === 'AUCTION') {
-      showToast('Auction inventory locked', 'Inventory quantity cannot be updated for auction products.', 'warning');
-      return;
-    }
-
-    setEditingInventoryId(product.id);
-    setInventoryDraft(String(product.quantity ?? product.stock ?? 0));
-    setError(null);
-  };
-
-  const cancelInventoryEdit = () => {
-    setEditingInventoryId(null);
-    setInventoryDraft('');
-    setError(null);
-  };
-
-  const handleInventorySave = async (productId: number) => {
-    const product = products.find((item) => item.id === productId);
-    if (!product) {
-      showToast('Inventory update failed', 'Unable to find the selected product.', 'warning');
-      return;
-    }
-
-    const sellingType = String(product.sellingType || '').trim().toUpperCase();
-    if (sellingType === 'AUCTION') {
-      showToast('Auction inventory locked', 'Inventory quantity cannot be updated for auction products.', 'warning');
-      return;
-    }
-
-    const rawQuantity = inventoryDraft.trim();
-    if (!rawQuantity) {
-      showToast('Invalid quantity', 'Please enter a quantity before saving.', 'warning');
-      return;
-    }
-
-    const normalizedQuantity = Number(rawQuantity);
-    if (!Number.isInteger(normalizedQuantity) || normalizedQuantity < 0) {
-      showToast('Invalid quantity', 'Quantity must be a non-negative integer.', 'warning');
-      return;
-    }
-
-    setSavingInventoryId(productId);
-    setError(null);
-
-    try {
-      const updatedProduct = await updateProductInventory(productId, normalizedQuantity);
-      const updatedQuantity = Number(updatedProduct.quantity ?? updatedProduct.stock ?? normalizedQuantity ?? 0);
-
-      setProducts((prev) => prev.map((item) => item.id === productId
-        ? {
-            ...item,
-            quantity: updatedQuantity,
-            stock: updatedQuantity,
-            status: updatedProduct.status ?? item.status,
-          }
-        : item
-      ));
-
-      cancelInventoryEdit();
-      showToast('Inventory updated', `Quantity updated to ${updatedQuantity}.`, 'success');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unable to update inventory quantity.';
-      setError(message);
-      showToast('Inventory update failed', message, 'warning');
-    } finally {
-      setSavingInventoryId(null);
-    }
-  };
 
   const handlePublish = async (productId: number) => {
     setError(null);
@@ -3737,48 +3671,17 @@ export function VendorInventoryPage() {
                         <td className="px-3 py-3">{item.sku}</td>
                         <td className="px-3 py-3">
                           {item.sellingType === 'DIRECT_BUY' ? (
-                            editingInventoryId === item.id ? (
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step={1}
-                                  value={inventoryDraft}
-                                  onChange={(event) => setInventoryDraft(event.target.value)}
-                                  className="w-20 rounded-xl border border-white/10 bg-slate-950/50 px-2 py-1 text-sm text-white outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => void handleInventorySave(item.id)}
-                                  disabled={savingInventoryId === item.id}
-                                  className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-200 disabled:opacity-50"
-                                >
-                                  {savingInventoryId === item.id ? 'Saving...' : 'Save'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelInventoryEdit}
-                                  className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-slate-200"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span>{item.stock}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => startInventoryEdit(products.find((product) => product.id === item.id) || item as any)}
-                                  className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-slate-200"
-                                >
-                                  Edit
-                                </button>
-                              </div>
-                            )
+                            <div className="flex items-center gap-2">
+                              <span>{item.stock}</span>
+                              <button type="button" onClick={() => navigate(`/vendor/edit-product-wizard/${item.id}`)} className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-slate-200">Edit</button>
+                            </div>
                           ) : (
                             <div className="flex flex-col gap-1">
                               <span>{item.stock}</span>
-                              <span className="text-[10px] uppercase tracking-wide text-amber-300">Auction locked</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase tracking-wide text-amber-300">Auction stock</span>
+                                <button type="button" onClick={() => navigate(`/vendor/edit-product-wizard/${item.id}`)} className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-slate-200">Edit</button>
+                              </div>
                             </div>
                           )}
                         </td>

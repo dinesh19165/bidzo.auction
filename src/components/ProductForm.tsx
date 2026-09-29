@@ -4,8 +4,9 @@ import { categoryLabel, type CategoryFieldDefinition, type CategoryRecord } from
 export interface ProductFormData {
   title: string;
   category: string;
-  price: string;
-  quantity: string;
+  price: string | number;
+  quantity: string | number;
+  sku?: string;
   fields: Record<string, string>;
   description: string;
   categoryId?: number | string | null;
@@ -20,41 +21,45 @@ interface Props {
 }
 
 export const ProductForm: React.FC<Props> = ({ initial, categoryFields, categories = [], onChange, onValidate }) => {
-  const [title, setTitle] = useState(initial?.title || '');
-  const [category, setCategory] = useState(initial?.category || categories[0]?.name || '');
+  const toInputString = (value: unknown): string => value === null || value === undefined ? '' : String(value);
+  const initialFields = Object.fromEntries(Object.entries(initial?.fields || {}).map(([key, value]) => [key, toInputString(value)]));
+  const [title, setTitle] = useState(toInputString(initial?.title));
+  const [category, setCategory] = useState(toInputString(initial?.category) || categories[0]?.name || '');
   const [categoryId, setCategoryId] = useState<number | string | null>(initial?.categoryId ?? categories.find((item) => item.name === initial?.category)?.id ?? null);
-  const [price, setPrice] = useState(initial?.price || '');
-  const [quantity, setQuantity] = useState(initial?.quantity || '');
-  const [description, setDescription] = useState(initial?.description || '');
-  const [fields, setFields] = useState<Record<string, string>>(initial?.fields || {});
+  const [price, setPrice] = useState(toInputString(initial?.price));
+  const [quantity, setQuantity] = useState(toInputString(initial?.quantity));
+  const [sku, setSku] = useState(toInputString(initial?.sku));
+  const [description, setDescription] = useState(toInputString(initial?.description));
+  const [fields, setFields] = useState<Record<string, string>>(initialFields);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
 
   useEffect(() => {
-    onChange?.({ title, category, categoryId, price, quantity, fields, description });
-  }, [title, category, categoryId, price, quantity, fields, description]);
+    onChange?.({ title, category, categoryId, price, quantity, sku, fields, description });
+  }, [title, category, categoryId, price, quantity, sku, fields, description]);
 
   // Simulate autosave indicator
   useEffect(() => {
     setAutosaveStatus('Autosaving...');
     const t = setTimeout(() => setAutosaveStatus('Saved'), 900);
     return () => clearTimeout(t);
-  }, [title, category, price, quantity, JSON.stringify(fields), description]);
+  }, [title, category, price, quantity, sku, JSON.stringify(fields), description]);
 
   const validate = (): boolean => {
     const next: Record<string, string> = {};
-    if (!title.trim()) next.title = 'Title is required';
-    if (!price.trim()) next.price = 'Price is required';
+    if (String(title).trim() === '') next.title = 'Title is required';
+    if (String(price).trim() === '') next.price = 'Price is required';
 
-    const parsedQuantity = Number(quantity);
-    if (!quantity.trim()) {
+    const normalizedQuantity = String(quantity);
+    const parsedQuantity = Number(normalizedQuantity);
+    if (normalizedQuantity.trim() === '') {
       next.quantity = 'Quantity is required';
     } else if (!Number.isInteger(parsedQuantity) || parsedQuantity < 0) {
       next.quantity = 'Quantity must be a non-negative whole number';
     }
 
     categoryFields.filter((field) => field.required).forEach((field) => {
-      if (!fields[field.fieldKey]?.trim()) next[field.fieldKey] = `${field.fieldName} is required`;
+      if (String(fields[field.fieldKey] ?? '').trim() === '') next[field.fieldKey] = `${field.fieldName} is required`;
     });
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -87,6 +92,11 @@ export const ProductForm: React.FC<Props> = ({ initial, categoryFields, categori
         <input aria-label="Price" placeholder="₹0.00" value={price} onChange={(e) => setPrice(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white" />
         <div className="mt-1 text-xs text-slate-500">Enter a numeric value. Use local currency formatting (UI-only).</div>
         {errors.price && <div className="mt-1 text-sm text-rose-400">{errors.price}</div>}
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-400">SKU</label>
+        <input aria-label="SKU" placeholder="e.g. BIDZO-MBP-001" value={sku} onChange={(e) => setSku(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white" />
       </div>
 
       <div>

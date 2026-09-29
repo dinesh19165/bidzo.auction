@@ -2417,7 +2417,7 @@ export function VendorEditProductWizardPage() {
 
   const steps = ['Edit Info', 'Category fields', 'Images', 'Pricing', 'Shipping', 'Preview', 'Publish'];
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<any>({ title: '', category: '', categoryId: null, price: '', fields: {}, description: '' });
+  const [formData, setFormData] = useState<any>({ title: '', category: '', categoryId: null, price: '', quantity: '', sku: '', fields: {}, description: '', sellingType: 'DIRECT_BUY', status: 'ACTIVE' });
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
 
   useEffect(() => {
@@ -2437,9 +2437,13 @@ export function VendorEditProductWizardPage() {
       setExistingImages(images.map((image) => ({ id: image.id, url: image.url, altText: image.altText })));
       setFormData((previous: any) => ({
         ...previous,
-        title: current?.name ?? previous.title,
-        description: current?.description ?? previous.description,
-        price: current?.price ?? previous.price,
+        title: current?.name == null ? previous.title : String(current.name),
+        description: current?.description == null ? previous.description : String(current.description),
+        price: current?.price == null ? previous.price : String(current.price),
+        quantity: current?.quantity == null && current?.stock == null ? previous.quantity : String(current.quantity ?? current.stock),
+        sku: current?.sku == null ? previous.sku : String(current.sku),
+        sellingType: current?.sellingType == null ? previous.sellingType : String(current.sellingType),
+        status: current?.status == null ? previous.status : String(current.status),
         category: items.find((item) => String(item.id) === String(categoryId))?.name ?? previous.category,
         categoryId,
       }));
@@ -2512,7 +2516,11 @@ export function VendorEditProductWizardPage() {
         name: String(formData.title || '').trim(),
         description: String(formData.description || '').trim(),
         price: formData.price,
-        categoryId: formData.categoryId,
+        quantity: Number(formData.quantity),
+        sku: String(formData.sku || '').trim(),
+        status: String(formData.status || 'ACTIVE').toUpperCase(),
+        sellingType: String(formData.sellingType || 'DIRECT_BUY').toUpperCase(),
+        categoryId: formData.categoryId === null || formData.categoryId === undefined || formData.categoryId === '' ? null : Number(formData.categoryId),
         fields: Object.fromEntries(Object.entries(formData.fields || {}).filter(([, value]) => String(value).trim() !== '').map(([key, value]) => [key, String(value)])),
         videoUrl,
         videoPublicId,
@@ -2524,7 +2532,8 @@ export function VendorEditProductWizardPage() {
         });
       }
       if (uploadedImagesResult.length > 0) setImageUploadStatus('Images uploaded successfully');
-      setStep(7);
+      showToast('Product updated', 'Your product changes were saved successfully.', 'success');
+      navigate('/vendor/inventory', { replace: true, state: { inventoryUpdated: true } });
     } catch (error) {
       if (isVendorKycPublishRestrictionError(error)) {
         showToast('KYC Approval Required', 'Your KYC is not approved yet. Please complete your KYC and wait for approval before publishing.', 'warning');
@@ -2629,7 +2638,12 @@ export function VendorEditProductWizardPage() {
 
           {step === 4 && (
             <div className="space-y-4">
-              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.price} onChange={(e) => setFormData((prev: any) => ({ ...prev, price: e.target.value }))} />
+              <input className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.price} onChange={(e) => setFormData((prev: any) => ({ ...prev, price: e.target.value }))} placeholder="Price" />
+              <input type="number" min="0" step="1" className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.quantity ?? ''} onChange={(e) => setFormData((prev: any) => ({ ...prev, quantity: e.target.value }))} placeholder="Quantity / Stock" />
+              <select className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white" value={formData.sellingType || 'DIRECT_BUY'} onChange={(e) => setFormData((prev: any) => ({ ...prev, sellingType: e.target.value }))}>
+                <option value="DIRECT_BUY">Direct Buy</option>
+                <option value="AUCTION">Auction</option>
+              </select>
             </div>
           )}
 
