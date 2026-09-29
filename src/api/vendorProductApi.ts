@@ -33,7 +33,8 @@ export interface VendorProductApiResponse extends VendorProduct {
   specifications?: Array<{
     name: string;
     value: string;
-  }>;
+  }> | Record<string, unknown>;
+  fields?: Record<string, unknown>;
 }
 
 export interface VendorProductCreateRequest {

@@ -70,6 +70,31 @@ function normalizeSpecificationValue(value: unknown): string {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+function normalizeSpecificationKey(value: unknown): string {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeProductSpecifications(
+  specifications: unknown,
+  fields: unknown,
+): Array<{ name: string; value: string }> {
+  if (Array.isArray(specifications)) {
+    return specifications.flatMap((specification) => {
+      if (!specification || typeof specification !== 'object') return [];
+      const item = specification as Record<string, unknown>;
+      const name = String(item.name ?? item.key ?? item.label ?? '').trim();
+      const value = normalizeSpecificationValue(item.value);
+      return name && value ? [{ name, value }] : [];
+    });
+  }
+
+  const source = fields && typeof fields === 'object' ? fields : specifications;
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return [];
+  return Object.entries(source as Record<string, unknown>)
+    .map(([name, value]) => ({ name: name.trim(), value: normalizeSpecificationValue(value) }))
+    .filter((specification) => specification.name && specification.value);
+}
+
 function mapSpecificationsToFields(
   specifications: Array<{ name: string; value: string }>,
   categoryFields: CategoryFieldDefinition[],
@@ -77,8 +102,8 @@ function mapSpecificationsToFields(
   return Object.fromEntries(specifications
     .map((specification) => {
       const name = String(specification.name ?? '').trim();
-      const normalizedName = name.toLowerCase();
-      const field = categoryFields.find((item) => item.fieldName.toLowerCase() === normalizedName || item.fieldKey.toLowerCase() === normalizedName);
+      const normalizedName = normalizeSpecificationKey(name);
+      const field = categoryFields.find((item) => normalizeSpecificationKey(item.fieldName) === normalizedName || normalizeSpecificationKey(item.fieldKey) === normalizedName);
       const key = field?.fieldKey || name;
       return [key, normalizeSpecificationValue(specification.value)] as const;
     })
@@ -2475,7 +2500,7 @@ export function VendorEditProductWizardPage() {
       const normalizedProduct = { id: current.id, title: current.name, category: categoryName, price: current.price, description: current.description || '' };
       setProduct(normalizedProduct);
       const categoryId = current.categoryId ?? items.find((item) => item.name === categoryName)?.id ?? null;
-      setExistingSpecifications(current?.specifications ?? []);
+      setExistingSpecifications(normalizeProductSpecifications(current?.specifications, current?.fields));
         setExistingVideoUrl(current.videoUrl || null);
         setExistingVideoPublicId(current.videoPublicId || null);
       setExistingImages(images.map((image) => ({ id: image.id, url: image.url, altText: image.altText })));
