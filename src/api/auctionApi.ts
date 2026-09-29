@@ -35,6 +35,7 @@ export interface AuctionResponse {
   updatedAt?: string;
   updatedBy?: string;
   image?: string | null;
+  imageUrl?: string | null;
   images?: Array<{ id?: number | string; url?: string | null; imageUrl?: string | null; isPrimary?: boolean }> | null;
   videoUrl?: string | null;
   videoPublicId?: string | null;
@@ -406,9 +407,11 @@ export async function getAuctions(): Promise<
 
   const items = await Promise.all(
     auctions.map(async (auction) => {
-      const [stats, productImages] =
+      const [stats, auctionImages, productImages] =
         await Promise.all([
           loadAuctionStats(auction),
+
+          getAuctionImages(auction.id).catch(() => []),
 
           auction.productId
             ? getProductImages(
@@ -417,10 +420,17 @@ export async function getAuctions(): Promise<
             : Promise.resolve([]),
         ]);
 
-      const image =
-        productImages.length > 0
-          ? productImages[0].url
-          : undefined;
+      const embeddedImages = Array.isArray(auction.images) ? auction.images : [];
+      const primaryEmbeddedImage = embeddedImages.find((image) => image.isPrimary && (image.url || image.imageUrl));
+      const firstEmbeddedImage = embeddedImages.find((image) => image.url || image.imageUrl);
+      const image = auctionImages.find((entry) => entry.url)?.url
+        || primaryEmbeddedImage?.url
+        || primaryEmbeddedImage?.imageUrl
+        || firstEmbeddedImage?.url
+        || firstEmbeddedImage?.imageUrl
+        || auction.imageUrl
+        || auction.image
+        || productImages[0]?.url;
 
       return mapAuction(
         auction,

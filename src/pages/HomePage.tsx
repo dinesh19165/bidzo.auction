@@ -526,6 +526,20 @@ function toHomeAuction(item: AuctionListItem): AuctionResponse {
   };
 }
 
+function isUsableAuctionImage(value?: string | null): boolean {
+  const normalized = value?.trim().toLowerCase() || '';
+  return Boolean(normalized) && !normalized.endsWith('/logo.png') && !normalized.includes('logo.png');
+}
+
+function mergeHomeAuctionImages(auctions: AuctionResponse[], enrichedAuctions: AuctionResponse[]): AuctionResponse[] {
+  const enrichedById = new Map(enrichedAuctions.map((auction) => [String(auction.id), auction]));
+  return auctions.map((auction) => {
+    if (isUsableAuctionImage(auction.image) || isUsableAuctionImage(auction.imageUrl)) return auction;
+    const enriched = enrichedById.get(String(auction.id));
+    return enriched?.image ? { ...auction, image: enriched.image, imageUrl: enriched.imageUrl } : auction;
+  });
+}
+
 function HomeSkeleton() {
   return <div className="mx-auto grid max-w-7xl gap-5 px-4 py-8 sm:px-6 lg:grid-cols-4 lg:px-8">{Array.from({ length: 8 }).map((_, index) => <SkeletonCard key={index} />)}</div>;
 }
@@ -748,14 +762,17 @@ export function HomePage() {
         return offer ? { ...product, offerPrice: offer.discountedPrice, originalPrice: offer.price, discountType: offer.discountType, discountValue: offer.discountValue, offerEndsAt: offer.offerEndsAt, offerActive: true } : product;
       };
       const homeAuctions = auctionItems.map(toHomeAuction);
+      const liveAuctions = data.liveAuctions?.length ? mergeHomeAuctionImages(data.liveAuctions, homeAuctions) : homeAuctions;
+      const upcomingAuctions = data.upcomingAuctions?.length ? mergeHomeAuctionImages(data.upcomingAuctions, homeAuctions) : homeAuctions;
+      const endingSoonAuctions = data.endingSoonAuctions?.length ? mergeHomeAuctionImages(data.endingSoonAuctions, homeAuctions) : homeAuctions;
       setHomeData({
         ...data,
         featuredProducts: (data.featuredProducts || []).map(applyOffer),
         popularProducts: (data.popularProducts || []).map(applyOffer),
         recentProducts: (data.recentProducts || []).map(applyOffer),
-        liveAuctions: data.liveAuctions?.length ? data.liveAuctions : homeAuctions,
-        upcomingAuctions: data.upcomingAuctions?.length ? data.upcomingAuctions : homeAuctions,
-        endingSoonAuctions: data.endingSoonAuctions?.length ? data.endingSoonAuctions : homeAuctions,
+        liveAuctions,
+        upcomingAuctions,
+        endingSoonAuctions,
       });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load marketplace data.');
