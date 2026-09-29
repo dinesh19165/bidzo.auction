@@ -59,6 +59,24 @@ function toCardListing(item: MarketplaceSearchResult) {
   };
 }
 
+function categoryScopeIds(categories: CategoryRecord[], categoryName: string): Set<string> | null {
+  const root = categories.find((item) => item.name.trim().toLowerCase() === categoryName.trim().toLowerCase());
+  if (!root) return null;
+
+  const scope = new Set<string>([String(root.id)]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    categories.forEach((item) => {
+      if (item.parentId !== null && item.parentId !== undefined && scope.has(String(item.parentId)) && !scope.has(String(item.id))) {
+        scope.add(String(item.id));
+        changed = true;
+      }
+    });
+  }
+  return scope;
+}
+
 export function MarketplacePage() {
   const routeLocation = useLocation();
   const initialParams = new URLSearchParams(routeLocation.search);
@@ -128,11 +146,32 @@ export function MarketplacePage() {
     const requestFilters = { ...appliedFilters };
     setLoading(true);
     setError(null);
+    setResults([]);
     const activeLocation = locationFilterEnabled ? customerLocation : null;
     searchMarketplace({ ...requestFilters, page, size: PAGE_SIZE, latitude: activeLocation?.latitude, longitude: activeLocation?.longitude, radiusKm: 25 }).then(async (data) => {
       if (!active || generation !== requestGeneration.current) return;
+      let responseContent = data.content;
+      let responseTotal = data.totalElements;
+      let responsePages = data.totalPages;
+      if (requestFilters.category) {
+        const categoryIds = categoryScopeIds(categories, requestFilters.category);
+        const pages = await Promise.all(
+          Array.from({ length: data.totalPages }, (_, pageNumber) => pageNumber === page
+            ? Promise.resolve(data)
+            : searchMarketplace({ ...requestFilters, page: pageNumber, size: PAGE_SIZE, latitude: activeLocation?.latitude, longitude: activeLocation?.longitude, radiusKm: 25 }))
+        );
+        const uniqueResults = new Map<string, MarketplaceSearchResult>();
+        pages.flatMap((pageData) => pageData.content).forEach((item) => {
+          if (item.type === 'VENDOR' || !item.category || (categoryIds && !categoryIds.has(String(item.category.id)))) return;
+          uniqueResults.set(`${item.type}-${item.id}`, item);
+        });
+        const filteredResults = [...uniqueResults.values()];
+        responseTotal = filteredResults.length;
+        responsePages = Math.ceil(filteredResults.length / PAGE_SIZE);
+        responseContent = filteredResults.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+      }
       const offers = await getActiveProductOffers();
-      const enrichedContent = await Promise.all(data.content.map(async (item) => {
+      const enrichedContent = await Promise.all(responseContent.map(async (item) => {
         const offer = offers.get(String(item.id));
         const itemWithOffer = offer ? { ...item, offerPrice: offer.discountedPrice, originalPrice: offer.price, discountType: offer.discountType, discountValue: offer.discountValue, offerEndsAt: offer.offerEndsAt, offerActive: true } : item;
         if (item.type !== 'PRODUCT') return itemWithOffer;
@@ -146,12 +185,12 @@ export function MarketplacePage() {
       }));
       if (!active || generation !== requestGeneration.current) return;
       setResults(enrichedContent.map(toCardListing));
-      setTotalElements(data.totalElements);
-      setTotalPages(data.totalPages);
+      setTotalElements(responseTotal);
+      setTotalPages(responsePages);
     }).catch((err: unknown) => { if (active && generation === requestGeneration.current) setError(requestFilters.category ? 'Unable to load products for this category.' : (err instanceof Error ? err.message : 'Unable to load marketplace listings')); })
       .finally(() => { if (active && generation === requestGeneration.current) setLoading(false); });
     return () => { active = false; };
-  }, [appliedFilters, locationFilterEnabled, page, customerLocation?.latitude, customerLocation?.longitude]);
+  }, [appliedFilters, categories, locationFilterEnabled, page, customerLocation?.latitude, customerLocation?.longitude]);
 
   const { translate, currencySymbol } = useLocaleContext();
   const { theme } = useThemeContext();
