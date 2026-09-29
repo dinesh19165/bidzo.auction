@@ -66,6 +66,48 @@ function getProductFileKey(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
+function normalizeSpecificationValue(value: unknown): string {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function mapSpecificationsToFields(
+  specifications: Array<{ name: string; value: string }>,
+  categoryFields: CategoryFieldDefinition[],
+): Record<string, string> {
+  return Object.fromEntries(specifications
+    .map((specification) => {
+      const name = String(specification.name ?? '').trim();
+      const normalizedName = name.toLowerCase();
+      const field = categoryFields.find((item) => item.fieldName.toLowerCase() === normalizedName || item.fieldKey.toLowerCase() === normalizedName);
+      const key = field?.fieldKey || name;
+      return [key, normalizeSpecificationValue(specification.value)] as const;
+    })
+    .filter(([key, value]) => key && value));
+}
+
+function buildEditedSpecificationFields(
+  currentFields: Record<string, unknown>,
+  existingFields: Record<string, string>,
+  categoryFields: CategoryFieldDefinition[],
+): { changed: boolean; fields: Record<string, string> } {
+  const normalizedCurrent = Object.fromEntries(Object.entries(currentFields).map(([key, value]) => [key, normalizeSpecificationValue(value)]));
+  const visibleKeys = new Set(categoryFields.map((field) => field.fieldKey));
+  const fields = { ...existingFields };
+
+  visibleKeys.forEach((key) => {
+    const value = normalizedCurrent[key] || '';
+    if (value) fields[key] = value;
+    else delete fields[key];
+  });
+
+  Object.entries(normalizedCurrent).forEach(([key, value]) => {
+    if (!visibleKeys.has(key) && value) fields[key] = value;
+  });
+
+  const changed = [...new Set([...Object.keys(existingFields), ...Object.keys(fields)])].some((key) => (fields[key] || '') !== (existingFields[key] || ''));
+  return { changed, fields };
+}
+
 async function uploadProductFiles(
   files: File[],
   cachedImages: UploadedProductImage[],
@@ -2419,6 +2461,8 @@ export function VendorEditProductWizardPage() {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<any>({ title: '', category: '', categoryId: null, price: '', quantity: '', sku: '', fields: {}, description: '', sellingType: 'DIRECT_BUY', status: 'ACTIVE' });
   const [autosaveStatus, setAutosaveStatus] = useState('Saved');
+  const existingSpecificationFieldsRef = useRef<Record<string, string>>({});
+  const specificationFieldsInitializedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -2476,13 +2520,12 @@ export function VendorEditProductWizardPage() {
   }, [formData.categoryId]);
 
   useEffect(() => {
-    if (!categoryFields.length || !existingSpecifications.length || Object.keys(formData.fields || {}).length) return;
-    const values = Object.fromEntries(categoryFields.map((field) => {
-      const specification = existingSpecifications.find((item) => item.name.toLowerCase() === field.fieldName.toLowerCase() || item.name.toLowerCase() === field.fieldKey.toLowerCase());
-      return [field.fieldKey, specification?.value ?? ''];
-    }).filter((entry): entry is [string, string] => Boolean(entry[1])));
-    if (Object.keys(values).length) setFormData((previous: any) => ({ ...previous, fields: values }));
-  }, [categoryFields, existingSpecifications, formData.fields]);
+    if (!categoryFields.length || specificationFieldsInitializedRef.current) return;
+    const values = mapSpecificationsToFields(existingSpecifications, categoryFields);
+    existingSpecificationFieldsRef.current = values;
+    specificationFieldsInitializedRef.current = true;
+    setFormData((previous: any) => ({ ...previous, fields: values }));
+  }, [categoryFields, existingSpecifications]);
 
   if (!product) return <SectionShell title="Edit product" subtitle="Product unavailable">{productError ? <ErrorState title="Unable to load product" description={productError} /> : <SkeletonCard />}</SectionShell>;
 
@@ -2512,7 +2555,12 @@ export function VendorEditProductWizardPage() {
         setImageUploadStatus,
         setUploadedCloudinaryImages,
       );
-      await updateVendorProduct(Number(id) || product.id, {
+      const specificationUpdate = buildEditedSpecificationFields(
+        formData.fields && typeof formData.fields === 'object' ? formData.fields : {},
+        existingSpecificationFieldsRef.current,
+        categoryFields,
+      );
+      const updatePayload: Parameters<typeof updateVendorProduct>[1] = {
         name: String(formData.title || '').trim(),
         description: String(formData.description || '').trim(),
         price: formData.price,
@@ -2521,10 +2569,11 @@ export function VendorEditProductWizardPage() {
         status: String(formData.status || 'ACTIVE').toUpperCase(),
         sellingType: String(formData.sellingType || 'DIRECT_BUY').toUpperCase(),
         categoryId: formData.categoryId === null || formData.categoryId === undefined || formData.categoryId === '' ? null : Number(formData.categoryId),
-        fields: Object.fromEntries(Object.entries(formData.fields || {}).filter(([, value]) => String(value).trim() !== '').map(([key, value]) => [key, String(value)])),
         videoUrl,
         videoPublicId,
-      });
+      };
+      if (specificationUpdate.changed) updatePayload.fields = specificationUpdate.fields;
+      await updateVendorProduct(Number(id) || product.id, updatePayload);
       for (const [index, image] of uploadedImagesResult.entries()) {
         await createProductImage(Number(id) || product.id, {
           url: image.secureUrl,
@@ -2590,7 +2639,7 @@ export function VendorEditProductWizardPage() {
             </div>
           )}
 
-          {step === 2 && (categoryFieldsLoading ? <p className="text-sm text-slate-400">Loading category fields...</p> : categoryFieldsError ? <p className="text-sm text-rose-300">Unable to load category fields.</p> : <ProductForm initial={formData} categories={categories} categoryFields={categoryFields} onValidate={(v) => setProductFormValidEdit(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />)}
+          {step === 2 && (categoryFieldsLoading ? <p className="text-sm text-slate-400">Loading category fields...</p> : categoryFieldsError ? <p className="text-sm text-rose-300">Unable to load category fields.</p> : <ProductForm key={`${formData.categoryId ?? ''}-${Object.keys(formData.fields || {}).sort().join('|')}`} initial={formData} categories={categories} categoryFields={categoryFields} onValidate={(v) => setProductFormValidEdit(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />)}
 
           {step === 3 && (
             <div>
