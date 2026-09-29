@@ -2491,29 +2491,29 @@ export function VendorEditProductWizardPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([getCategories(), getVendorProducts(), getProductImages(Number(id)).catch(() => [])]).then(([items, vendorProducts, images]) => {
+    Promise.all([getCategories(), getVendorProducts(), getProductById(Number(id)), getProductImages(Number(id)).catch(() => [])]).then(([items, vendorProducts, productDetails, images]) => {
       if (!active) return;
       setCategories(items);
       const current = vendorProducts.find((item) => item.id === Number(id));
       if (!current) throw new Error('Product not found.');
-      const categoryName = items.find((item) => String(item.id) === String(current.categoryId))?.name || '';
-      const normalizedProduct = { id: current.id, title: current.name, category: categoryName, price: current.price, description: current.description || '' };
+      const categoryId = productDetails.categoryId ?? current.categoryId ?? null;
+      const categoryName = productDetails.categoryName || items.find((item) => String(item.id) === String(categoryId))?.name || '';
+      const normalizedProduct = { id: current.id, title: current.name || productDetails.title, category: categoryName, price: current.price ?? productDetails.price, description: current.description ?? productDetails.description ?? '' };
       setProduct(normalizedProduct);
-      const categoryId = current.categoryId ?? items.find((item) => item.name === categoryName)?.id ?? null;
-      setExistingSpecifications(normalizeProductSpecifications(current?.specifications, current?.fields));
-        setExistingVideoUrl(current.videoUrl || null);
-        setExistingVideoPublicId(current.videoPublicId || null);
+      setExistingSpecifications(normalizeProductSpecifications(productDetails.specifications, current.fields || current.specifications));
+      setExistingVideoUrl(productDetails.videoUrl || current.videoUrl || null);
+      setExistingVideoPublicId(productDetails.videoPublicId || current.videoPublicId || null);
       setExistingImages(images.map((image) => ({ id: image.id, url: image.url, altText: image.altText })));
       setFormData((previous: any) => ({
         ...previous,
-        title: current?.name == null ? previous.title : String(current.name),
-        description: current?.description == null ? previous.description : String(current.description),
-        price: current?.price == null ? previous.price : String(current.price),
-        quantity: current?.quantity == null && current?.stock == null ? previous.quantity : String(current.quantity ?? current.stock),
+        title: current?.name || productDetails.title || previous.title,
+        description: current?.description ?? productDetails.description ?? previous.description,
+        price: current?.price == null && productDetails.price == null ? previous.price : String(current?.price ?? productDetails.price),
+        quantity: current?.quantity == null && current?.stock == null && productDetails.availableQuantity == null ? previous.quantity : String(current.quantity ?? current.stock ?? productDetails.availableQuantity),
         sku: current?.sku == null ? previous.sku : String(current.sku),
-        sellingType: current?.sellingType == null ? previous.sellingType : String(current.sellingType),
+        sellingType: productDetails.sellingType ?? current?.sellingType ?? previous.sellingType,
         status: current?.status == null ? previous.status : String(current.status),
-        category: items.find((item) => String(item.id) === String(categoryId))?.name ?? previous.category,
+        category: categoryName || previous.category,
         categoryId,
       }));
     }).catch((reason) => { if (active) { setCategories([]); setProductError(reason instanceof Error ? reason.message : 'Unable to load product.'); } });
