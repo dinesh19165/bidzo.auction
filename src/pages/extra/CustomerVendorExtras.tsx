@@ -26,6 +26,7 @@ import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
 import { updateVendorProfile, getVendorProfile, getVendorBankRecord, saveVendorBankRecord, type VendorProfileResponse, type VendorBankRecord } from '../../api/vendorApi';
 import { createVendorWithdrawal, getVendorWithdrawalBalance, getVendorWithdrawals, type WithdrawalBalance, type WithdrawalRecord } from '../../api/withdrawalApi';
 import { getProductReviews, getReviews, getReviewEligibility, createReview } from '../../api/reviewApi';
+import { getProductById } from '../../api/productApi';
 import VideoUploadField from '../../components/forms/VideoUploadField';
 import { uploadToCloudinaryAsset } from '../../services/cloudinaryUpload';
 import { getTransactions, type TransactionResponse } from '../../api/walletApi';
@@ -3463,7 +3464,7 @@ export function VendorInventoryPage() {
   const filteredInventory = useMemo(() => {
     const normalized = search.toLowerCase().trim();
     let items = products.map((product) => {
-      const stock = Number(product.stock ?? product.quantity ?? 0);
+      const stock = Number(product.stock ?? product.stockQuantity ?? product.quantity ?? product.availableQuantity ?? 0);
       const status = String(product.status || 'ACTIVE');
       const health = stock === 0 ? 'Out of stock' : stock < 5 ? 'Low stock' : 'Healthy';
       const healthLabel = stock === 0 ? 'OUT OF STOCK' : stock < 5 ? 'LOW STOCK' : 'HEALTHY';
@@ -3743,10 +3744,27 @@ export function VendorProductsPage() {
 
   try {
     const data = await getVendorProducts();
+    const enrichedData = await Promise.all(data.map(async (product) => {
+      try {
+        const detail = await getProductById(product.id);
+        const detailImages = (detail.gallery || []).map((url) => ({ url }));
+        return {
+          ...product,
+          imageUrl: product.imageUrl || detail.image || undefined,
+          image: product.image || detail.image || undefined,
+          images: product.images?.length ? product.images : detailImages,
+          stock: product.stock ?? product.stockQuantity ?? product.quantity ?? product.availableQuantity ?? detail.availableQuantity,
+          quantity: product.quantity ?? product.stockQuantity ?? product.availableQuantity ?? detail.availableQuantity,
+          availableQuantity: product.availableQuantity ?? detail.availableQuantity,
+        };
+      } catch {
+        return product;
+      }
+    }));
 
     if (active) {
       setProducts(
-        data.filter(
+        enrichedData.filter(
           (product) =>
             String(product.status || '').toUpperCase() !== 'DISCONTINUED'
         )
@@ -3782,7 +3800,7 @@ export function VendorProductsPage() {
         const sellingType = String(item.sellingType || 'DIRECT_BUY').toUpperCase();
         const matchesStatus = statusFilter === 'All' || (statusFilter === 'Auction' && sellingType === 'AUCTION') || (statusFilter === 'Live' && status.includes('live')) || (statusFilter === 'Draft' && status.includes('draft')) || (statusFilter === 'Archived' && status.includes('archived')) || (statusFilter === 'All');
         const matchesCategory = categoryFilter === 'All' || String(item.categoryId ?? 'General') === categoryFilter;
-        const stock = Number(item.stock ?? 0);
+        const stock = Number(item.stock ?? item.stockQuantity ?? item.quantity ?? item.availableQuantity ?? 0);
         const matchesStock = stockFilter === 'All' || (stockFilter === 'In stock' && stock > 0) || (stockFilter === 'Low stock' && stock > 0 && stock < 5) || (stockFilter === 'Out of stock' && stock === 0) || (stockFilter === 'Reserved' && stock > 0 && stock < 3);
         const matchesFeatured = featuredFilter === 'All' || (featuredFilter === 'Featured' ? true : true);
         const matchesAuction = auctionFilter === 'All' || (auctionFilter === 'Auction' && sellingType === 'AUCTION') || (auctionFilter === 'Regular' && sellingType !== 'AUCTION');
@@ -3794,7 +3812,7 @@ export function VendorProductsPage() {
   name: item.name,
   category: item.categoryId != null ? `Category ${item.categoryId}` : 'General',
   price: toMoney(item.price),
-  stock: Number(item.stock ?? 0),
+  stock: Number(item.stock ?? item.stockQuantity ?? item.quantity ?? item.availableQuantity ?? 0),
   status: String(item.status || 'Active'),
   auctionStatus: mapSellingTypeLabel(item.sellingType),
   image: getProductImage(item),
@@ -3832,10 +3850,6 @@ export function VendorProductsPage() {
   const toggleSelect = (sku: string) => {
     setSelected((prev) => (prev.includes(sku) ? prev.filter((id) => id !== sku) : [...prev, sku]));
   };
-const handleQuickAction = (action: string, item: { name: string }) => {
-  alert(`${action} ${item.name}`);
-};
-
 const handleDeleteProduct = async (
   productId: number,
   productName: string
@@ -3862,6 +3876,10 @@ const handleDeleteProduct = async (
         : 'Failed to delete product.'
     );
   }
+};
+
+const handleQuickAction = (action: string, item: { name: string }) => {
+  alert(`${action} ${item.name}`);
 };
 
   return (
@@ -3933,11 +3951,7 @@ const handleDeleteProduct = async (
                   <span>{selected.length} selected</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <SecondaryButton disabled={selected.length === 0} onClick={() => handleQuickAction('Duplicate', { name: `${selected.length} items` })}>Duplicate</SecondaryButton>
-                  <SecondaryButton disabled={selected.length === 0} onClick={() => handleQuickAction('Publish', { name: `${selected.length} items` })}>Publish</SecondaryButton>
-                  <SecondaryButton disabled={selected.length === 0} onClick={() => handleQuickAction('Feature', { name: `${selected.length} items` })}>Feature</SecondaryButton>
-                  <SecondaryButton disabled={selected.length === 0} onClick={() => handleQuickAction('Archive', { name: `${selected.length} items` })}>Archive</SecondaryButton>
-
+                  <SecondaryButton disabled={selected.length === 0}>Publish</SecondaryButton>
                 </div>
               </div>
 
@@ -3962,11 +3976,6 @@ const handleDeleteProduct = async (
                           <span>{product.views} views</span>
                           <span>{product.favorites} favorites</span>
                         </div>
-                      </div>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <SecondaryButton onClick={() => handleQuickAction('Duplicate', product)}>Duplicate</SecondaryButton>
-                        <SecondaryButton onClick={() => handleQuickAction('Feature', product)}>Feature</SecondaryButton>
-                        <SecondaryButton onClick={() => handleQuickAction('Archive', product)}>Archive</SecondaryButton>
                       </div>
                     </Card>
                   ))}
@@ -4000,7 +4009,6 @@ const handleDeleteProduct = async (
                             <div className="flex flex-wrap gap-2">
                               <Link to={`/vendor/edit-product-wizard/${item.sku}`} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Edit</Link>
                               <button onClick={() => handleQuickAction('Publish', item)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Publish</button>
-                              <button onClick={() => handleQuickAction('Duplicate', item)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Duplicate</button>
                             </div>
                           </td>
                         </tr>

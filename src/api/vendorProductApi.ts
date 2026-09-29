@@ -19,6 +19,8 @@ export interface VendorProduct {
 
 export interface VendorProductApiResponse extends VendorProduct {
   stock?: number | null;
+  stockQuantity?: number | null;
+  availableQuantity?: number | null;
   imageUrl?: string | null;
   image?: string | null;
   videoUrl?: string | null;
@@ -87,13 +89,14 @@ export function mapSellingTypeLabel(
 export function getProductImage(
   product: VendorProductApiResponse
 ): string {
+  const images = Array.isArray(product.images) ? product.images : [];
+  const primary = images.find((image) => image && typeof image === 'object' && image.isPrimary);
+  const first = images[0];
   const directImage =
-    product.images?.find((image) => image.isPrimary)?.url ||
-    product.images?.find((image) => image.isPrimary)?.imageUrl ||
+    (primary && typeof primary === 'object' ? primary.url || primary.imageUrl : undefined) ||
     product.imageUrl ||
     product.image ||
-    product.images?.[0]?.url ||
-    product.images?.[0]?.imageUrl;
+    (first && typeof first === 'object' ? first.url || first.imageUrl : undefined);
 
   return directImage || '/logo.png';
 }
