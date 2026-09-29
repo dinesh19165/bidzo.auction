@@ -2524,7 +2524,13 @@ export function VendorEditProductWizardPage() {
     const values = mapSpecificationsToFields(existingSpecifications, categoryFields);
     existingSpecificationFieldsRef.current = values;
     specificationFieldsInitializedRef.current = true;
-    setFormData((previous: any) => ({ ...previous, fields: values }));
+    setFormData((previous: any) => ({
+      ...previous,
+      fields: {
+        ...values,
+        ...Object.fromEntries(Object.entries(previous.fields || {}).filter(([, value]) => normalizeSpecificationValue(value) !== '')),
+      },
+    }));
   }, [categoryFields, existingSpecifications]);
 
   if (!product) return <SectionShell title="Edit product" subtitle="Product unavailable">{productError ? <ErrorState title="Unable to load product" description={productError} /> : <SkeletonCard />}</SectionShell>;
@@ -2639,7 +2645,7 @@ export function VendorEditProductWizardPage() {
             </div>
           )}
 
-          {step === 2 && (categoryFieldsLoading ? <p className="text-sm text-slate-400">Loading category fields...</p> : categoryFieldsError ? <p className="text-sm text-rose-300">Unable to load category fields.</p> : <ProductForm key={`${formData.categoryId ?? ''}-${Object.keys(formData.fields || {}).sort().join('|')}`} initial={formData} categories={categories} categoryFields={categoryFields} onValidate={(v) => setProductFormValidEdit(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />)}
+          {step === 2 && (categoryFieldsLoading ? <p className="text-sm text-slate-400">Loading category fields...</p> : categoryFieldsError ? <p className="text-sm text-rose-300">Unable to load category fields.</p> : <ProductForm initial={formData} categories={categories} categoryFields={categoryFields} onValidate={(v) => setProductFormValidEdit(v)} onChange={(data) => setFormData((prev: any) => ({ ...prev, ...data }))} />)}
 
           {step === 3 && (
             <div>
