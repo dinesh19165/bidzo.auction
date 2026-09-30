@@ -25,7 +25,8 @@ const DEFAULT_FILTERS: MarketplaceFilters = {
 };
 
 function toCardListing(item: MarketplaceSearchResult) {
-  const isAuction = item.type === 'AUCTION';
+  const sellingType = String(item.sellingType || '').trim().toUpperCase();
+  const isAuction = sellingType === 'AUCTION' || item.type === 'AUCTION';
   const image = item.image && !item.image.includes('placeholder.com') ? item.image : '/logo.png';
   return {
     id: item.id,
@@ -74,14 +75,6 @@ function categoryScopeIds(categories: CategoryRecord[], categoryName: string): S
     });
   }
   return scope;
-}
-
-function isEndedMarketplaceAuction(item: MarketplaceSearchResult, now = Date.now()): boolean {
-  if (item.type !== 'AUCTION') return false;
-  if (String(item.auctionStatus || '').trim().toUpperCase() === 'ENDED') return true;
-  if (!item.auctionEndsAt) return false;
-  const endTime = new Date(item.auctionEndsAt).getTime();
-  return Number.isFinite(endTime) && endTime <= now;
 }
 
 export function MarketplacePage() {
@@ -177,7 +170,6 @@ export function MarketplacePage() {
         responsePages = Math.ceil(filteredResults.length / PAGE_SIZE);
         responseContent = filteredResults.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
       }
-      responseContent = responseContent.filter((item) => !isEndedMarketplaceAuction(item));
       const offers = await getActiveProductOffers();
       const enrichedContent = await Promise.all(responseContent.map(async (item) => {
         const offer = offers.get(String(item.id));
@@ -192,7 +184,10 @@ export function MarketplacePage() {
         }
       }));
       if (!active || generation !== requestGeneration.current) return;
-      setResults(enrichedContent.map(toCardListing));
+      const directBuyContent = enrichedContent.filter((item) =>
+        item.type === 'PRODUCT' && String(item.sellingType || '').trim().toUpperCase() !== 'AUCTION'
+      );
+      setResults(directBuyContent.map(toCardListing));
       setTotalElements(responseTotal);
       setTotalPages(responsePages);
     }).catch((err: unknown) => { if (active && generation === requestGeneration.current) setError(requestFilters.category ? 'Unable to load products for this category.' : (err instanceof Error ? err.message : 'Unable to load marketplace listings')); })
