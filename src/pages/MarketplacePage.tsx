@@ -77,6 +77,14 @@ function categoryScopeIds(categories: CategoryRecord[], categoryName: string): S
   return scope;
 }
 
+function isEndedMarketplaceAuction(item: MarketplaceSearchResult, now = Date.now()): boolean {
+  if (item.type !== 'AUCTION' && String(item.sellingType || '').trim().toUpperCase() !== 'AUCTION') return false;
+  if (String(item.auctionStatus || '').trim().toUpperCase() === 'ENDED') return true;
+  if (!item.auctionEndsAt) return false;
+  const endTime = new Date(item.auctionEndsAt).getTime();
+  return Number.isFinite(endTime) && endTime <= now;
+}
+
 export function MarketplacePage() {
   const routeLocation = useLocation();
   const initialParams = new URLSearchParams(routeLocation.search);
@@ -170,6 +178,7 @@ export function MarketplacePage() {
         responsePages = Math.ceil(filteredResults.length / PAGE_SIZE);
         responseContent = filteredResults.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
       }
+      responseContent = responseContent.filter((item) => !isEndedMarketplaceAuction(item));
       const offers = await getActiveProductOffers();
       const enrichedContent = await Promise.all(responseContent.map(async (item) => {
         const offer = offers.get(String(item.id));
