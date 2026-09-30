@@ -25,8 +25,7 @@ const DEFAULT_FILTERS: MarketplaceFilters = {
 };
 
 function toCardListing(item: MarketplaceSearchResult) {
-  const sellingType = String(item.sellingType || '').trim().toUpperCase();
-  const isAuction = sellingType === 'AUCTION' || item.type === 'AUCTION';
+  const isAuction = item.type === 'AUCTION';
   const image = item.image && !item.image.includes('placeholder.com') ? item.image : '/logo.png';
   return {
     id: item.id,
@@ -78,7 +77,7 @@ function categoryScopeIds(categories: CategoryRecord[], categoryName: string): S
 }
 
 function isEndedMarketplaceAuction(item: MarketplaceSearchResult, now = Date.now()): boolean {
-  if (item.type !== 'AUCTION' && String(item.sellingType || '').trim().toUpperCase() !== 'AUCTION') return false;
+  if (item.type !== 'AUCTION') return false;
   if (String(item.auctionStatus || '').trim().toUpperCase() === 'ENDED') return true;
   if (!item.auctionEndsAt) return false;
   const endTime = new Date(item.auctionEndsAt).getTime();
