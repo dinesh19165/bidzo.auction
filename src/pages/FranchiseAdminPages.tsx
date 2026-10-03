@@ -91,6 +91,16 @@ function metric(record: FranchiseRecord, keys: string[]): unknown {
   return undefined;
 }
 
+function vendorBusiness(record: FranchiseRecord): string {
+  const businessName = value(record, ['businessName', 'storeName', 'business']);
+  if (businessName !== undefined) return text(businessName);
+  const address = ['businessAddress', 'city', 'state', 'pincode']
+    .map((key) => value(record, [key]))
+    .filter((part) => part !== undefined)
+    .map(text);
+  return address.length ? address.join(', ') : 'Unavailable';
+}
+
 export function FranchiseDashboardPage() {
   const { item, loading, error } = useObject(getFranchiseDashboard);
   return <FranchiseAdminShell title="Franchise Admin" subtitle="Dashboard" activePath="/franchise/dashboard" breadcrumbs={[{ label: 'Franchise' }, { label: 'Dashboard' }]}>
@@ -111,8 +121,8 @@ export function FranchiseDashboardPage() {
 }
 
 const vendorColumns = [
-  { key: 'vendor', label: 'Vendor', render: (row: FranchiseRecord) => text(value(row, ['name', 'vendorName', 'fullName'])) },
-  { key: 'business', label: 'Store / Business', render: (row: FranchiseRecord) => text(value(row, ['businessName', 'storeName', 'business'])) },
+  { key: 'vendor', label: 'Vendor', render: (row: FranchiseRecord) => text(value(row, ['companyName', 'name', 'vendorName', 'fullName'])) },
+  { key: 'business', label: 'Store / Business', render: vendorBusiness },
   { key: 'contact', label: 'Contact', render: (row: FranchiseRecord) => text(value(row, ['email', 'phone', 'phoneNumber', 'contact'])) },
   { key: 'status', label: 'Status', render: (row: FranchiseRecord) => text(value(row, ['status', 'verificationStatus'])) },
   { key: 'products', label: 'Products', render: (row: FranchiseRecord) => text(value(row, ['productCount', 'productsCount', 'totalProducts'])) },
