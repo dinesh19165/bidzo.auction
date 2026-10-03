@@ -80,6 +80,13 @@ export type PaymentStatus =
   | 'REFUNDED'
   | string;
 
+export type AdvertisementPricingType = 'PRODUCT_PROMOTION' | 'CATEGORY_BANNER' | 'HOMEPAGE_BANNER';
+
+export interface AdvertisementPricing {
+  type: AdvertisementPricingType;
+  pricePerDay?: number | string | null;
+}
+
 export interface AdvertisementRecord {
   id?: number | string;
   advertisementId?: number | string;
@@ -98,6 +105,8 @@ export interface AdvertisementRecord {
   bannerImageUrl?: string;
   bannerImagePublicId?: string;
   amount?: number | string;
+  pricePerDay?: number | string;
+  numberOfDays?: number;
   currency?: string;
   startDate?: string;
   startAt?: string;
@@ -142,8 +151,6 @@ export interface AdvertisementRequest {
   startAt?: string;
   endDate?: string;
   endAt?: string;
-  amount?: number | string;
-  currency?: string;
   reason?: string;
   rejectionReason?: string;
   [key: string]: unknown;
@@ -153,6 +160,8 @@ export interface AdvertisementPaymentSession {
   id?: number | string;
   advertisementId?: number | string;
   amount?: number | string;
+  pricePerDay?: number | string;
+  numberOfDays?: number;
   currency?: string;
   razorpayKeyId?: string;
   razorpayOrderId?: string;
@@ -161,6 +170,36 @@ export interface AdvertisementPaymentSession {
   paymentRequired?: boolean;
   message?: string;
   [key: string]: unknown;
+}
+
+function isAdvertisementPricingType(value: unknown): value is AdvertisementPricingType {
+  return value === 'PRODUCT_PROMOTION' || value === 'CATEGORY_BANNER' || value === 'HOMEPAGE_BANNER';
+}
+
+function pricingEntries(value: unknown): AdvertisementPricing[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => pricingEntries(item));
+  }
+  if (!value || typeof value !== 'object') return [];
+  const record = value as Record<string, unknown>;
+  const type = record.type ?? record.advertisementType;
+  if (isAdvertisementPricingType(type)) {
+    return [{ type, pricePerDay: record.pricePerDay as number | string | null | undefined }];
+  }
+  for (const key of ['data', 'content', 'items', 'results', 'pricing', 'advertisementPricing']) {
+    if (record[key] !== undefined) {
+      const entries = pricingEntries(record[key]);
+      if (entries.length) return entries;
+    }
+  }
+  return Object.entries(record).flatMap(([key, entry]) => {
+    if (!isAdvertisementPricingType(key)) return [];
+    if (entry && typeof entry === 'object') {
+      const pricePerDay = (entry as Record<string, unknown>).pricePerDay;
+      return [{ type: key, pricePerDay: pricePerDay as number | string | null | undefined }];
+    }
+    return [{ type: key, pricePerDay: entry as number | string | null | undefined }];
+  });
 }
 
 function extractBody<T>(response: unknown, fallback: string): T {
@@ -218,6 +257,8 @@ export function normalizeAdvertisement(value: unknown): AdvertisementRecord | nu
     paymentStatus: String(record.paymentStatus ?? record.paymentStatusName ?? record.paymentState ?? payment?.status ?? '').trim().toUpperCase() || undefined,
     paymentStatusName: String(record.paymentStatusName ?? record.paymentStatus ?? record.paymentState ?? '').trim().toUpperCase() || undefined,
     amount: (record.amount ?? record.totalAmount ?? record.price ?? advertisement?.amount) as number | string | undefined,
+    pricePerDay: (record.pricePerDay ?? advertisement?.pricePerDay) as number | string | undefined,
+    numberOfDays: (record.numberOfDays ?? advertisement?.numberOfDays) as number | undefined,
     currency: String(record.currency ?? record.amountCurrency ?? advertisement?.currency ?? 'INR').trim() || 'INR',
     placement: String(record.placement ?? record.location ?? advertisement?.placement ?? '').trim() || undefined,
     targetUrl: String(record.targetUrl ?? record.url ?? record.redirectUrl ?? record.link ?? advertisement?.targetUrl ?? '').trim() || undefined,
@@ -249,6 +290,7 @@ export async function getVendorAdvertisement(id: number | string): Promise<Adver
 
 export async function createVendorAdvertisement(payload: AdvertisementRequest): Promise<AdvertisementRecord> {
   const cleaned: Record<string, unknown> = { ...payload };
+  delete cleaned.amount;
   Object.keys(cleaned).forEach((key) => {
     const value = cleaned[key];
     if (value === undefined || value === null || value === '') delete cleaned[key];
@@ -265,6 +307,7 @@ export async function createVendorAdvertisement(payload: AdvertisementRequest): 
 
 export async function updateVendorAdvertisement(id: number | string, payload: AdvertisementRequest): Promise<AdvertisementRecord> {
   const cleaned: Record<string, unknown> = { ...payload };
+  delete cleaned.amount;
   Object.keys(cleaned).forEach((key) => {
     const value = cleaned[key];
     if (value === undefined || value === null || value === '') delete cleaned[key];
@@ -317,6 +360,20 @@ export async function getAdminAdvertisements(): Promise<AdvertisementRecord[]> {
     .filter((entry): entry is AdvertisementRecord => Boolean(entry));
 }
 
+export async function getAdminAdvertisementPricing(): Promise<AdvertisementPricing[]> {
+  const response = await fetchJson<unknown>('/api/admin/advertisement-pricing');
+  return pricingEntries(extractBody<unknown>(response, 'Failed to load advertisement pricing'));
+}
+
+export async function updateAdminAdvertisementPricing(type: AdvertisementPricingType, pricePerDay: number): Promise<AdvertisementPricing> {
+  const response = await fetchJson<unknown>(`/api/admin/advertisement-pricing/${encodeURIComponent(type)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ pricePerDay }),
+  });
+  const entries = pricingEntries(extractBody<unknown>(response, 'Failed to update advertisement pricing'));
+  return entries.find((entry) => entry.type === type) ?? { type, pricePerDay };
+}
+
 export async function getAdminAdvertisement(id: number | string): Promise<AdvertisementRecord> {
   const response = await fetchJson<unknown>(`/api/admin/advertisements/${encodeURIComponent(String(id))}`);
   const record = normalizeAdvertisement(extractBody<unknown>(response, 'Failed to load admin advertisement'));
@@ -350,17 +407,12 @@ export async function publishAdminAdvertisement(id: number | string): Promise<Ad
 
 export async function createAdvertisementRazorpayOrder(
   id: number | string,
-  payload: Record<string, unknown> = {},
+  payload: { paymentProvider?: string } = {},
 ): Promise<AdvertisementPaymentSession> {
-  const amountValue = Number(payload.amount ?? 0);
-  const currencyValue = String(payload.currency ?? 'INR');
-
   const response = await fetchJson<unknown>(`/api/vendor/advertisements/${encodeURIComponent(String(id))}/payments/razorpay`, {
     method: 'POST',
     body: JSON.stringify({
       paymentProvider: String(payload.paymentProvider ?? 'RAZORPAY'),
-      amount: amountValue,
-      currency: currencyValue,
     }),
   });
 

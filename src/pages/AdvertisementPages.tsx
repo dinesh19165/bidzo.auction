@@ -14,6 +14,7 @@ import {
   approveFranchiseAdvertisement,
   createAdvertisementRazorpayOrder,
   createVendorAdvertisement,
+  getAdminAdvertisementPricing,
   getAdminAdvertisement,
   getAdminAdvertisements,
   getFranchiseAdvertisement,
@@ -23,8 +24,11 @@ import {
   publishAdminAdvertisement,
   rejectAdminAdvertisement,
   rejectFranchiseAdvertisement,
+  updateAdminAdvertisementPricing,
   type AdvertisementRecord,
   type AdvertisementRequest,
+  type AdvertisementPricing,
+  type AdvertisementPricingType,
   type AdvertisementStatus,
   type AdvertisementType,
 } from '../api/advertisementApi';
@@ -49,11 +53,19 @@ function entryLabel(value: string | undefined | null): string {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function currencyFormat(value: number | string | undefined | null): string {
+function currencyFormat(value: number | string | undefined | null, fractionDigits = 0): string {
   if (value === undefined || value === null || value === '') return '—';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return String(value);
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(numeric);
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }).format(numeric);
+}
+
+function inclusiveNumberOfDays(startDate?: string, endDate?: string): number | undefined {
+  if (!startDate || !endDate) return undefined;
+  const start = Date.parse(`${startDate.slice(0, 10)}T00:00:00Z`);
+  const end = Date.parse(`${endDate.slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return undefined;
+  return Math.floor((end - start) / 86400000) + 1;
 }
 
 function formatDate(value?: string | null): string {
@@ -311,7 +323,7 @@ function getAdvertisementProps(record: AdvertisementRecord): { title: string; de
   };
 }
 
-const advertisementTypes: AdvertisementType[] = ['PRODUCT_PROMOTION', 'STORE_PROMOTION', 'BANNER', 'HOMEPAGE_BANNER', 'CATEGORY_BANNER'];
+const advertisementTypes: AdvertisementPricingType[] = ['PRODUCT_PROMOTION', 'CATEGORY_BANNER', 'HOMEPAGE_BANNER'];
 
 function VendorAdvertisementTable({ items, onRefresh }: { items: AdvertisementRecord[]; onRefresh: () => void }) {
   if (items.length === 0) {
@@ -410,8 +422,10 @@ export function VendorAdvertisementCreatePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [createdAdvertisement, setCreatedAdvertisement] = useState<AdvertisementRecord | null>(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
   const [form, setForm] = useState<AdvertisementRequest>({
-    advertisementType: 'BANNER',
+    advertisementType: 'PRODUCT_PROMOTION',
     title: '',
     description: '',
     placement: '',
@@ -420,8 +434,6 @@ export function VendorAdvertisementCreatePage() {
     bannerImagePublicId: '',
     productId: undefined,
     categoryId: undefined,
-    amount: 0,
-    currency: 'INR',
     startDate: '',
     endDate: '',
   });
@@ -490,8 +502,62 @@ export function VendorAdvertisementCreatePage() {
 
   const openBannerImagePicker = () => bannerInputRef.current?.click();
 
+  const startPayment = async (advertisement: AdvertisementRecord) => {
+    const id = advertisement.id ?? advertisement.advertisementId;
+    if (!id) throw new Error('Advertisement ID is missing.');
+    setProcessingPayment(true);
+    try {
+      const paymentSession = await createAdvertisementRazorpayOrder(id, { paymentProvider: 'RAZORPAY' });
+      const amountValue = paymentSession.amount ?? advertisement.amount;
+      const amount = Number(amountValue);
+      const currency = String(paymentSession.currency || advertisement.currency || 'INR');
+      const razorpayKeyId = paymentSession.razorpayKeyId;
+      const razorpayOrderId = paymentSession.razorpayOrderId;
+
+      if (amountValue === undefined || amountValue === null || !Number.isFinite(amount) || amount <= 0) {
+        throw new Error('The backend did not return a valid advertisement payment amount.');
+      }
+      const razorpayLoaded = await loadRazorpay();
+      if (!razorpayLoaded || !window.Razorpay) throw new Error('Razorpay Checkout could not be loaded.');
+      if (!razorpayKeyId || !razorpayOrderId || !currency) throw new Error('Advertisement payment session is incomplete. Please try again.');
+
+      openRazorpayCheckout({
+        key: razorpayKeyId,
+        order_id: razorpayOrderId,
+        amount: amount * 100,
+        currency,
+        name: 'Bidzo Advertisement',
+        description: advertisement.title || 'Advertisement payment',
+        prefill: { name: user?.name, email: user?.email },
+        handler: async (response) => {
+          try {
+            await verifyAdvertisementPayment(id, {
+              paymentProvider: 'RAZORPAY',
+              paymentReference: response.razorpay_payment_id,
+              amount,
+              currency,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+            showToast('Payment successful — waiting for Franchise Admin approval.', 'Your advertisement has been submitted for review.', 'success');
+            navigate(`/vendor/advertisements/${id}`);
+          } catch (reason) {
+            showToast('Payment verification failed', reason instanceof Error ? reason.message : 'Unable to verify payment.', 'warning');
+          }
+        },
+        modal: { ondismiss: () => showToast('Payment cancelled', 'The advertisement remains pending payment.', 'info') },
+      });
+    } catch (reason) {
+      showToast('Payment failed', reason instanceof Error ? reason.message : 'Unable to start payment.', 'warning');
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (createdAdvertisement) return;
     if (!form.title?.trim()) return showToast('Title is required', 'Please add an advertisement title.', 'warning');
     if (!form.startDate) return showToast('Start date is required', 'Choose a start date before saving.', 'warning');
     if (!form.endDate) return showToast('End date is required', 'Choose an end date before saving.', 'warning');
@@ -500,7 +566,7 @@ export function VendorAdvertisementCreatePage() {
     if (form.advertisementType === 'CATEGORY_BANNER' && categoryLoadError) return showToast('Categories unavailable', categoryLoadError, 'warning');
     if (uploading) return showToast('Image upload in progress', 'Wait for the banner image upload to finish.', 'warning');
     if (uploadError) return showToast('Banner image upload failed', uploadError, 'warning');
-    if ((form.advertisementType === 'BANNER' || form.advertisementType === 'HOMEPAGE_BANNER' || form.advertisementType === 'CATEGORY_BANNER' || form.advertisementType === 'STORE_PROMOTION' || form.advertisementType === 'PRODUCT_PROMOTION') && !form.bannerImageUrl) return showToast('Banner image is required', 'Upload a banner image for this advertisement type.', 'warning');
+    if (!form.bannerImageUrl) return showToast('Banner image is required', 'Upload a banner image for this advertisement type.', 'warning');
 
     setSaving(true);
     try {
@@ -510,72 +576,27 @@ export function VendorAdvertisementCreatePage() {
         description: form.description?.trim() || undefined,
         placement: form.placement?.trim() || undefined,
         targetUrl: form.targetUrl?.trim() || undefined,
-        amount: form.amount === undefined || form.amount === null ? undefined : Number(form.amount),
-        currency: form.currency || 'INR',
         startDate: form.startDate,
         endDate: form.endDate,
         ...(form.advertisementType !== 'PRODUCT_PROMOTION' ? { productId: undefined } : { productId: form.productId }),
         ...(form.advertisementType === 'CATEGORY_BANNER' ? { categoryId: form.categoryId } : { categoryId: undefined }),
       };
       const created = await createVendorAdvertisement(payload);
-      const status = normalizeStatus(created.status ?? created.advertisementStatus ?? '');
-      if (status === 'PAYMENT_PENDING' || status === 'PENDING') {
-        const paymentSession = await createAdvertisementRazorpayOrder(created.id ?? created.advertisementId ?? '', {
-          paymentProvider: 'RAZORPAY',
-          amount: Number(created.amount ?? 0),
-          currency: String(created.currency || 'INR'),
-        });
-
-        const amount = Number(paymentSession.amount ?? created.amount ?? 0);
-        const currency = String(paymentSession.currency || created.currency || 'INR');
-        const razorpayKeyId = paymentSession.razorpayKeyId;
-        const razorpayOrderId = paymentSession.razorpayOrderId;
-
-        const razorpayLoaded = await loadRazorpay();
-        if (!razorpayLoaded || !window.Razorpay) {
-          throw new Error('Razorpay Checkout could not be loaded.');
-        }
-        if (!razorpayKeyId || !razorpayOrderId || amount === undefined || !currency) {
-          throw new Error('Advertisement payment session is incomplete. Please try again.');
-        }
-
-        openRazorpayCheckout({
-          key: razorpayKeyId,
-          order_id: razorpayOrderId,
-          amount: amount * 100,
-          currency,
-          name: 'Bidzo Advertisement',
-          description: created.title || 'Advertisement payment',
-          prefill: { name: user?.name, email: user?.email },
-          handler: async (response) => {
-            try {
-              await verifyAdvertisementPayment(created.id ?? created.advertisementId ?? '', {
-                paymentProvider: 'RAZORPAY',
-                paymentReference: response.razorpay_payment_id,
-                amount,
-                currency,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpayOrderId: response.razorpay_order_id,
-                razorpaySignature: response.razorpay_signature,
-              });
-              showToast('Payment successful — waiting for Franchise Admin approval.', 'Your advertisement has been submitted for review.', 'success');
-              navigate(`/vendor/advertisements/${created.id ?? created.advertisementId}`);
-            } catch (error) {
-              showToast('Payment verification failed', error instanceof Error ? error.message : 'Unable to verify payment.', 'warning');
-            }
-          },
-          modal: { ondismiss: () => showToast('Payment cancelled', 'The advertisement remains pending payment.', 'info') },
-        });
-        return;
+      setCreatedAdvertisement(created);
+      if (canPay(created)) {
+        showToast('Advertisement created', 'Review the backend-calculated price, then continue to payment.', 'success');
+      } else {
+        showToast('Advertisement created', 'Your advertisement request was submitted successfully.', 'success');
+        navigate(`/vendor/advertisements/${created.id ?? created.advertisementId}`);
       }
-      showToast('Advertisement created', 'Your advertisement request was submitted successfully.', 'success');
-      navigate(`/vendor/advertisements/${created.id ?? created.advertisementId}`);
     } catch (reason) {
       showToast('Unable to save advertisement', reason instanceof Error ? reason.message : 'Please try again.', 'warning');
     } finally {
       setSaving(false);
     }
   };
+
+  const days = createdAdvertisement?.numberOfDays ?? inclusiveNumberOfDays(form.startDate, form.endDate);
 
   return (
     <div className="min-h-screen bg-[var(--app-bg)] text-[var(--text-primary)]">
@@ -643,16 +664,16 @@ export function VendorAdvertisementCreatePage() {
                 <span className="mb-1.5 block text-sm text-[var(--text-secondary)]">End Date</span>
                 <input type="date" value={toDateInput(form.endDate || form.endAt)} onChange={(event) => { updateField('endDate', event.target.value); updateField('endAt', event.target.value); }} className="h-11 w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] px-3 text-sm text-white" />
               </label>
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-[var(--text-secondary)]">Amount</span>
-                <input type="number" min="0" step="0.01" value={Number(form.amount ?? 0)} onChange={(event) => updateField('amount', Number(event.target.value))} className="h-11 w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] px-3 text-sm text-white" />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-sm text-[var(--text-secondary)]">Currency</span>
-                <input value={form.currency || 'INR'} onChange={(event) => updateField('currency', event.target.value)} className="h-11 w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] px-3 text-sm text-white" />
-              </label>
-              {form.advertisementType === 'BANNER' || form.advertisementType === 'HOMEPAGE_BANNER' || form.advertisementType === 'CATEGORY_BANNER' || form.advertisementType === 'STORE_PROMOTION' || form.advertisementType === 'PRODUCT_PROMOTION' ? (
-                <div className="md:col-span-2 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-muted)] p-4">
+              <div className="md:col-span-2 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-muted)] p-4">
+                <p className="mb-4 text-sm font-medium text-white">Pricing Summary</p>
+                <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div><dt className="text-[var(--text-muted)]">Advertisement Type</dt><dd className="mt-1 font-medium text-white">{entryLabel(form.advertisementType)}</dd></div>
+                  <div><dt className="text-[var(--text-muted)]">Price Per Day</dt><dd className="mt-1 font-medium text-white">{createdAdvertisement ? currencyFormat(createdAdvertisement.pricePerDay, 2) : 'Calculated by backend after submission'}</dd></div>
+                  <div><dt className="text-[var(--text-muted)]">Number Of Days</dt><dd className="mt-1 font-medium text-white">{days === undefined ? '—' : `${days} ${days === 1 ? 'Day' : 'Days'}`}</dd></div>
+                  <div><dt className="text-[var(--text-muted)]">Total Amount</dt><dd className="mt-1 font-medium text-white">{createdAdvertisement ? currencyFormat(createdAdvertisement.amount, 2) : 'Calculated by backend after submission'}</dd></div>
+                </dl>
+              </div>
+              <div className="md:col-span-2 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-muted)] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-sm font-medium text-white">Banner Image</p>
                     <input ref={bannerInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="sr-only" disabled={uploading} />
@@ -667,13 +688,13 @@ export function VendorAdvertisementCreatePage() {
                   {uploading ? <p className="mt-2 inline-flex items-center gap-2 text-sm text-blue-200"><LoaderCircle className="h-4 w-4 animate-spin" />Uploading your banner image...</p> : null}
                   {uploadError ? <p role="alert" className="mt-2 text-sm text-rose-300">{uploadError}</p> : null}
                   {form.bannerImageUrl ? <button type="button" onClick={() => { updateField('bannerImageUrl', ''); updateField('bannerImagePublicId', ''); setUploadError(null); }} disabled={uploading} className="mt-3 text-sm font-medium text-rose-300 hover:text-rose-200 disabled:opacity-50">Remove Image</button> : null}
-                </div>
-              ) : null}
+              </div>
             </div>
 
             <div className="flex flex-wrap justify-end gap-3">
               <SecondaryButton type="button" onClick={() => navigate('/vendor/advertisements')}>Cancel</SecondaryButton>
-              <PrimaryButton type="submit" disabled={saving || uploading || Boolean(uploadError)} icon={saving || uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}>{uploading ? 'Uploading image...' : saving ? 'Saving...' : 'Create Advertisement'}</PrimaryButton>
+              {createdAdvertisement && canPay(createdAdvertisement) ? <PrimaryButton type="button" disabled={processingPayment} onClick={() => void startPayment(createdAdvertisement)} icon={processingPayment ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}>{processingPayment ? 'Preparing payment...' : 'Continue to payment'}</PrimaryButton> : null}
+              <PrimaryButton type="submit" disabled={saving || uploading || Boolean(uploadError) || Boolean(createdAdvertisement)} icon={saving || uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}>{uploading ? 'Uploading image...' : saving ? 'Saving...' : createdAdvertisement ? 'Advertisement Created' : 'Create Advertisement'}</PrimaryButton>
             </div>
           </form>
         </main>
@@ -711,11 +732,10 @@ export function VendorAdvertisementDetailPage() {
       setProcessingPayment(true);
       const paymentSession = await createAdvertisementRazorpayOrder(record.id ?? '', {
         paymentProvider: 'RAZORPAY',
-        amount: Number(record.amount ?? 0),
-        currency: String(record.currency || 'INR'),
       });
 
-      const amount = Number(paymentSession.amount ?? record.amount ?? 0);
+      const amountValue = paymentSession.amount ?? record.amount;
+      const amount = Number(amountValue);
       const currency = String(paymentSession.currency || record.currency || 'INR');
       const razorpayKeyId = paymentSession.razorpayKeyId;
       const razorpayOrderId = paymentSession.razorpayOrderId;
@@ -724,7 +744,7 @@ export function VendorAdvertisementDetailPage() {
       if (!razorpayLoaded || !window.Razorpay) {
         throw new Error('Razorpay Checkout could not be loaded.');
       }
-      if (!razorpayKeyId || !razorpayOrderId || amount === undefined || !currency) {
+      if (amountValue === undefined || amountValue === null || !Number.isFinite(amount) || amount <= 0 || !razorpayKeyId || !razorpayOrderId || !currency) {
         throw new Error('Advertisement payment session is incomplete. Please try again.');
       }
 
@@ -803,7 +823,9 @@ export function VendorAdvertisementDetailPage() {
                 <DetailRow label="Placement" value={props.placement || '—'} />
                 <DetailRow label="Vendor" value={props.vendorName || '—'} />
                 <DetailRow label="Product" value={props.productName || '—'} />
-                <DetailRow label="Amount" value={props.amount ?? '—'} />
+                <DetailRow label="Price Per Day" value={record.pricePerDay === undefined ? '—' : currencyFormat(record.pricePerDay, 2)} />
+                <DetailRow label="Number Of Days" value={record.numberOfDays ?? '—'} />
+                <DetailRow label="Total Amount" value={record.amount === undefined ? '—' : currencyFormat(record.amount, 2)} />
                 <DetailRow label="Currency" value={props.currency || 'INR'} />
                 <DetailRow label="Start Date" value={formatDate(record.startDate || record.startAt)} />
                 <DetailRow label="End Date" value={formatDate(record.endDate || record.endAt)} />
@@ -912,6 +934,81 @@ export function FranchiseAdvertisementDetailPage() {
   );
 }
 
+function AdminAdvertisementPricingSettings() {
+  const { user } = useAuth();
+  const isSuperAdmin = String(user?.role ?? '').trim().toUpperCase() === 'SUPER_ADMIN';
+  const [pricing, setPricing] = useState<AdvertisementPricing[]>([]);
+  const [values, setValues] = useState<Partial<Record<AdvertisementPricingType, string>>>({});
+  const [loading, setLoading] = useState(true);
+  const [savingType, setSavingType] = useState<AdvertisementPricingType | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadPricing = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const entries = await getAdminAdvertisementPricing();
+      setPricing(entries);
+      setValues(Object.fromEntries(entries.map((entry) => [entry.type, entry.pricePerDay == null ? '' : String(entry.pricePerDay)])));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to load advertisement pricing.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSuperAdmin) void loadPricing();
+  }, [isSuperAdmin]);
+
+  if (!isSuperAdmin) return null;
+
+  const savePricing = async (type: AdvertisementPricingType) => {
+    const pricePerDay = Number(values[type]);
+    if (!values[type]?.trim() || !Number.isFinite(pricePerDay) || pricePerDay <= 0) {
+      showToast('Invalid daily price', 'Enter a price greater than zero.', 'warning');
+      return;
+    }
+    setSavingType(type);
+    setError(null);
+    try {
+      const saved = await updateAdminAdvertisementPricing(type, pricePerDay);
+      setPricing((current) => [...current.filter((entry) => entry.type !== type), saved]);
+      setValues((current) => ({ ...current, [type]: saved.pricePerDay == null ? String(pricePerDay) : String(saved.pricePerDay) }));
+      showToast('Advertisement pricing saved', `${entryLabel(type)} daily pricing was updated.`, 'success');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to save advertisement pricing.');
+    } finally {
+      setSavingType(null);
+    }
+  };
+
+  return (
+    <Card className="mb-6 p-5">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-white">Advertisement Pricing</h2>
+      </div>
+      {error ? <p role="alert" className="mb-3 text-sm text-rose-300">{error}</p> : null}
+      {loading ? <p className="text-sm text-[var(--text-muted)]">Loading pricing...</p> : <div className="divide-y divide-[var(--border-color)]">
+        {advertisementTypes.map((type) => {
+          const configured = pricing.find((entry) => entry.type === type)?.pricePerDay;
+          const configuredAmount = configured == null || configured === '' || !Number.isFinite(Number(configured)) || Number(configured) <= 0
+            ? 'Not configured'
+            : `${currencyFormat(configured, 2)} / day`;
+          return <div key={type} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.8fr)_auto] sm:items-center">
+            <div>
+              <p className="font-medium text-white">{entryLabel(type)}</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">Price Per Day: {configuredAmount}</p>
+            </div>
+            <input type="number" min="0.01" step="0.01" value={values[type] ?? ''} onChange={(event) => setValues((current) => ({ ...current, [type]: event.target.value }))} placeholder="Not configured" aria-label={`${entryLabel(type)} price per day`} className="h-10 w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] px-3 text-sm text-white" />
+            <PrimaryButton type="button" disabled={loading || savingType !== null} onClick={() => void savePricing(type)}>{savingType === type ? 'Saving...' : 'Save'}</PrimaryButton>
+          </div>;
+        })}
+      </div>}
+    </Card>
+  );
+}
+
 export function AdminAdvertisementPage() {
   const [items, setItems] = useState<AdvertisementRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -922,6 +1019,7 @@ export function AdminAdvertisementPage() {
   if (error) return <AdminShell title="Enterprise admin" subtitle="Advertisement Management" breadcrumbs={[{ label: 'Admin' }, { label: 'Advertisements' }]} activePath="/admin/advertisements"><ErrorState title="Unable to load advertisements" description={error} /></AdminShell>;
   return (
     <AdminShell title="Enterprise admin" subtitle="Advertisement Management" breadcrumbs={[{ label: 'Admin' }, { label: 'Advertisements' }]} activePath="/admin/advertisements">
+      <AdminAdvertisementPricingSettings />
       {items.length === 0 ? <EmptyState title="No advertisements available." description="No advertisements are currently visible to the admin console." /> : <div className="overflow-x-auto rounded-2xl border border-[var(--border-color)] bg-[var(--surface)]"><table className="min-w-full text-left text-sm"><thead className="bg-[var(--surface-muted)] text-[var(--text-secondary)]"><tr><th className="px-4 py-3">Advertisement</th><th className="px-4 py-3">Vendor</th><th className="px-4 py-3">Franchise</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th></tr></thead><tbody className="divide-y divide-[var(--border-color)] text-[var(--text-primary)]">{items.map((item) => <tr key={String(item.id ?? item.advertisementId)}><td className="px-4 py-3"><div className="min-w-0"><p className="font-medium text-white">{item.title || 'Advertisement'}</p><p className="text-xs text-[var(--text-muted)]">{item.placement || '—'}</p></div></td><td className="px-4 py-3">{item.vendor && typeof item.vendor === 'object' ? String((item.vendor as Record<string, unknown>).name ?? (item.vendor as Record<string, unknown>).businessName ?? (item.vendor as Record<string, unknown>).vendorName ?? 'Vendor') : 'Vendor'}</td><td className="px-4 py-3">{item.franchise && typeof item.franchise === 'object' ? String((item.franchise as Record<string, unknown>).name ?? (item.franchise as Record<string, unknown>).franchiseName ?? 'Franchise') : 'Franchise'}</td><td className="px-4 py-3">{entryLabel(item.advertisementType || item.type)}</td><td className="px-4 py-3">{renderStatusBadge(item.paymentStatus || item.paymentStatusName)}</td><td className="px-4 py-3">{renderStatusBadge(item.advertisementStatus || item.status)}</td><td className="px-4 py-3"><Link to={`/admin/advertisements/${item.id ?? item.advertisementId}`}><SecondaryButton type="button">View</SecondaryButton></Link></td></tr>)}</tbody></table></div>}
     </AdminShell>
   );
