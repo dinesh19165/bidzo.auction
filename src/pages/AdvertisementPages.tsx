@@ -355,7 +355,12 @@ function VendorAdvertisementTable({ items, onRefresh }: { items: AdvertisementRe
               <tr key={String(item.id ?? item.advertisementId ?? item.title)}>
                 <td className="px-4 py-3"><div className="flex min-w-0 items-center gap-3"><div className="h-10 w-10 overflow-hidden rounded-lg bg-[var(--surface-muted)]"><img src={item.bannerImageUrl || '/logo.png'} alt={item.title || 'Advertisement'} className="h-full w-full object-cover" /></div><div className="min-w-0"><p className="truncate font-medium text-white">{item.title || 'Advertisement'}</p><p className="truncate text-xs text-[var(--text-muted)]">{item.placement || item.description || 'No placement set'}</p></div></div></td>
                 <td className="px-4 py-3">{entryLabel(item.advertisementType || item.type)}</td>
-                <td className="px-4 py-3">{renderStatusBadge(item.paymentStatus || item.paymentStatusName)}</td>
+                <td className="px-4 py-3">
+                  <div className="flex max-w-[15rem] flex-col items-start gap-1">
+                    {renderStatusBadge(item.paymentStatus || item.paymentStatusName)}
+                    {normalizeStatus(item.paymentStatus) === 'PAYMENT_PENDING' ? <p className="text-[11px] leading-4 text-amber-300">Payment pending — complete payment within 10 minutes, otherwise this advertisement will be automatically removed.</p> : null}
+                  </div>
+                </td>
                 <td className="px-4 py-3">{renderStatusBadge(item.status || item.advertisementStatus)}</td>
                 <td className="px-4 py-3"><div className="space-y-1 text-xs text-[var(--text-muted)]"><div>{formatDate(item.startDate || item.startAt)}</div><div>{formatDate(item.endDate || item.endAt)}</div></div></td>
                 <td className="px-4 py-3"><div className="flex flex-wrap gap-2"><Link to={`/vendor/advertisements/${item.id ?? item.advertisementId}`}><SecondaryButton type="button">View</SecondaryButton></Link>{canPay(item) ? <button type="button" onClick={() => void onRefresh()} className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-100">Pay</button> : null}</div></td>

@@ -3478,7 +3478,6 @@ export function VendorInventoryPage() {
         health,
         healthLabel,
         status,
-        lastUpdated: 'Backend data',
       };
     }).filter((item) => item.name.toLowerCase().includes(normalized) || item.sku.toLowerCase().includes(normalized));
     if (healthFilter !== 'All') {
@@ -3660,7 +3659,6 @@ export function VendorInventoryPage() {
                       <th className="px-3 py-3">SKU</th>
                       <th className="px-3 py-3">Stock</th>
                       <th className="px-3 py-3">Health</th>
-                      <th className="px-3 py-3">Last updated</th>
                       <th className="px-3 py-3">Actions</th>
                     </tr>
                   </thead>
@@ -3670,26 +3668,11 @@ export function VendorInventoryPage() {
                         <td className="px-3 py-3"><input type="checkbox" checked={selected.includes(item.sku)} onChange={() => toggleSelection(item.sku)} /></td>
                         <td className="px-3 py-3 font-medium text-white">{item.name}</td>
                         <td className="px-3 py-3">{item.sku}</td>
-                        <td className="px-3 py-3">
-                          {item.sellingType === 'DIRECT_BUY' ? (
-                            <div className="flex items-center gap-2">
-                              <span>{item.stock}</span>
-                              <button type="button" onClick={() => navigate(`/vendor/edit-product-wizard/${item.id}`)} className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-slate-200">Edit</button>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              <span>{item.stock}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] uppercase tracking-wide text-amber-300">Auction stock</span>
-                                <button type="button" onClick={() => navigate(`/vendor/edit-product-wizard/${item.id}`)} className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-slate-200">Edit</button>
-                              </div>
-                            </div>
-                          )}
-                        </td>
+                        <td className="px-3 py-3">{item.stock}</td>
                         <td className="px-3 py-3"><Badge className={item.health === 'Low stock' ? 'bg-rose-500/10 text-rose-200' : item.health === 'Out of stock' ? 'bg-amber-500/10 text-amber-100' : 'bg-emerald-500/10 text-emerald-200'}>{item.healthLabel}</Badge></td>
-                        <td className="px-3 py-3">{item.lastUpdated}</td>
                         <td className="px-3 py-3">
-                          <div className="flex gap-2">
+                          <div className="flex min-w-[180px] flex-wrap gap-2">
+                            <button type="button" onClick={() => navigate(`/vendor/edit-product-wizard/${item.id}`)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">Edit</button>
                             <button onClick={() => void handlePublish(item.id)} disabled={actionLoading} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200 disabled:opacity-50">Publish</button>
                             <button onClick={() => void handleDelete(item.id)} disabled={actionLoading} className="rounded-full border border-rose-500/20 px-3 py-1 text-xs text-rose-200 disabled:opacity-50">Delete</button>
                           </div>
