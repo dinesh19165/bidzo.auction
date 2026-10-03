@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, CircleHelp, Crosshair, Gavel, Globe, Grid2X2, Home, LoaderCircle, LogOut, MapPin, Menu, Mic, Moon, Search, ShoppingBag, ShoppingCart, Store, Sun, Tag, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, CircleHelp, Crosshair, Gavel, Globe, Grid2X2, Home, LoaderCircle, LogOut, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -546,7 +546,7 @@ function LoginRoleMenu({ compact = false, onNavigate, onOpenChange, triggerLabel
 }
 
 function MainHeaderActions() {
-  const { theme, toggleTheme } = useThemeContext();
+  const { theme } = useThemeContext();
   const { currency, setCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
   const { cart } = useCartContext();

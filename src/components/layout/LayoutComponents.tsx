@@ -1,15 +1,14 @@
 import { Link, NavLink } from 'react-router-dom';
-import { ArrowRight, Bell, Gavel, Menu, Moon, Search, Sun, X } from 'lucide-react';
+import { ArrowRight, Bell, Gavel, Menu, Search, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 import Logo from '../Logo';
 
 interface NavbarProps {
   theme: 'dark' | 'light';
-  toggleTheme: () => void;
 }
 
-export function Navbar({ theme, toggleTheme }: NavbarProps) {
+export function Navbar({ theme }: NavbarProps) {
   return (
     <header className={`sticky top-0 z-50 border-b backdrop-blur-xl ${theme === 'dark' ? 'border-white/10 bg-slate-950/80' : 'border-slate-200 bg-white/80'}`}>
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
@@ -29,9 +28,6 @@ export function Navbar({ theme, toggleTheme }: NavbarProps) {
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <button onClick={toggleTheme} className={`rounded-full border p-2.5 transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
           <button className={`rounded-full border p-2.5 transition ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
             <Search className="h-4 w-4" />
           </button>
@@ -44,14 +40,11 @@ export function Navbar({ theme, toggleTheme }: NavbarProps) {
   );
 }
 
-export function MobileNavbar({ theme, toggleTheme }: NavbarProps) {
+export function MobileNavbar({ theme }: NavbarProps) {
   return (
     <div className={`flex items-center justify-between border-b px-4 py-3 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/90' : 'border-slate-200 bg-white/90'}`}>
       <Link to="/" className="inline-flex items-center"><Logo /></Link>
       <div className="flex items-center gap-2">
-        <button onClick={toggleTheme} className={`rounded-full border p-2 ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
         <button className={`rounded-full border p-2 ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>
           <Menu className="h-4 w-4" />
         </button>
