@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError } from '../api/apiClient';
-import { getAdminCustomer, getAdminCustomerOrders } from '../api/adminApi';
 import { getFranchiseAnalytics, getFranchiseCustomers, getFranchiseDashboard, getFranchiseOrder, getFranchiseOrders, getFranchiseProduct, getFranchiseProducts, getFranchiseVendor, getFranchiseVendors, type FranchiseRecord } from '../api/franchiseApi';
-import { getCategories, type CategoryRecord } from '../api/categoryApi';
 import { FranchiseAdminShell } from '../components/admin/FranchiseAdminShell';
 import { Card } from '../components/common/Card';
 import { Table } from '../components/common/Table';
@@ -54,8 +52,8 @@ function ErrorOrEmpty({ error, empty, title }: { error: unknown; empty: boolean;
   return empty ? <EmptyState title={`No ${title.toLowerCase()} found`} description={`No ${title.toLowerCase()} were returned for this franchise.`} /> : null;
 }
 
-function useList(loader: () => Promise<FranchiseRecord[]>) {
-  const [items, setItems] = useState<FranchiseRecord[]>([]);
+function useList<T extends FranchiseRecord>(loader: () => Promise<T[]>) {
+  const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   useEffect(() => {
@@ -67,8 +65,8 @@ function useList(loader: () => Promise<FranchiseRecord[]>) {
   return { items, loading, error };
 }
 
-function useObject(loader: () => Promise<FranchiseRecord>, requestKey = '') {
-  const [item, setItem] = useState<FranchiseRecord | null>(null);
+function useObject<T extends FranchiseRecord>(loader: () => Promise<T>, requestKey = '') {
+  const [item, setItem] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   useEffect(() => {
@@ -98,17 +96,23 @@ function metric(record: FranchiseRecord, keys: string[]): unknown {
 }
 
 function vendorBusiness(record: FranchiseRecord): string {
-  const businessName = value(record, ['businessName', 'storeName', 'business']);
-  if (businessName !== undefined) return text(businessName);
-  const address = ['businessAddress', 'city', 'state', 'pincode']
+  const details = ['businessName', 'storeName', 'businessAddress', 'address', 'city', 'state', 'pincode']
     .map((key) => value(record, [key]))
     .filter((part) => part !== undefined)
     .map(text);
-  return address.length ? address.join(', ') : 'Unavailable';
+  return details.length ? [...new Set(details)].join(', ') : 'Unavailable';
+}
+
+function contactInfo(record: FranchiseRecord): string {
+  const contact = ['email', 'phone', 'phoneNumber']
+    .map((key) => value(record, [key]))
+    .filter((part) => part !== undefined)
+    .map(text);
+  return contact.length ? [...new Set(contact)].join(' / ') : 'Unavailable';
 }
 
 function customerName(record: FranchiseRecord): string | undefined {
-  const direct = value(record, ['name', 'customerName', 'fullName', 'username', 'customer_name', 'full_name']);
+  const direct = value(record, ['customerName', 'name', 'fullName', 'username', 'customer_name', 'full_name']);
   if (direct !== undefined) return text(direct);
   const firstName = value(record, ['firstName', 'first_name']);
   const lastName = value(record, ['lastName', 'last_name']);
@@ -128,17 +132,10 @@ function customerOrderCount(record: FranchiseRecord): unknown {
 }
 
 function customerStatus(record: FranchiseRecord): string | undefined {
-  const status = value(record, ['status', 'customerStatus', 'accountStatus', 'userStatus', 'customer_status', 'account_status']);
+  const status = value(record, ['accountStatus', 'customerStatus', 'status', 'userStatus', 'customer_status', 'account_status']);
   if (status !== undefined) return text(status);
   const active = value(record, ['active', 'isActive', 'enabled', 'isEnabled']);
   return typeof active === 'boolean' ? (active ? 'Active' : 'Inactive') : undefined;
-}
-
-function customerLookupId(record: FranchiseRecord): string | undefined {
-  const nested = value(record, ['customer', 'user']);
-  const id = value(record, ['userId', 'customerId', 'id'])
-    ?? (nested && typeof nested === 'object' && !Array.isArray(nested) ? value(nested as FranchiseRecord, ['userId', 'customerId', 'id']) : undefined);
-  return typeof id === 'string' || typeof id === 'number' ? String(id) : undefined;
 }
 
 export function FranchiseDashboardPage() {
@@ -161,12 +158,12 @@ export function FranchiseDashboardPage() {
 }
 
 const vendorColumns = [
-  { key: 'vendor', label: 'Vendor', render: (row: FranchiseRecord) => text(value(row, ['companyName', 'name', 'vendorName', 'fullName'])) },
+  { key: 'vendor', label: 'Vendor', render: (row: FranchiseRecord) => text(value(row, ['vendorName', 'companyName', 'name', 'fullName'])) },
   { key: 'business', label: 'Store / Business', render: vendorBusiness },
-  { key: 'contact', label: 'Contact', render: (row: FranchiseRecord) => text(value(row, ['email', 'phone', 'phoneNumber', 'contact'])) },
-  { key: 'status', label: 'Status', render: (row: FranchiseRecord) => text(value(row, ['status', 'verificationStatus'])) },
-  { key: 'products', label: 'Products', render: (row: FranchiseRecord) => text(value(row, ['productCount', 'productsCount', 'totalProducts'])) },
-  { key: 'sales', label: 'Sales / Orders', render: (row: FranchiseRecord) => text(value(row, ['sales', 'totalSales', 'orderCount', 'totalOrders'])) },
+  { key: 'contact', label: 'Contact', render: contactInfo },
+  { key: 'status', label: 'Status', render: (row: FranchiseRecord) => text(value(row, ['status', 'vendorStatus', 'verificationStatus'])) },
+  { key: 'products', label: 'Products', render: (row: FranchiseRecord) => text(value(row, ['productCount', 'totalProducts', 'productsCount'])) },
+  { key: 'sales', label: 'Orders', render: (row: FranchiseRecord) => text(value(row, ['orderCount', 'totalOrders', 'ordersCount'])) },
   { key: 'details', label: '', render: (row: FranchiseRecord) => <Link className="text-blue-500 hover:underline" to={`/franchise/vendors/${encodeURIComponent(idOf(row))}`}>View</Link> },
 ];
 
@@ -183,45 +180,35 @@ function relatedName(input: unknown, keys: string[]): unknown {
     : undefined;
 }
 
-function vendorName(row: FranchiseRecord, vendors: FranchiseRecord[]): string {
-  const directName = value(row, ['vendorName', 'vendorCompanyName', 'companyName', 'sellerName']);
+function vendorName(row: FranchiseRecord): string {
+  const directName = value(row, ['vendorName', 'companyName', 'vendorCompanyName', 'sellerName']);
   if (directName !== undefined) return text(directName);
 
   const vendor = value(row, ['vendor', 'seller']);
   const embeddedName = relatedName(vendor, ['companyName', 'vendorName', 'name', 'businessName', 'storeName']);
   if (embeddedName !== undefined) return text(embeddedName);
-
-  const vendorId = value(row, ['vendorId']) ?? relatedName(vendor, ['id', 'vendorId']) ?? vendor;
-  const match = vendors.find((item) => String(value(item, ['id', 'vendorId'])) === String(vendorId));
-  if (match) return text(value(match, ['companyName', 'vendorName', 'name', 'businessName', 'storeName']));
   return typeof vendor === 'string' && !/^\d+$/.test(vendor) ? vendor : 'Unavailable';
 }
 
-function categoryName(row: FranchiseRecord, categories: CategoryRecord[]): string {
+function categoryName(row: FranchiseRecord): string {
   const directName = value(row, ['categoryName']);
   if (directName !== undefined) return text(directName);
 
   const category = value(row, ['category']);
   const embeddedName = relatedName(category, ['name', 'title', 'label']);
   if (embeddedName !== undefined) return text(embeddedName);
-
-  const categoryId = value(row, ['categoryId']) ?? relatedName(category, ['id', 'categoryId']) ?? category;
-  const match = categories.find((item) => String(item.id) === String(categoryId));
-  if (match) return match.name;
   return typeof category === 'string' && !/^\d+$/.test(category) ? category : 'Unavailable';
 }
 
-function productColumns(vendors: FranchiseRecord[], categories: CategoryRecord[]) {
-  return [
+const productColumns = [
     { key: 'product', label: 'Product', render: (row: FranchiseRecord) => <div className="flex min-w-0 items-center gap-2"><ProductImage row={row} /><span className="min-w-0 truncate">{text(value(row, ['name', 'productName', 'title']))}</span></div> },
-    { key: 'vendor', label: 'Vendor', render: (row: FranchiseRecord) => vendorName(row, vendors) },
-    { key: 'category', label: 'Category', render: (row: FranchiseRecord) => categoryName(row, categories) },
+    { key: 'vendor', label: 'Vendor', render: (row: FranchiseRecord) => vendorName(row) },
+    { key: 'category', label: 'Category', render: (row: FranchiseRecord) => categoryName(row) },
     { key: 'price', label: 'Price', render: (row: FranchiseRecord) => money(value(row, ['price', 'sellingPrice', 'amount'])) },
     { key: 'status', label: 'Status', render: (row: FranchiseRecord) => text(value(row, ['status', 'approvalStatus', 'inspectionStatus'])) },
-    { key: 'created', label: 'Created', render: (row: FranchiseRecord) => date(value(row, ['createdAt', 'createdDate', 'createdOn', 'created_at', 'created_date', 'creationDate', 'dateCreated'])) },
+    { key: 'created', label: 'Created', render: (row: FranchiseRecord) => date(value(row, ['createdAt', 'createdDate', 'createdOn', 'created_at'])) },
     { key: 'details', label: '', render: (row: FranchiseRecord) => <Link className="text-blue-500 hover:underline" to={`/franchise/products/${encodeURIComponent(productIdOf(row))}`}>View</Link> },
-  ];
-}
+];
 
 function ProductImage({ row }: { row: FranchiseRecord }) {
   const images = Array.isArray(row.images) ? row.images : [];
@@ -233,22 +220,8 @@ function ProductImage({ row }: { row: FranchiseRecord }) {
 
 export function FranchiseProductsPage() {
   const result = useList(getFranchiseProducts);
-  const [vendors, setVendors] = useState<FranchiseRecord[]>([]);
-  const [categories, setCategories] = useState<CategoryRecord[]>([]);
-  useEffect(() => {
-    let active = true;
-    Promise.all([
-      getFranchiseVendors().catch(() => [] as FranchiseRecord[]),
-      getCategories().catch(() => [] as CategoryRecord[]),
-    ]).then(([vendorRecords, categoryRecords]) => {
-      if (!active) return;
-      setVendors(vendorRecords);
-      setCategories(categoryRecords);
-    });
-    return () => { active = false; };
-  }, []);
   return <FranchiseAdminShell title="Franchise Admin" subtitle="Products" activePath="/franchise/products" breadcrumbs={[{ label: 'Franchise' }, { label: 'Products' }]}>
-    {result.loading ? <SkeletonTable /> : result.error || result.items.length === 0 ? <ErrorOrEmpty error={result.error} empty={result.items.length === 0} title="products" /> : <Card className="overflow-hidden p-2"><Table columns={productColumns(vendors, categories)} data={result.items} /></Card>}
+    {result.loading ? <SkeletonTable /> : result.error || result.items.length === 0 ? <ErrorOrEmpty error={result.error} empty={result.items.length === 0} title="products" /> : <Card className="overflow-hidden p-2"><Table columns={productColumns} data={result.items} /></Card>}
   </FranchiseAdminShell>;
 }
 
@@ -271,32 +244,11 @@ export function FranchiseOrdersPage() {
 
 export function FranchiseCustomersPage() {
   const result = useList(getFranchiseCustomers);
-  const [customerLookups, setCustomerLookups] = useState<Record<string, { record?: FranchiseRecord; orderCount?: number }>>({});
-  useEffect(() => {
-    let active = true;
-    Promise.all(result.items.map(async (row) => {
-      const id = customerLookupId(row);
-      if (!id) return null;
-      const needsRecord = !customerName(row) || !customerStatus(row);
-      const needsOrders = customerOrderCount(row) === undefined;
-      if (!needsRecord && !needsOrders) return null;
-      const [record, orders] = await Promise.all([
-        needsRecord ? getAdminCustomer(id).catch(() => undefined) : Promise.resolve(undefined),
-        needsOrders ? getAdminCustomerOrders(id).catch(() => undefined) : Promise.resolve(undefined),
-      ]);
-      if (!record && !Array.isArray(orders)) return null;
-      return [id, { record, orderCount: Array.isArray(orders) ? orders.length : undefined }] as const;
-    })).then((entries) => {
-      if (!active) return;
-      setCustomerLookups(Object.fromEntries(entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null)));
-    });
-    return () => { active = false; };
-  }, [result.items]);
   const columns = [
-    { key: 'name', label: 'Customer', render: (row: FranchiseRecord) => customerName(row) ?? customerName(customerLookups[customerLookupId(row) ?? '']?.record ?? {}) ?? 'Unavailable' },
-    { key: 'contact', label: 'Contact', render: (row: FranchiseRecord) => text(value(row, ['email', 'phone', 'phoneNumber'])) },
-    { key: 'orders', label: 'Orders', render: (row: FranchiseRecord) => text(customerOrderCount(row) ?? customerOrderCount(customerLookups[customerLookupId(row) ?? '']?.record ?? {}) ?? customerLookups[customerLookupId(row) ?? '']?.orderCount) },
-    { key: 'status', label: 'Status', render: (row: FranchiseRecord) => customerStatus(row) ?? customerStatus(customerLookups[customerLookupId(row) ?? '']?.record ?? {}) ?? 'Unavailable' },
+    { key: 'name', label: 'Customer', render: (row: FranchiseRecord) => customerName(row) ?? 'Unavailable' },
+    { key: 'contact', label: 'Contact', render: contactInfo },
+    { key: 'orders', label: 'Orders', render: (row: FranchiseRecord) => text(customerOrderCount(row)) },
+    { key: 'status', label: 'Status', render: (row: FranchiseRecord) => customerStatus(row) ?? 'Unavailable' },
   ];
   return <FranchiseAdminShell title="Franchise Admin" subtitle="Customers" activePath="/franchise/customers" breadcrumbs={[{ label: 'Franchise' }, { label: 'Customers' }]}>
     {result.loading ? <SkeletonTable /> : result.error || result.items.length === 0 ? <ErrorOrEmpty error={result.error} empty={result.items.length === 0} title="customers" /> : <Card className="overflow-hidden p-2"><Table columns={columns} data={result.items} /></Card>}

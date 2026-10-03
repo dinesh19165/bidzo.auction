@@ -12,8 +12,61 @@ export interface FranchiseMe extends FranchiseRecord {
   address?: string;
 }
 
+export interface FranchiseVendor extends FranchiseRecord {
+  id?: string | number;
+  name?: string;
+  vendorName?: string;
+  companyName?: string;
+  businessName?: string;
+  businessAddress?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  email?: string;
+  phone?: string;
+  phoneNumber?: string;
+  status?: string;
+  productCount?: number;
+  orderCount?: number;
+  totalProducts?: number;
+  totalOrders?: number;
+}
+
+export interface FranchiseProduct extends FranchiseRecord {
+  id?: string | number;
+  name?: string;
+  productName?: string;
+  vendorName?: string;
+  vendor?: string | { id?: string | number; name?: string; companyName?: string };
+  categoryName?: string;
+  category?: string | { id?: string | number; name?: string };
+  price?: number | string;
+  status?: string;
+  createdAt?: string;
+  imageUrl?: string;
+  image?: string;
+}
+
+export interface FranchiseCustomer extends FranchiseRecord {
+  id?: string | number;
+  name?: string;
+  customerName?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  phoneNumber?: string;
+  orderCount?: number;
+  accountStatus?: string;
+}
+
 export type FranchiseDashboard = FranchiseRecord;
-export type FranchiseAnalytics = FranchiseRecord;
+export interface FranchiseAnalytics extends FranchiseRecord {
+  totalSales?: number | string;
+  orderCount?: number;
+  dailySales?: number | string;
+  monthlySales?: number | string;
+}
 
 function unwrap(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
@@ -44,9 +97,9 @@ async function getObject<T extends FranchiseRecord>(path: string, fallback: stri
   return value as T;
 }
 
-async function getList(path: string, fallback: string): Promise<FranchiseRecord[]> {
+async function getList<T extends FranchiseRecord>(path: string, fallback: string): Promise<T[]> {
   const response = await fetchJson<unknown>(path);
-  return records(response);
+  return records(response) as T[];
 }
 
 let franchiseMeRequest: Promise<FranchiseMe> | null = null;
@@ -62,11 +115,11 @@ export function getFranchiseMe(): Promise<FranchiseMe> {
 }
 
 export const getFranchiseDashboard = () => getObject<FranchiseDashboard>('/api/franchise/dashboard', 'Unable to load the franchise dashboard.');
-export const getFranchiseVendors = () => getList('/api/franchise/vendors', 'Unable to load franchise vendors.');
+export const getFranchiseVendors = () => getList<FranchiseVendor>('/api/franchise/vendors', 'Unable to load franchise vendors.');
 export const getFranchiseVendor = (id: string | number) => getObject(`/api/franchise/vendors/${encodeURIComponent(String(id))}`, 'Unable to load franchise vendor.');
-export const getFranchiseProducts = () => getList('/api/franchise/products', 'Unable to load franchise products.');
+export const getFranchiseProducts = () => getList<FranchiseProduct>('/api/franchise/products', 'Unable to load franchise products.');
 export const getFranchiseProduct = (id: string | number) => getObject(`/api/franchise/products/${encodeURIComponent(String(id))}`, 'Unable to load franchise product.');
 export const getFranchiseOrders = () => getList('/api/franchise/orders', 'Unable to load franchise orders.');
 export const getFranchiseOrder = (id: string | number) => getObject(`/api/franchise/orders/${encodeURIComponent(String(id))}`, 'Unable to load franchise order.');
 export const getFranchiseAnalytics = () => getObject<FranchiseAnalytics>('/api/franchise/analytics', 'Unable to load franchise analytics.');
-export const getFranchiseCustomers = () => getList('/api/franchise/customers', 'Unable to load franchise customers.');
+export const getFranchiseCustomers = () => getList<FranchiseCustomer>('/api/franchise/customers', 'Unable to load franchise customers.');
