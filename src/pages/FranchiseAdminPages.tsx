@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError } from '../api/apiClient';
+import { getAdminCustomer, getAdminCustomerOrders } from '../api/adminApi';
 import { getFranchiseAnalytics, getFranchiseCustomers, getFranchiseDashboard, getFranchiseOrder, getFranchiseOrders, getFranchiseProduct, getFranchiseProducts, getFranchiseVendor, getFranchiseVendors, type FranchiseRecord } from '../api/franchiseApi';
 import { getCategories, type CategoryRecord } from '../api/categoryApi';
 import { FranchiseAdminShell } from '../components/admin/FranchiseAdminShell';
@@ -104,6 +105,40 @@ function vendorBusiness(record: FranchiseRecord): string {
     .filter((part) => part !== undefined)
     .map(text);
   return address.length ? address.join(', ') : 'Unavailable';
+}
+
+function customerName(record: FranchiseRecord): string | undefined {
+  const direct = value(record, ['name', 'customerName', 'fullName', 'username', 'customer_name', 'full_name']);
+  if (direct !== undefined) return text(direct);
+  const firstName = value(record, ['firstName', 'first_name']);
+  const lastName = value(record, ['lastName', 'last_name']);
+  const combined = [firstName, lastName].filter((part) => part !== undefined).map(String).join(' ').trim();
+  if (combined) return combined;
+  const nested = value(record, ['customer', 'user', 'profile', 'customerDetails', 'userDetails']);
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) return customerName(nested as FranchiseRecord);
+  return undefined;
+}
+
+function customerOrderCount(record: FranchiseRecord): unknown {
+  const keys = ['orderCount', 'ordersCount', 'totalOrders', 'totalOrderCount', 'numberOfOrders', 'order_count', 'orders_count', 'total_orders'];
+  const count = metric(record, keys);
+  if (count !== undefined) return count;
+  const orders = value(record, ['orders']);
+  return Array.isArray(orders) ? orders.length : undefined;
+}
+
+function customerStatus(record: FranchiseRecord): string | undefined {
+  const status = value(record, ['status', 'customerStatus', 'accountStatus', 'userStatus', 'customer_status', 'account_status']);
+  if (status !== undefined) return text(status);
+  const active = value(record, ['active', 'isActive', 'enabled', 'isEnabled']);
+  return typeof active === 'boolean' ? (active ? 'Active' : 'Inactive') : undefined;
+}
+
+function customerLookupId(record: FranchiseRecord): string | undefined {
+  const nested = value(record, ['customer', 'user']);
+  const id = value(record, ['userId', 'customerId', 'id'])
+    ?? (nested && typeof nested === 'object' && !Array.isArray(nested) ? value(nested as FranchiseRecord, ['userId', 'customerId', 'id']) : undefined);
+  return typeof id === 'string' || typeof id === 'number' ? String(id) : undefined;
 }
 
 export function FranchiseDashboardPage() {
@@ -236,11 +271,32 @@ export function FranchiseOrdersPage() {
 
 export function FranchiseCustomersPage() {
   const result = useList(getFranchiseCustomers);
+  const [customerLookups, setCustomerLookups] = useState<Record<string, { record?: FranchiseRecord; orderCount?: number }>>({});
+  useEffect(() => {
+    let active = true;
+    Promise.all(result.items.map(async (row) => {
+      const id = customerLookupId(row);
+      if (!id) return null;
+      const needsRecord = !customerName(row) || !customerStatus(row);
+      const needsOrders = customerOrderCount(row) === undefined;
+      if (!needsRecord && !needsOrders) return null;
+      const [record, orders] = await Promise.all([
+        needsRecord ? getAdminCustomer(id).catch(() => undefined) : Promise.resolve(undefined),
+        needsOrders ? getAdminCustomerOrders(id).catch(() => undefined) : Promise.resolve(undefined),
+      ]);
+      if (!record && !Array.isArray(orders)) return null;
+      return [id, { record, orderCount: Array.isArray(orders) ? orders.length : undefined }] as const;
+    })).then((entries) => {
+      if (!active) return;
+      setCustomerLookups(Object.fromEntries(entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null)));
+    });
+    return () => { active = false; };
+  }, [result.items]);
   const columns = [
-    { key: 'name', label: 'Customer', render: (row: FranchiseRecord) => text(value(row, ['name', 'customerName', 'fullName'])) },
+    { key: 'name', label: 'Customer', render: (row: FranchiseRecord) => customerName(row) ?? customerName(customerLookups[customerLookupId(row) ?? '']?.record ?? {}) ?? 'Unavailable' },
     { key: 'contact', label: 'Contact', render: (row: FranchiseRecord) => text(value(row, ['email', 'phone', 'phoneNumber'])) },
-    { key: 'orders', label: 'Orders', render: (row: FranchiseRecord) => text(value(row, ['orderCount', 'totalOrders'])) },
-    { key: 'status', label: 'Status', render: (row: FranchiseRecord) => text(value(row, ['status', 'customerStatus'])) },
+    { key: 'orders', label: 'Orders', render: (row: FranchiseRecord) => text(customerOrderCount(row) ?? customerOrderCount(customerLookups[customerLookupId(row) ?? '']?.record ?? {}) ?? customerLookups[customerLookupId(row) ?? '']?.orderCount) },
+    { key: 'status', label: 'Status', render: (row: FranchiseRecord) => customerStatus(row) ?? customerStatus(customerLookups[customerLookupId(row) ?? '']?.record ?? {}) ?? 'Unavailable' },
   ];
   return <FranchiseAdminShell title="Franchise Admin" subtitle="Customers" activePath="/franchise/customers" breadcrumbs={[{ label: 'Franchise' }, { label: 'Customers' }]}>
     {result.loading ? <SkeletonTable /> : result.error || result.items.length === 0 ? <ErrorOrEmpty error={result.error} empty={result.items.length === 0} title="customers" /> : <Card className="overflow-hidden p-2"><Table columns={columns} data={result.items} /></Card>}
