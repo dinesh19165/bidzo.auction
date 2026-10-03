@@ -1119,6 +1119,17 @@ html.theme-light .featured-products-section article.group:hover {
     object-position: 68% center;
   }
 
+  .home-hero-has-mobile-banner,
+  .home-hero-has-mobile-banner > div.relative.z-20,
+  .home-hero-has-mobile-banner .home-hero-content {
+    min-height: clamp(360px, 112vw, 520px);
+  }
+
+  .home-hero-has-mobile-banner .home-hero-background img {
+    object-fit: contain !important;
+    object-position: center;
+  }
+
   .home-hero-content {
     min-height: clamp(250px, 70vw, 292px);
     padding: 1.25rem 1rem !important;

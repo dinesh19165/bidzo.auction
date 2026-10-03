@@ -558,7 +558,7 @@ function HomeBanner({ advertisements, banners, children }: { advertisements: Pub
     ...advertisements.map((advertisement) => ({
       id: advertisement.id,
       imageUrl: advertisement.bannerImageUrl,
-      mobileImageUrl: undefined,
+      mobileImageUrl: advertisement.mobileBannerImageUrl,
       title: advertisement.title,
       description: advertisement.description,
       targetUrl: advertisement.targetUrl,
@@ -606,6 +606,7 @@ function HomeBanner({ advertisements, banners, children }: { advertisements: Pub
   const banner = visibleBanners[activeIndex];
   const desktopImage = banner?.imageUrl || null;
   const mobileImage = banner?.mobileImageUrl || desktopImage;
+  const hasMobileImage = Boolean(banner?.mobileImageUrl?.trim());
   useEffect(() => setImageFailed(false), [banner?.id, desktopImage, mobileImage]);
   useEffect(() => {
     setIsVisible(false);
@@ -615,7 +616,7 @@ function HomeBanner({ advertisements, banners, children }: { advertisements: Pub
 
   const hasBannerImage = Boolean(!imageFailed && desktopImage);
   return (
-    <section className={`home-hero relative overflow-hidden rounded-[28px] text-white transition-opacity duration-500 ${hasBannerImage ? 'home-hero-has-banner' : 'bg-[var(--app-bg)]'} ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+    <section className={`home-hero relative overflow-hidden rounded-[28px] text-white transition-opacity duration-500 ${hasBannerImage ? 'home-hero-has-banner' : 'bg-[var(--app-bg)]'} ${hasMobileImage ? 'home-hero-has-mobile-banner' : ''} ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
       {hasBannerImage ? <picture aria-hidden="true" className="home-hero-background absolute inset-0 z-0 block"><source media="(max-width: 767px)" srcSet={mobileImage || desktopImage || undefined} /><img src={desktopImage || undefined} alt="" onError={() => setImageFailed(true)} className="h-full w-full object-contain object-center" /></picture> : null}
       {banner?.isAdvertisement && banner.targetUrl ? <AdvertisementTarget targetUrl={banner.targetUrl} label={[banner.title, banner.description].filter(Boolean).join('. ') || 'Advertisement'} className="absolute inset-0 z-[5]" ><span className="sr-only">{banner.title || 'Advertisement'}</span></AdvertisementTarget> : null}
       <div aria-hidden="true" className="home-hero-overlay pointer-events-none absolute inset-0 z-10" />

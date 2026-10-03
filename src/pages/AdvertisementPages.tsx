@@ -419,6 +419,7 @@ export function VendorAdvertisementCreatePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileBannerInputRef = useRef<HTMLInputElement | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [products, setProducts] = useState<Array<{ id: number | string; name: string }>>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
@@ -426,6 +427,8 @@ export function VendorAdvertisementCreatePage() {
   const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingMobileBanner, setUploadingMobileBanner] = useState(false);
+  const [mobileBannerUploadError, setMobileBannerUploadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [createdAdvertisement, setCreatedAdvertisement] = useState<AdvertisementRecord | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -505,6 +508,28 @@ export function VendorAdvertisementCreatePage() {
     }
   };
 
+  const handleMobileBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+      setMobileBannerUploadError('Choose a JPEG, PNG, or WEBP image up to 10 MB.');
+      return;
+    }
+
+    setUploadingMobileBanner(true);
+    setMobileBannerUploadError(null);
+    try {
+      const asset = await uploadToCloudinaryAsset(file, 'image');
+      updateField('mobileBannerImageUrl', asset.secureUrl);
+      updateField('mobileBannerImagePublicId', asset.publicId);
+    } catch (reason) {
+      setMobileBannerUploadError(reason instanceof Error ? reason.message : 'Mobile banner upload failed.');
+    } finally {
+      setUploadingMobileBanner(false);
+    }
+  };
+
   const openBannerImagePicker = () => bannerInputRef.current?.click();
 
   const startPayment = async (advertisement: AdvertisementRecord) => {
@@ -571,6 +596,8 @@ export function VendorAdvertisementCreatePage() {
     if (form.advertisementType === 'CATEGORY_BANNER' && categoryLoadError) return showToast('Categories unavailable', categoryLoadError, 'warning');
     if (uploading) return showToast('Image upload in progress', 'Wait for the banner image upload to finish.', 'warning');
     if (uploadError) return showToast('Banner image upload failed', uploadError, 'warning');
+    if (uploadingMobileBanner) return showToast('Image upload in progress', 'Wait for the mobile banner image upload to finish.', 'warning');
+    if (mobileBannerUploadError) return showToast('Mobile image upload failed', mobileBannerUploadError, 'warning');
     if (!form.bannerImageUrl) return showToast('Banner image is required', 'Upload a banner image for this advertisement type.', 'warning');
 
     setSaving(true);
@@ -694,12 +721,31 @@ export function VendorAdvertisementCreatePage() {
                   {uploadError ? <p role="alert" className="mt-2 text-sm text-rose-300">{uploadError}</p> : null}
                   {form.bannerImageUrl ? <button type="button" onClick={() => { updateField('bannerImageUrl', ''); updateField('bannerImagePublicId', ''); setUploadError(null); }} disabled={uploading} className="mt-3 text-sm font-medium text-rose-300 hover:text-rose-200 disabled:opacity-50">Remove Image</button> : null}
               </div>
+              <div className="md:col-span-2 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-muted)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">Mobile Banner Image (Optional)</p>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">Used on small screens. Desktop image remains the fallback.</p>
+                  </div>
+                  <input ref={mobileBannerInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleMobileBannerUpload} className="sr-only" disabled={uploadingMobileBanner} />
+                  <button type="button" onClick={() => mobileBannerInputRef.current?.click()} disabled={uploadingMobileBanner} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-wait disabled:opacity-60">
+                    {uploadingMobileBanner ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                    {uploadingMobileBanner ? 'Uploading image...' : form.mobileBannerImageUrl ? 'Change Mobile Image' : 'Upload Mobile Image'}
+                  </button>
+                </div>
+                <button type="button" onClick={() => mobileBannerInputRef.current?.click()} disabled={uploadingMobileBanner} aria-label={form.mobileBannerImageUrl ? 'Change mobile banner image' : 'Upload mobile banner image'} className="mt-4 block w-full overflow-hidden rounded-xl text-left disabled:cursor-wait sm:w-56">
+                  {form.mobileBannerImageUrl ? <img src={form.mobileBannerImageUrl} alt="Mobile advertisement banner preview" className="aspect-[9/16] w-full rounded-xl border border-[var(--border-color)] object-contain" /> : <span className="flex aspect-[9/16] w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--surface)] text-sm text-[var(--text-muted)] transition hover:border-blue-500/50 hover:text-white"><ImageIcon className="h-7 w-7" />No mobile image</span>}
+                </button>
+                {uploadingMobileBanner ? <p className="mt-2 inline-flex items-center gap-2 text-sm text-blue-200"><LoaderCircle className="h-4 w-4 animate-spin" />Uploading mobile banner...</p> : null}
+                {mobileBannerUploadError ? <p role="alert" className="mt-2 text-sm text-rose-300">{mobileBannerUploadError}</p> : null}
+                {form.mobileBannerImageUrl ? <button type="button" onClick={() => { updateField('mobileBannerImageUrl', null); updateField('mobileBannerImagePublicId', null); setMobileBannerUploadError(null); }} disabled={uploadingMobileBanner} className="mt-3 text-sm font-medium text-rose-300 hover:text-rose-200 disabled:opacity-50">Remove Mobile Image</button> : null}
+              </div>
             </div>
 
             <div className="flex flex-wrap justify-end gap-3">
               <SecondaryButton type="button" onClick={() => navigate('/vendor/advertisements')}>Cancel</SecondaryButton>
               {createdAdvertisement && canPay(createdAdvertisement) ? <PrimaryButton type="button" disabled={processingPayment} onClick={() => void startPayment(createdAdvertisement)} icon={processingPayment ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}>{processingPayment ? 'Preparing payment...' : 'Continue to payment'}</PrimaryButton> : null}
-              <PrimaryButton type="submit" disabled={saving || uploading || Boolean(uploadError) || Boolean(createdAdvertisement)} icon={saving || uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}>{uploading ? 'Uploading image...' : saving ? 'Saving...' : createdAdvertisement ? 'Advertisement Created' : 'Create Advertisement'}</PrimaryButton>
+              <PrimaryButton type="submit" disabled={saving || uploading || uploadingMobileBanner || Boolean(uploadError) || Boolean(mobileBannerUploadError) || Boolean(createdAdvertisement)} icon={saving || uploading || uploadingMobileBanner ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}>{uploading || uploadingMobileBanner ? 'Uploading image...' : saving ? 'Saving...' : createdAdvertisement ? 'Advertisement Created' : 'Create Advertisement'}</PrimaryButton>
             </div>
           </form>
         </main>

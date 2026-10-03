@@ -8,6 +8,7 @@ export interface PublicAdvertisementResponse {
   title?: string;
   description?: string;
   bannerImageUrl?: string;
+  mobileBannerImageUrl?: string;
   targetUrl?: string;
   startDate?: string;
   endDate?: string;
@@ -104,6 +105,8 @@ export interface AdvertisementRecord {
   targetUrl?: string;
   bannerImageUrl?: string;
   bannerImagePublicId?: string;
+  mobileBannerImageUrl?: string | null;
+  mobileBannerImagePublicId?: string | null;
   amount?: number | string;
   pricePerDay?: number | string;
   numberOfDays?: number;
@@ -144,6 +147,8 @@ export interface AdvertisementRequest {
   targetUrl?: string;
   bannerImageUrl?: string;
   bannerImagePublicId?: string;
+  mobileBannerImageUrl?: string | null;
+  mobileBannerImagePublicId?: string | null;
   productId?: number | string | null;
   categoryId?: number | string | null;
   product?: Record<string, unknown> | null;
@@ -264,6 +269,8 @@ export function normalizeAdvertisement(value: unknown): AdvertisementRecord | nu
     targetUrl: String(record.targetUrl ?? record.url ?? record.redirectUrl ?? record.link ?? advertisement?.targetUrl ?? '').trim() || undefined,
     bannerImageUrl: String(record.bannerImageUrl ?? record.imageUrl ?? record.bannerUrl ?? banner?.imageUrl ?? advertisement?.bannerImageUrl ?? '').trim() || undefined,
     bannerImagePublicId: String(record.bannerImagePublicId ?? record.imagePublicId ?? banner?.publicId ?? advertisement?.bannerImagePublicId ?? '').trim() || undefined,
+    mobileBannerImageUrl: ('mobileBannerImageUrl' in record ? record.mobileBannerImageUrl : advertisement?.mobileBannerImageUrl) as string | null | undefined,
+    mobileBannerImagePublicId: ('mobileBannerImagePublicId' in record ? record.mobileBannerImagePublicId : advertisement?.mobileBannerImagePublicId) as string | null | undefined,
     productId: (record.productId ?? product?.id ?? advertisement?.productId ?? undefined) as number | string | null | undefined,
     categoryId: (record.categoryId ?? (record.category && typeof record.category === 'object' ? (record.category as Record<string, unknown>).id : undefined) ?? advertisement?.categoryId ?? undefined) as number | string | null | undefined,
     productName: String(record.productName ?? product?.name ?? record.storeName ?? advertisement?.productName ?? '').trim() || undefined,
@@ -291,8 +298,10 @@ export async function getVendorAdvertisement(id: number | string): Promise<Adver
 export async function createVendorAdvertisement(payload: AdvertisementRequest): Promise<AdvertisementRecord> {
   const cleaned: Record<string, unknown> = { ...payload };
   delete cleaned.amount;
+  const removedMobileImage = payload.mobileBannerImageUrl === null && payload.mobileBannerImagePublicId === null;
   Object.keys(cleaned).forEach((key) => {
     const value = cleaned[key];
+    if (removedMobileImage && (key === 'mobileBannerImageUrl' || key === 'mobileBannerImagePublicId')) return;
     if (value === undefined || value === null || value === '') delete cleaned[key];
   });
 
@@ -310,6 +319,7 @@ export async function updateVendorAdvertisement(id: number | string, payload: Ad
   delete cleaned.amount;
   Object.keys(cleaned).forEach((key) => {
     const value = cleaned[key];
+    if ((key === 'mobileBannerImageUrl' || key === 'mobileBannerImagePublicId') && value === null) return;
     if (value === undefined || value === null || value === '') delete cleaned[key];
   });
 
