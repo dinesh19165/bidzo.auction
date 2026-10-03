@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError } from '../api/apiClient';
 import { getFranchiseAnalytics, getFranchiseCustomers, getFranchiseDashboard, getFranchiseOrder, getFranchiseOrders, getFranchiseProduct, getFranchiseProducts, getFranchiseVendor, getFranchiseVendors, type FranchiseRecord } from '../api/franchiseApi';
+import { getCategories, type CategoryRecord } from '../api/categoryApi';
 import { FranchiseAdminShell } from '../components/admin/FranchiseAdminShell';
 import { Card } from '../components/common/Card';
 import { Table } from '../components/common/Table';
@@ -27,6 +28,10 @@ function text(input: unknown): string {
 
 function idOf(record: FranchiseRecord): string {
   return text(value(record, ['id', 'vendorId', 'productId', 'orderId', 'userId']));
+}
+
+function productIdOf(record: FranchiseRecord): string {
+  return text(value(record, ['id', 'productId']));
 }
 
 function date(input: unknown): string {
@@ -137,25 +142,78 @@ export function FranchiseVendorsPage() {
   </FranchiseAdminShell>;
 }
 
-const productColumns = [
-  { key: 'product', label: 'Product', render: (row: FranchiseRecord) => <div className="flex min-w-0 items-center gap-2"><ProductImage row={row} /><span className="min-w-0 truncate">{text(value(row, ['name', 'productName', 'title']))}</span></div> },
-  { key: 'vendor', label: 'Vendor', render: (row: FranchiseRecord) => text(value(row, ['vendorName', 'vendor', 'sellerName'])) },
-  { key: 'category', label: 'Category', render: (row: FranchiseRecord) => text(value(row, ['categoryName', 'category'])) },
-  { key: 'price', label: 'Price', render: (row: FranchiseRecord) => money(value(row, ['price', 'sellingPrice', 'amount'])) },
-  { key: 'status', label: 'Status', render: (row: FranchiseRecord) => text(value(row, ['status', 'approvalStatus', 'inspectionStatus'])) },
-  { key: 'created', label: 'Created', render: (row: FranchiseRecord) => date(value(row, ['createdAt', 'createdDate'])) },
-  { key: 'details', label: '', render: (row: FranchiseRecord) => <Link className="text-blue-500 hover:underline" to={`/franchise/products/${encodeURIComponent(idOf(row))}`}>View</Link> },
-];
+function relatedName(input: unknown, keys: string[]): unknown {
+  return input && typeof input === 'object' && !Array.isArray(input)
+    ? value(input as FranchiseRecord, keys)
+    : undefined;
+}
+
+function vendorName(row: FranchiseRecord, vendors: FranchiseRecord[]): string {
+  const directName = value(row, ['vendorName', 'vendorCompanyName', 'companyName', 'sellerName']);
+  if (directName !== undefined) return text(directName);
+
+  const vendor = value(row, ['vendor', 'seller']);
+  const embeddedName = relatedName(vendor, ['companyName', 'vendorName', 'name', 'businessName', 'storeName']);
+  if (embeddedName !== undefined) return text(embeddedName);
+
+  const vendorId = value(row, ['vendorId']) ?? relatedName(vendor, ['id', 'vendorId']) ?? vendor;
+  const match = vendors.find((item) => String(value(item, ['id', 'vendorId'])) === String(vendorId));
+  if (match) return text(value(match, ['companyName', 'vendorName', 'name', 'businessName', 'storeName']));
+  return typeof vendor === 'string' && !/^\d+$/.test(vendor) ? vendor : 'Unavailable';
+}
+
+function categoryName(row: FranchiseRecord, categories: CategoryRecord[]): string {
+  const directName = value(row, ['categoryName']);
+  if (directName !== undefined) return text(directName);
+
+  const category = value(row, ['category']);
+  const embeddedName = relatedName(category, ['name', 'title', 'label']);
+  if (embeddedName !== undefined) return text(embeddedName);
+
+  const categoryId = value(row, ['categoryId']) ?? relatedName(category, ['id', 'categoryId']) ?? category;
+  const match = categories.find((item) => String(item.id) === String(categoryId));
+  if (match) return match.name;
+  return typeof category === 'string' && !/^\d+$/.test(category) ? category : 'Unavailable';
+}
+
+function productColumns(vendors: FranchiseRecord[], categories: CategoryRecord[]) {
+  return [
+    { key: 'product', label: 'Product', render: (row: FranchiseRecord) => <div className="flex min-w-0 items-center gap-2"><ProductImage row={row} /><span className="min-w-0 truncate">{text(value(row, ['name', 'productName', 'title']))}</span></div> },
+    { key: 'vendor', label: 'Vendor', render: (row: FranchiseRecord) => vendorName(row, vendors) },
+    { key: 'category', label: 'Category', render: (row: FranchiseRecord) => categoryName(row, categories) },
+    { key: 'price', label: 'Price', render: (row: FranchiseRecord) => money(value(row, ['price', 'sellingPrice', 'amount'])) },
+    { key: 'status', label: 'Status', render: (row: FranchiseRecord) => text(value(row, ['status', 'approvalStatus', 'inspectionStatus'])) },
+    { key: 'created', label: 'Created', render: (row: FranchiseRecord) => date(value(row, ['createdAt', 'createdDate', 'createdOn', 'created_at', 'created_date', 'creationDate', 'dateCreated'])) },
+    { key: 'details', label: '', render: (row: FranchiseRecord) => <Link className="text-blue-500 hover:underline" to={`/franchise/products/${encodeURIComponent(productIdOf(row))}`}>View</Link> },
+  ];
+}
 
 function ProductImage({ row }: { row: FranchiseRecord }) {
-  const source = value(row, ['imageUrl', 'image', 'thumbnail']);
+  const images = Array.isArray(row.images) ? row.images : [];
+  const primary = images.find((image) => image && typeof image === 'object' && (image as FranchiseRecord).isPrimary) ?? images[0];
+  const imageSource = relatedName(primary, ['url', 'imageUrl']);
+  const source = value(row, ['imageUrl', 'image', 'thumbnail', 'primaryImageUrl']) ?? imageSource ?? (typeof primary === 'string' ? primary : undefined);
   return typeof source === 'string' && source ? <img src={source} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" /> : <span className="h-10 w-10 shrink-0 rounded-lg bg-[var(--surface-muted)]" />;
 }
 
 export function FranchiseProductsPage() {
   const result = useList(getFranchiseProducts);
+  const [vendors, setVendors] = useState<FranchiseRecord[]>([]);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      getFranchiseVendors().catch(() => [] as FranchiseRecord[]),
+      getCategories().catch(() => [] as CategoryRecord[]),
+    ]).then(([vendorRecords, categoryRecords]) => {
+      if (!active) return;
+      setVendors(vendorRecords);
+      setCategories(categoryRecords);
+    });
+    return () => { active = false; };
+  }, []);
   return <FranchiseAdminShell title="Franchise Admin" subtitle="Products" activePath="/franchise/products" breadcrumbs={[{ label: 'Franchise' }, { label: 'Products' }]}>
-    {result.loading ? <SkeletonTable /> : result.error || result.items.length === 0 ? <ErrorOrEmpty error={result.error} empty={result.items.length === 0} title="products" /> : <Card className="overflow-hidden p-2"><Table columns={productColumns} data={result.items} /></Card>}
+    {result.loading ? <SkeletonTable /> : result.error || result.items.length === 0 ? <ErrorOrEmpty error={result.error} empty={result.items.length === 0} title="products" /> : <Card className="overflow-hidden p-2"><Table columns={productColumns(vendors, categories)} data={result.items} /></Card>}
   </FranchiseAdminShell>;
 }
 
