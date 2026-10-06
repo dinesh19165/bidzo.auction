@@ -26,6 +26,7 @@ interface SpeechRecognitionLike {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives: number;
   onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
@@ -40,6 +41,8 @@ type SpeechRecognitionWindow = Window & {
   SpeechRecognition?: SpeechRecognitionConstructor;
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
+
+type VoiceRecognitionState = 'idle' | 'starting' | 'listening' | 'recognizing' | 'success' | 'no-speech' | 'not-allowed' | 'error' | 'unsupported';
 
 interface Props {
   open: boolean;
@@ -60,11 +63,20 @@ function searchParams(keyword: string, categoryId: string): URLSearchParams {
   return params;
 }
 
+function getBrowserLabel(): string {
+  if (typeof navigator === 'undefined') return 'Browser';
+  const userAgent = navigator.userAgent;
+  if (/Android/i.test(userAgent) && /Chrome/i.test(userAgent)) return 'Android Chrome';
+  if (/iPhone|iPad|iPod/i.test(userAgent) && /Safari/i.test(userAgent)) return 'iPhone Safari';
+  return 'Current browser';
+}
+
 export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const navigate = useNavigate();
   const { language } = useLocaleContext();
   const openRef = useRef(open);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionStartTimeoutRef = useRef<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -73,6 +85,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const mediaSetupPendingRef = useRef(false);
   const recognitionEndedRef = useRef(false);
   const transcriptRef = useRef('');
+  const finalTranscriptRef = useRef('');
   const mountedRef = useRef(true);
   const [keyword, setKeyword] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -83,10 +96,16 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const [error, setError] = useState('');
   const [unsupportedMessage, setUnsupportedMessage] = useState('');
   const [keywordOnlyMode, setKeywordOnlyMode] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceRecognitionState>('idle');
+  const [recognitionStarted, setRecognitionStarted] = useState(false);
+  const [recognitionResultReceived, setRecognitionResultReceived] = useState(false);
+  const [recognitionErrorCode, setRecognitionErrorCode] = useState('');
   openRef.current = open;
 
   const stopCapture = (discard: boolean) => {
     captureGenerationRef.current += 1;
+    if (recognitionStartTimeoutRef.current !== null) window.clearTimeout(recognitionStartTimeoutRef.current);
+    recognitionStartTimeoutRef.current = null;
     mediaSetupPendingRef.current = false;
     discardRecordingRef.current = discard;
     const recognition = recognitionRef.current;
@@ -122,6 +141,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     return () => {
       mountedRef.current = false;
       captureGenerationRef.current += 1;
+      if (recognitionStartTimeoutRef.current !== null) window.clearTimeout(recognitionStartTimeoutRef.current);
+      recognitionStartTimeoutRef.current = null;
       mediaSetupPendingRef.current = false;
       discardRecordingRef.current = true;
       const recognition = recognitionRef.current;
@@ -169,10 +190,13 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       });
     }
     if (!SpeechRecognition) {
+      stopCapture(true);
       setUnsupportedMessage('Voice search is not supported in this browser. Please type your search.');
       setError('');
+      setVoiceState('unsupported');
       return;
     }
+    stopCapture(true);
     setUnsupportedMessage('');
     setError('');
     setKeyword('');
@@ -182,21 +206,18 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     discardRecordingRef.current = false;
     audioChunksRef.current = [];
     transcriptRef.current = '';
+    finalTranscriptRef.current = '';
     recognitionEndedRef.current = false;
+    setVoiceState('starting');
+    setRecognitionStarted(false);
+    setRecognitionResultReceived(false);
+    setRecognitionErrorCode('');
 
     const generation = ++captureGenerationRef.current;
     let recorder: MediaRecorder | null = null;
     let mediaAccess: Promise<MediaStream> | null = null;
     const canRecord = typeof MediaRecorder !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
-    if (canRecord) {
-      try {
-        mediaAccess = navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaSetupPendingRef.current = true;
-      } catch {
-        mediaAccess = null;
-        setKeywordOnlyMode(true);
-      }
-    } else {
+    if (!canRecord) {
       setKeywordOnlyMode(true);
     }
 
@@ -206,6 +227,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     } catch {
       setProcessing(false);
       setError('Unable to start voice recognition. Please try typing your search.');
+      setVoiceState('error');
       return;
     }
 
@@ -213,14 +235,20 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     recognition.lang = language === 'en' ? (navigator.language || 'en-IN') : `${language}-IN`;
     recognition.continuous = false;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
     recognition.onstart = () => {
+      if (recognitionStartTimeoutRef.current !== null) window.clearTimeout(recognitionStartTimeoutRef.current);
+      recognitionStartTimeoutRef.current = null;
       if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition onstart');
       if (mountedRef.current && openRef.current) {
+        setRecognitionStarted(true);
+        setVoiceState('listening');
         setListening(true);
         setProcessing(false);
       }
     };
     recognition.onresult = (event) => {
+      setRecognitionResultReceived(true);
       const results = Array.from(event.results);
       const finalTranscript = results.filter((result) => result.isFinal).map((result) => result[0].transcript.trim()).filter(Boolean).join(' ');
       const interimTranscript = results.filter((result) => !result.isFinal).map((result) => result[0].transcript.trim()).filter(Boolean).join(' ');
@@ -228,9 +256,13 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition onresult', { resultCount: results.length, resultIndex: event.resultIndex, finalTranscript, interimTranscript });
       if (transcript) {
         transcriptRef.current = transcript;
+        finalTranscriptRef.current = finalTranscript;
         setKeyword(transcript);
+        setError('');
+        setVoiceState(finalTranscript ? 'success' : 'recognizing');
       }
       if (finalTranscript) {
+        setListening(false);
         try {
           recognition.stop();
         } catch {
@@ -239,6 +271,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       }
     };
     recognition.onerror = (event) => {
+      if (recognitionStartTimeoutRef.current !== null) window.clearTimeout(recognitionStartTimeoutRef.current);
+      recognitionStartTimeoutRef.current = null;
       if (!mountedRef.current) return;
       if (import.meta.env.DEV) console.warn('[Bidzo voice search] recognition onerror', { code: event.error });
       const messages: Record<string, string> = {
@@ -251,10 +285,14 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         aborted: 'Voice recognition stopped. Please try again.',
       };
       const message = messages[event.error] || 'Speech recognition failed. Please try again.';
+      setRecognitionErrorCode(event.error);
       setError(message);
+      setVoiceState(event.error === 'no-speech' ? 'no-speech' : event.error === 'not-allowed' || event.error === 'service-not-allowed' ? 'not-allowed' : 'error');
       stopCapture(true);
     };
     recognition.onend = () => {
+      if (recognitionStartTimeoutRef.current !== null) window.clearTimeout(recognitionStartTimeoutRef.current);
+      recognitionStartTimeoutRef.current = null;
       recognitionEndedRef.current = true;
       if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition onend', { transcript: transcriptRef.current });
       if (!mountedRef.current || discardRecordingRef.current) return;
@@ -266,28 +304,50 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       setListening(false);
       const activeRecorder = recorderRef.current;
       if (activeRecorder?.state === 'recording') {
-        setProcessing(true);
         activeRecorder.stop();
-      } else if (mediaSetupPendingRef.current) {
-        setProcessing(true);
-      } else {
+      } else if (!mediaSetupPendingRef.current) {
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
-        setProcessing(false);
-        if (!transcriptRef.current) setError('No speech detected. Please try again.');
+      }
+      setProcessing(false);
+      if (transcriptRef.current) {
+        setKeyword(finalTranscriptRef.current || transcriptRef.current);
+        setError('');
+        setVoiceState('success');
+      } else {
+        setError('No speech detected. Please try again.');
+        setRecognitionErrorCode((current) => current || 'no-speech');
+        setVoiceState('no-speech');
       }
     };
 
     try {
       if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition.start called');
       recognition.start();
-      setListening(true);
-      setProcessing(false);
+      setListening(false);
+      setProcessing(true);
+      recognitionStartTimeoutRef.current = window.setTimeout(() => {
+        if (recognitionRef.current !== recognition) return;
+        setRecognitionErrorCode('start-timeout');
+        setError('Voice recognition did not start. Please try again.');
+        stopCapture(true);
+        setVoiceState('error');
+      }, 10000);
     } catch (startError) {
       if (import.meta.env.DEV) console.warn('[Bidzo voice search] recognition.start failed', { message: startError instanceof Error ? startError.message : 'Unknown start error' });
       stopCapture(true);
       setError('Unable to start voice search. Please check microphone permission and try again.');
+      setVoiceState('error');
       return;
+    }
+
+    if (canRecord) {
+      try {
+        mediaAccess = navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaSetupPendingRef.current = true;
+      } catch {
+        setKeywordOnlyMode(true);
+      }
     }
 
     if (mediaAccess) {
@@ -353,9 +413,9 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         const permissionMessage = permissionName === 'NotFoundError' || permissionName === 'DevicesNotFoundError'
           ? 'Microphone is unavailable. Please check your microphone permission.'
           : 'Microphone permission was denied. Please allow microphone access and try again.';
-        if (transcriptRef.current) setKeywordOnlyMode(true);
-        stopCapture(true);
-        setError(permissionMessage);
+        setKeywordOnlyMode(true);
+        setRecognitionErrorCode(permissionName || 'audio-permission-denied');
+        setError(`${permissionMessage} Speech recognition will continue without an audio attachment.`);
       });
     }
   };
@@ -368,6 +428,11 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     setUnsupportedMessage('');
     setKeywordOnlyMode(false);
     transcriptRef.current = '';
+    finalTranscriptRef.current = '';
+    setVoiceState('idle');
+    setRecognitionStarted(false);
+    setRecognitionResultReceived(false);
+    setRecognitionErrorCode('');
     void startCapture();
   };
 
@@ -380,6 +445,11 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     setUnsupportedMessage('');
     setKeywordOnlyMode(false);
     transcriptRef.current = '';
+    finalTranscriptRef.current = '';
+    setVoiceState('idle');
+    setRecognitionStarted(false);
+    setRecognitionResultReceived(false);
+    setRecognitionErrorCode('');
     onClose();
   };
 
@@ -390,14 +460,10 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       return;
     }
 
-    if (unsupportedMessage || keywordOnlyMode) {
+    if (unsupportedMessage || keywordOnlyMode || !audioFile) {
       stopCapture(true);
       onClose();
       navigate(`/search?${searchParams(trimmedKeyword, categoryId).toString()}`);
-      return;
-    }
-    if (!audioFile) {
-      setError('Record a voice search before submitting.');
       return;
     }
 
@@ -423,15 +489,37 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
 
   const canSearch = Boolean(keyword.trim() || categoryId);
   const showTypedSearch = Boolean(unsupportedMessage);
+  const speechWindow = typeof window === 'undefined' ? null : window as SpeechRecognitionWindow;
+  const voiceStatusText: Record<VoiceRecognitionState, string> = {
+    idle: 'Tap the microphone and speak',
+    starting: 'Starting microphone...',
+    listening: 'Listening... Speak now',
+    recognizing: 'Recognizing...',
+    success: 'Recognition complete',
+    'no-speech': 'No speech detected. Please try again.',
+    'not-allowed': 'Microphone permission was denied. Allow microphone access and try again.',
+    error: error ? `Voice recognition failed: ${error}` : 'Voice recognition failed. Please try again.',
+    unsupported: 'Voice search is not supported in this browser. Please type your search.',
+  };
 
   return <Modal open={open} title="Voice product search" onClose={cancel}>
     <div className="space-y-4">
       {unsupportedMessage ? <p role="status" className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-200">{unsupportedMessage}</p> : null}
       {!showTypedSearch ? <div className="flex min-h-28 flex-col items-center justify-center gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-4 text-center">
         {listening ? <span className="relative flex h-12 w-12 items-center justify-center"><span className="absolute inset-0 animate-ping rounded-full bg-rose-500/30" /><Mic className="relative h-6 w-6 text-rose-300" /></span> : processing || searching ? <LoaderCircle className="h-7 w-7 animate-spin text-blue-300" /> : <Mic className="h-6 w-6 text-slate-300" />}
-        <p role="status" className="text-sm text-slate-200">{listening ? 'Listening...' : processing ? 'Preparing recording...' : searching ? 'Finding matching products...' : audioFile ? 'Review your recognized search.' : 'Start speaking to search products.'}</p>
+        <p role="status" className="text-sm text-slate-200">{searching ? 'Finding matching products...' : processing ? 'Starting microphone...' : voiceStatusText[voiceState]}</p>
       </div> : null}
+      <div role="status" aria-label="Voice search diagnostics" className="space-y-1 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
+        <p>Browser: {getBrowserLabel()}</p>
+        <p>SpeechRecognition: {speechWindow?.SpeechRecognition ? 'YES' : 'NO'}</p>
+        <p>webkitSpeechRecognition: {speechWindow?.webkitSpeechRecognition ? 'YES' : 'NO'}</p>
+        <p>Status: {voiceStatusText[voiceState]}</p>
+        <p>onstart: {recognitionStarted ? 'fired' : 'not fired'}</p>
+        <p>onresult: {recognitionResultReceived ? 'fired' : 'not fired'}</p>
+        <p>Error: {recognitionErrorCode || 'none'}</p>
+      </div>
       {keywordOnlyMode ? <p role="status" className="text-xs text-amber-200">Audio recording is unavailable here; speech recognition can still search by keyword.</p> : null}
+      {voiceState === 'success' && keyword.trim() ? <p role="status" className="text-sm font-medium text-emerald-300">Recognized: {keyword.trim()}</p> : null}
       <input aria-label="Voice search keyword" maxLength={100} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Recognized text or type a keyword" className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50" />
       <select aria-label="Voice search category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50">
         <option value="">Select category (optional)</option>
@@ -441,7 +529,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" disabled={searching} onClick={cancel} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel</button>
         {listening ? <button type="button" onClick={() => recognitionRef.current?.stop()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-400/30 px-4 text-sm font-medium text-rose-200"><Square className="h-3.5 w-3.5 fill-current" /> Stop</button> : null}
-        {!showTypedSearch && !listening && !processing && !searching && (!audioFile || error) ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />{error ? 'Try Again' : audioFile ? 'Record again' : 'Start'}</button> : null}
+        {!showTypedSearch && !listening && !processing && !searching && (!audioFile || error) ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />{error ? 'Try Again' : voiceState === 'success' || audioFile ? 'Retry' : 'Start'}</button> : null}
         {audioFile && !listening && !processing && !searching ? <button type="button" onClick={retryCapture} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Retry</button> : null}
         {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : showTypedSearch ? 'Type Search' : 'Search'}</button> : null}
       </div>
