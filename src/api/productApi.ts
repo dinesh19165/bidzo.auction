@@ -25,6 +25,9 @@ export interface ProductApiResponse {
   price: string | number;
   sku: string;
   status?: string;
+  seller?: string | null;
+  location?: string | null;
+  condition?: string | null;
   brandId?: number | null;
   categoryId?: number | null;
   categoryName?: string | null;
@@ -189,14 +192,14 @@ function mapProduct(response: ProductApiResponse, imageOverride?: string): Produ
     description: response.description || '',
     price,
     category: categoryName || (categoryId != null ? String(categoryId) : ''),
-    condition: '',
-    seller: '',
+    condition: response.condition ?? '',
+    seller: response.seller ?? '',
     rating: undefined,
     verified: undefined,
     image: imageOverride || findPrimaryProductImage(response),
     videoUrl: response.videoUrl || null,
     videoPublicId: response.videoPublicId || null,
-    location: undefined,
+    location: response.location ?? '',
     badge,
     reviews: undefined,
     sku: response.sku,
