@@ -43,6 +43,8 @@ type SpeechRecognitionWindow = Window & {
 };
 
 type VoiceRecognitionState = 'idle' | 'starting' | 'listening' | 'recognizing' | 'success' | 'no-speech' | 'not-allowed' | 'error' | 'unsupported';
+type MicrophonePermissionState = 'not-requested' | 'checking' | 'granted' | 'denied';
+type MicrophoneInputState = 'not-checked' | 'checking' | 'detected' | 'no-audio' | 'unavailable';
 
 interface Props {
   open: boolean;
@@ -100,6 +102,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const [recognitionStarted, setRecognitionStarted] = useState(false);
   const [recognitionResultReceived, setRecognitionResultReceived] = useState(false);
   const [recognitionErrorCode, setRecognitionErrorCode] = useState('');
+  const [microphonePermissionState, setMicrophonePermissionState] = useState<MicrophonePermissionState>('not-requested');
+  const [microphoneInputState, setMicrophoneInputState] = useState<MicrophoneInputState>('not-checked');
   openRef.current = open;
 
   const stopCapture = (discard: boolean) => {
@@ -178,6 +182,54 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     };
   }, []);
 
+  const checkMicrophoneCapability = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicrophonePermissionState('denied');
+      setMicrophoneInputState('unavailable');
+      return;
+    }
+
+    setMicrophonePermissionState('checking');
+    setMicrophoneInputState('checking');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicrophonePermissionState('granted');
+
+      const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) {
+        stream.getTracks().forEach((track) => track.stop());
+        setMicrophoneInputState('unavailable');
+        return;
+      }
+
+      const audioContext = new AudioContextCtor();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      const buffer = new Uint8Array(analyser.fftSize);
+
+      await new Promise((resolve) => window.setTimeout(resolve, 600));
+
+      analyser.getByteTimeDomainData(buffer);
+      const peak = buffer.reduce((max, value) => Math.max(max, Math.abs(value - 128)), 0);
+      const detected = peak > 4;
+      const finalState: MicrophoneInputState = detected ? 'detected' : 'no-audio';
+      setMicrophoneInputState(finalState);
+
+      source.disconnect();
+      stream.getTracks().forEach((track) => track.stop());
+      await audioContext.close();
+    } catch {
+      setMicrophonePermissionState('denied');
+      setMicrophoneInputState('unavailable');
+      setError('Microphone permission is denied. Please allow microphone access in Chrome.');
+      setVoiceState('not-allowed');
+      setRecognitionErrorCode('not-allowed');
+    }
+  };
+
   const startCapture = () => {
     const speechWindow = typeof window === 'undefined' ? null : window as SpeechRecognitionWindow;
     const standardRecognition = speechWindow?.SpeechRecognition;
@@ -231,8 +283,10 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       return;
     }
 
+    void checkMicrophoneCapability();
+
     recognitionRef.current = recognition;
-    recognition.lang = language === 'en' ? (navigator.language || 'en-IN') : `${language}-IN`;
+    recognition.lang = 'en-IN';
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
@@ -249,19 +303,23 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     };
     recognition.onresult = (event) => {
       setRecognitionResultReceived(true);
-      const results = Array.from(event.results);
-      const finalTranscript = results.filter((result) => result.isFinal).map((result) => result[0].transcript.trim()).filter(Boolean).join(' ');
-      const interimTranscript = results.filter((result) => !result.isFinal).map((result) => result[0].transcript.trim()).filter(Boolean).join(' ');
-      const transcript = [finalTranscript, interimTranscript].filter(Boolean).join(' ').slice(0, 100);
-      if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition onresult', { resultCount: results.length, resultIndex: event.resultIndex, finalTranscript, interimTranscript });
+      const transcriptParts: string[] = [];
+      for (let index = event.resultIndex ?? 0; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (!result) continue;
+        const transcript = result[0]?.transcript?.trim();
+        if (transcript) transcriptParts.push(transcript);
+      }
+      const transcript = transcriptParts.join(' ').trim().slice(0, 100);
+      if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition onresult', { resultIndex: event.resultIndex, transcript });
       if (transcript) {
         transcriptRef.current = transcript;
-        finalTranscriptRef.current = finalTranscript;
+        finalTranscriptRef.current = event.results[event.results.length - 1]?.isFinal ? transcript : finalTranscriptRef.current;
         setKeyword(transcript);
         setError('');
-        setVoiceState(finalTranscript ? 'success' : 'recognizing');
+        setVoiceState('recognizing');
       }
-      if (finalTranscript) {
+      if (event.results[event.results.length - 1]?.isFinal) {
         setListening(false);
         try {
           recognition.stop();
@@ -286,7 +344,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       };
       const message = messages[event.error] || 'Speech recognition failed. Please try again.';
       setRecognitionErrorCode(event.error);
-      setError(message);
+      setError(event.error === 'no-speech' ? 'No speech detected. Please speak clearly and try again.' : message);
       setVoiceState(event.error === 'no-speech' ? 'no-speech' : event.error === 'not-allowed' || event.error === 'service-not-allowed' ? 'not-allowed' : 'error');
       stopCapture(true);
     };
@@ -315,7 +373,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         setError('');
         setVoiceState('success');
       } else {
-        setError('No speech detected. Please try again.');
+        setError('No speech detected. Please speak clearly and try again.');
         setRecognitionErrorCode((current) => current || 'no-speech');
         setVoiceState('no-speech');
       }
@@ -460,7 +518,14 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       return;
     }
 
-    if (unsupportedMessage || keywordOnlyMode || !audioFile) {
+    if (unsupportedMessage || keywordOnlyMode) {
+      stopCapture(true);
+      onClose();
+      navigate(`/search?${searchParams(trimmedKeyword, categoryId).toString()}`);
+      return;
+    }
+
+    if (!audioFile) {
       stopCapture(true);
       onClose();
       navigate(`/search?${searchParams(trimmedKeyword, categoryId).toString()}`);
@@ -496,8 +561,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     listening: 'Listening... Speak now',
     recognizing: 'Recognizing...',
     success: 'Recognition complete',
-    'no-speech': 'No speech detected. Please try again.',
-    'not-allowed': 'Microphone permission was denied. Allow microphone access and try again.',
+    'no-speech': 'No speech detected. Please speak clearly and try again.',
+    'not-allowed': 'Microphone permission is denied. Please allow microphone access in Chrome.',
     error: error ? `Voice recognition failed: ${error}` : 'Voice recognition failed. Please try again.',
     unsupported: 'Voice search is not supported in this browser. Please type your search.',
   };
@@ -517,6 +582,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         <p>onstart: {recognitionStarted ? 'fired' : 'not fired'}</p>
         <p>onresult: {recognitionResultReceived ? 'fired' : 'not fired'}</p>
         <p>Error: {recognitionErrorCode || 'none'}</p>
+        <p>Microphone permission: {microphonePermissionState === 'granted' ? 'GRANTED' : microphonePermissionState === 'denied' ? 'DENIED' : microphonePermissionState === 'checking' ? 'CHECKING' : 'NOT REQUESTED'}</p>
+        <p>Microphone input: {microphoneInputState === 'detected' ? 'DETECTED' : microphoneInputState === 'no-audio' ? 'NO AUDIO' : microphoneInputState === 'checking' ? 'CHECKING' : microphoneInputState === 'unavailable' ? 'UNAVAILABLE' : 'NOT CHECKED'}</p>
       </div>
       {keywordOnlyMode ? <p role="status" className="text-xs text-amber-200">Audio recording is unavailable here; speech recognition can still search by keyword.</p> : null}
       {voiceState === 'success' && keyword.trim() ? <p role="status" className="text-sm font-medium text-emerald-300">Recognized: {keyword.trim()}</p> : null}
@@ -529,8 +596,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" disabled={searching} onClick={cancel} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel</button>
         {listening ? <button type="button" onClick={() => recognitionRef.current?.stop()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-400/30 px-4 text-sm font-medium text-rose-200"><Square className="h-3.5 w-3.5 fill-current" /> Stop</button> : null}
-        {!showTypedSearch && !listening && !processing && !searching && (!audioFile || error) ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />{error ? 'Try Again' : voiceState === 'success' || audioFile ? 'Retry' : 'Start'}</button> : null}
-        {audioFile && !listening && !processing && !searching ? <button type="button" onClick={retryCapture} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Retry</button> : null}
+        {!showTypedSearch && !listening && !processing && !searching && (error || voiceState === 'no-speech' || voiceState === 'not-allowed' || voiceState === 'error' || voiceState === 'unsupported') ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />Try Again</button> : null}
+        {!showTypedSearch && !listening && !processing && !searching && !error && voiceState === 'success' && keyword.trim() ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Speak Again</button> : null}
         {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : showTypedSearch ? 'Type Search' : 'Search'}</button> : null}
       </div>
     </div>
