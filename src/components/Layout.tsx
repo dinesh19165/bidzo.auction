@@ -367,7 +367,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300" onClickCapture={(event) => { if (event.target instanceof Element && event.target.closest('a[href="/"]')) scrollPageToTop(); }}>
+    <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300" onClickCapture={(event) => { if (location.pathname === '/' && event.target instanceof Element && event.target.closest('a[href="/"]')) scrollPageToTop(); }}>
       <input ref={cameraInputRef} type="file" accept={ACCEPTED_CAMERA_TYPES.join(',')} capture="environment" className="hidden" onChange={handleCameraSelection} />
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
