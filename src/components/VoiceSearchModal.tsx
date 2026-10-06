@@ -76,6 +76,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
   const [unsupportedMessage, setUnsupportedMessage] = useState('');
+  const [keywordOnlyMode, setKeywordOnlyMode] = useState(false);
   openRef.current = open;
 
   const stopCapture = (discard: boolean) => {
@@ -151,87 +152,96 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       setError('');
       return;
     }
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setUnsupportedMessage('Voice search is not supported in this browser. Please type your search.');
-      setError('');
-      return;
-    }
-
     setUnsupportedMessage('');
     setError('');
     setKeyword('');
     setAudioFile(null);
+    setKeywordOnlyMode(false);
     setProcessing(true);
     discardRecordingRef.current = false;
     audioChunksRef.current = [];
 
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (permissionError) {
-      if (!mountedRef.current || !openRef.current) return;
-      setProcessing(false);
-      const name = permissionError instanceof DOMException ? permissionError.name : '';
-      setError(name === 'NotAllowedError' || name === 'SecurityError'
-        ? 'Microphone permission was denied. Allow microphone access and try again.'
-        : 'Unable to access the microphone. Check your device settings and try again.');
-      return;
+    let stream: MediaStream | null = null;
+    let recorder: MediaRecorder | null = null;
+    if (typeof MediaRecorder !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        if (!mountedRef.current || !openRef.current) return;
+        setProcessing(false);
+        setError('Microphone permission is required for voice search.');
+        return;
+      }
+
+      if (!mountedRef.current || !openRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+      const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+      const mimeType = typeof MediaRecorder.isTypeSupported === 'function'
+        ? supportedTypes.find((type) => MediaRecorder.isTypeSupported(type))
+        : undefined;
+      try {
+        recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      } catch {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        stream = null;
+        setKeywordOnlyMode(true);
+        setError('Audio recording is unavailable. Speech recognition can still search by keyword.');
+      }
+
+      if (recorder && stream) {
+        recorderRef.current = recorder;
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) audioChunksRef.current.push(event.data);
+        };
+        recorder.onstop = () => {
+          stream?.getTracks().forEach((track) => track.stop());
+          if (streamRef.current === stream) streamRef.current = null;
+          if (recorderRef.current === recorder) recorderRef.current = null;
+          if (!mountedRef.current || discardRecordingRef.current) {
+            audioChunksRef.current = [];
+            return;
+          }
+
+          const type = recorder?.mimeType || audioChunksRef.current.find((chunk) => chunk.type)?.type || 'audio/webm';
+          const blob = new Blob(audioChunksRef.current, { type });
+          audioChunksRef.current = [];
+          if (!blob.size) {
+            setProcessing(false);
+            setError('No audio was recorded. Please try again.');
+            return;
+          }
+
+          const extension = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
+          setAudioFile(new File([blob], `voice-search-${Date.now()}.${extension}`, { type }));
+          setProcessing(false);
+        };
+        recorder.onerror = () => {
+          if (!mountedRef.current) return;
+          setError('Unable to record audio. Please try again.');
+          stopCapture(true);
+        };
+      }
+    } else {
+      setKeywordOnlyMode(true);
     }
 
-    if (!mountedRef.current || !openRef.current) {
-      stream.getTracks().forEach((track) => track.stop());
-      return;
-    }
-
-    streamRef.current = stream;
-    const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']
-      .find((type) => MediaRecorder.isTypeSupported(type));
-
-    let recorder: MediaRecorder;
     let recognition: SpeechRecognitionLike;
     try {
-      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recognition = new SpeechRecognition();
     } catch {
-      stream.getTracks().forEach((track) => track.stop());
+      stream?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       setProcessing(false);
-      setError('Unable to start voice search in this browser. Please try typing your search.');
+      setError('Unable to start voice recognition. Please try typing your search.');
       return;
     }
 
-    recorderRef.current = recorder;
     recognitionRef.current = recognition;
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) audioChunksRef.current.push(event.data);
-    };
-    recorder.onstop = () => {
-      stream.getTracks().forEach((track) => track.stop());
-      if (streamRef.current === stream) streamRef.current = null;
-      if (recorderRef.current === recorder) recorderRef.current = null;
-      if (!mountedRef.current || discardRecordingRef.current) {
-        audioChunksRef.current = [];
-        return;
-      }
-
-      const type = recorder.mimeType || audioChunksRef.current.find((chunk) => chunk.type)?.type || 'audio/webm';
-      const blob = new Blob(audioChunksRef.current, { type });
-      audioChunksRef.current = [];
-      if (!blob.size) {
-        setProcessing(false);
-        setError('No audio was recorded. Please try again.');
-        return;
-      }
-
-      const extension = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
-      setAudioFile(new File([blob], `voice-search-${Date.now()}.${extension}`, { type }));
-      setProcessing(false);
-    };
-    recorder.onerror = () => {
-      if (!mountedRef.current) return;
-      setError('Unable to record audio. Please try again.');
-      stopCapture(true);
-    };
 
     recognition.lang = language === 'en' ? (navigator.language || 'en-US') : `${language}-IN`;
     recognition.continuous = false;
@@ -248,7 +258,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     recognition.onerror = (event) => {
       if (!mountedRef.current) return;
       const message = event.error === 'not-allowed' || event.error === 'service-not-allowed'
-        ? 'Microphone permission was denied. Allow microphone access and try again.'
+        ? 'Microphone permission is required for voice search.'
         : event.error === 'no-speech'
           ? 'No speech was detected. Please try again.'
           : 'Speech recognition failed. Please try again.';
@@ -264,17 +274,31 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         setProcessing(true);
         activeRecorder.stop();
       } else {
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
         setProcessing(false);
       }
     };
 
     try {
-      recorder.start();
+      if (recorder) {
+        try {
+          recorder.start();
+        } catch {
+          recorderRef.current = null;
+          stream?.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+          stream = null;
+          recorder = null;
+          setKeywordOnlyMode(true);
+          setError('Audio recording is unavailable. Speech recognition can still search by keyword.');
+        }
+      }
       recognition.start();
       setListening(true);
       setProcessing(false);
     } catch {
-      setError('Unable to start voice search. Please try again.');
+      setError('Unable to start voice search. Please check microphone permission and try again.');
       stopCapture(true);
     }
   };
@@ -285,6 +309,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     setKeyword('');
     setError('');
     setUnsupportedMessage('');
+    setKeywordOnlyMode(false);
     void startCapture();
   };
 
@@ -295,6 +320,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     setCategoryId('');
     setError('');
     setUnsupportedMessage('');
+    setKeywordOnlyMode(false);
     onClose();
   };
 
@@ -305,14 +331,20 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       return;
     }
 
-    if (unsupportedMessage || !audioFile) {
+    if (unsupportedMessage || keywordOnlyMode) {
+      stopCapture(true);
       onClose();
       navigate(`/search?${searchParams(trimmedKeyword, categoryId).toString()}`);
+      return;
+    }
+    if (!audioFile) {
+      setError('Record a voice search before submitting.');
       return;
     }
 
     setSearching(true);
     setError('');
+    stopCapture(true);
     try {
       const data: VoiceProductSearchData = await voiceProductSearch(audioFile, trimmedKeyword, categoryId || undefined);
       stopCapture(true);
@@ -340,6 +372,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         {listening ? <span className="relative flex h-12 w-12 items-center justify-center"><span className="absolute inset-0 animate-ping rounded-full bg-rose-500/30" /><Mic className="relative h-6 w-6 text-rose-300" /></span> : processing || searching ? <LoaderCircle className="h-7 w-7 animate-spin text-blue-300" /> : <Mic className="h-6 w-6 text-slate-300" />}
         <p role="status" className="text-sm text-slate-200">{listening ? 'Listening...' : processing ? 'Preparing recording...' : searching ? 'Finding matching products...' : audioFile ? 'Review your recognized search.' : 'Start speaking to search products.'}</p>
       </div> : null}
+      {keywordOnlyMode ? <p role="status" className="text-xs text-amber-200">Audio recording is unavailable here; speech recognition can still search by keyword.</p> : null}
       <input aria-label="Voice search keyword" maxLength={100} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Recognized text or type a keyword" className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50" />
       <select aria-label="Voice search category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50">
         <option value="">Select category (optional)</option>
@@ -347,9 +380,9 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       </select>
       {error ? <ErrorState title="Voice search failed" description={error} /> : null}
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button type="button" disabled={processing || searching} onClick={cancel} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel</button>
+        <button type="button" disabled={searching} onClick={cancel} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel</button>
         {listening ? <button type="button" onClick={() => recognitionRef.current?.stop()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-400/30 px-4 text-sm font-medium text-rose-200"><Square className="h-3.5 w-3.5 fill-current" /> Stop</button> : null}
-        {!showTypedSearch && !listening && !processing && !searching && (!audioFile || error) ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />{audioFile ? 'Record again' : error ? 'Retry' : 'Start'}</button> : null}
+        {!showTypedSearch && !listening && !processing && !searching && (!audioFile || error) ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />{error ? 'Try Again' : audioFile ? 'Record again' : 'Start'}</button> : null}
         {audioFile && !listening && !processing && !searching ? <button type="button" onClick={retryCapture} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Retry</button> : null}
         {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : 'Search'}</button> : null}
       </div>
