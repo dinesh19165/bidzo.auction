@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, CircleHelp, Crosshair, Gavel, Globe, Grid2X2, Home, LoaderCircle, LogOut, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, CircleHelp, Crosshair, Gavel, Globe, Grid2X2, Home, LoaderCircle, LogOut, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Square, Store, Tag, UserRound, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -11,11 +11,23 @@ import { Footer } from './Footer';
 import { CategoryIcon } from './categories/CategoryIcon';
 import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
 import { searchMarketplace, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
+import { uploadCameraMedia, uploadVoiceMedia, type MediaUploadResult } from '../api/mediaApi';
 import { API_BASE_URL } from '../api/apiClient';
 import { NotificationList } from './notifications/NotificationList';
 import { useNotificationContext } from '../context/NotificationContext';
 import { useCartContext } from '../context/CartContext';
 import { clearCustomerLocation, getRecentCustomerLocations, getStoredCustomerLocation, reverseGeocode, saveCustomerLocation, searchCustomerLocations, type CustomerLocation } from '../utils/customerLocation';
+
+type HeaderMediaFeedback = {
+  kind: 'error' | 'success';
+  message: string;
+  mediaType?: 'image' | 'audio';
+  result?: MediaUploadResult;
+};
+
+const MAX_CAMERA_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_VOICE_RECORDING_SIZE = 20 * 1024 * 1024;
+const ACCEPTED_CAMERA_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: CustomerLocation | null; onSelect: (location: CustomerLocation | null) => void; mobile?: boolean }) {
   const { theme } = useThemeContext();
@@ -131,6 +143,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileProfileOpen, setMobileProfileOpen] = useState(false);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const voiceRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
+  const recordingStartedAtRef = useRef(0);
+  const discardRecordingRef = useRef(false);
+  const mountedRef = useRef(true);
   const headerDropdownsRef = useRef<HTMLDivElement>(null);
   const mobileProfileRef = useRef<HTMLDivElement>(null);
   const { theme } = useThemeContext();
@@ -151,6 +171,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [searchSuggestions, setSearchSuggestions] = useState<MarketplaceSearchResult[]>([]);
   const [searchSuggestionsLoading, setSearchSuggestionsLoading] = useState(false);
   const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(false);
+  const [cameraUploading, setCameraUploading] = useState(false);
+  const [voiceRecording, setVoiceRecording] = useState(false);
+  const [voiceUploading, setVoiceUploading] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [mediaFeedback, setMediaFeedback] = useState<HeaderMediaFeedback | null>(null);
   const searchRequestGeneration = useRef(0);
   const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
@@ -214,6 +239,162 @@ export function Layout({ children }: { children: React.ReactNode }) {
     window.requestAnimationFrame(() => mobileSearchRef.current?.focus());
   };
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      discardRecordingRef.current = true;
+      if (recordingTimerRef.current !== null) window.clearInterval(recordingTimerRef.current);
+      if (voiceRecorderRef.current?.state === 'recording') {
+        try {
+          voiceRecorderRef.current.stop();
+        } catch {
+          // The stream is stopped below even if the recorder has already ended.
+        }
+      }
+      voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+      voiceStreamRef.current = null;
+    };
+  }, []);
+
+  const handleCameraSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    if (!ACCEPTED_CAMERA_TYPES.includes(file.type)) {
+      setMediaFeedback({ kind: 'error', message: 'Choose a JPEG, PNG, or WEBP image.' });
+      return;
+    }
+    if (file.size > MAX_CAMERA_IMAGE_SIZE) {
+      setMediaFeedback({ kind: 'error', message: 'Images must be 10 MB or smaller.' });
+      return;
+    }
+    if (cameraUploading) return;
+
+    setMediaFeedback(null);
+    setCameraUploading(true);
+    try {
+      const result = await uploadCameraMedia(file);
+      if (mountedRef.current) setMediaFeedback({ kind: 'success', message: 'Image uploaded successfully.', mediaType: 'image', result });
+    } catch (uploadError) {
+      if (mountedRef.current) setMediaFeedback({ kind: 'error', message: uploadError instanceof Error ? uploadError.message : 'Unable to upload the image. Please try again.' });
+    } finally {
+      if (mountedRef.current) setCameraUploading(false);
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    const recorder = voiceRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+  };
+
+  const startVoiceRecording = async () => {
+    if (voiceRecording) {
+      stopVoiceRecording();
+      return;
+    }
+    if (voiceUploading) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setMediaFeedback({ kind: 'error', message: 'Microphone recording is not supported in this browser.' });
+      return;
+    }
+
+    setMediaFeedback(null);
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (permissionError) {
+      const errorName = permissionError instanceof DOMException ? permissionError.name : '';
+      const message = errorName === 'NotAllowedError' || errorName === 'SecurityError'
+        ? 'Microphone permission was denied. Allow microphone access and try again.'
+        : 'Unable to access the microphone. Check your device settings and try again.';
+      if (mountedRef.current) setMediaFeedback({ kind: 'error', message });
+      return;
+    }
+
+    if (!mountedRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    const preferredTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    } catch {
+      stream.getTracks().forEach((track) => track.stop());
+      setMediaFeedback({ kind: 'error', message: 'This browser cannot create a supported audio recording.' });
+      return;
+    }
+
+    voiceStreamRef.current = stream;
+    voiceRecorderRef.current = recorder;
+    voiceChunksRef.current = [];
+    discardRecordingRef.current = false;
+    recorder.ondataavailable = (recordingEvent) => {
+      if (recordingEvent.data.size > 0) voiceChunksRef.current.push(recordingEvent.data);
+    };
+    recorder.onstop = () => {
+      stream.getTracks().forEach((track) => track.stop());
+      voiceStreamRef.current = null;
+      voiceRecorderRef.current = null;
+      if (recordingTimerRef.current !== null) window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+      if (!mountedRef.current || discardRecordingRef.current) return;
+
+      setVoiceRecording(false);
+      const type = recorder.mimeType || voiceChunksRef.current.find((chunk) => chunk.type)?.type || 'audio/webm';
+      const blob = new Blob(voiceChunksRef.current, { type });
+      voiceChunksRef.current = [];
+      if (!blob.size) {
+        setMediaFeedback({ kind: 'error', message: 'The recording was empty. Please record again.' });
+        return;
+      }
+      if (blob.size > MAX_VOICE_RECORDING_SIZE) {
+        setMediaFeedback({ kind: 'error', message: 'Audio recordings must be 20 MB or smaller.' });
+        return;
+      }
+
+      const extension = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : type.includes('wav') ? 'wav' : 'webm';
+      const file = new File([blob], `voice-search-${Date.now()}.${extension}`, { type });
+      setVoiceUploading(true);
+      void uploadVoiceMedia(file).then((result) => {
+        if (mountedRef.current) setMediaFeedback({ kind: 'success', message: 'Voice recording uploaded successfully.', mediaType: 'audio', result });
+      }).catch((uploadError: unknown) => {
+        if (mountedRef.current) setMediaFeedback({ kind: 'error', message: uploadError instanceof Error ? uploadError.message : 'Unable to upload the voice recording. Please try again.' });
+      }).finally(() => {
+        if (mountedRef.current) setVoiceUploading(false);
+      });
+    };
+
+    try {
+      recorder.start();
+      setVoiceRecording(true);
+      setRecordingSeconds(0);
+      recordingStartedAtRef.current = Date.now();
+      recordingTimerRef.current = window.setInterval(() => setRecordingSeconds(Math.floor((Date.now() - recordingStartedAtRef.current) / 1000)), 250);
+    } catch {
+      stream.getTracks().forEach((track) => track.stop());
+      voiceStreamRef.current = null;
+      voiceRecorderRef.current = null;
+      setMediaFeedback({ kind: 'error', message: 'Unable to start microphone recording. Please try again.' });
+    }
+  };
+
+  const renderMediaFeedback = () => {
+    if (!mediaFeedback && !cameraUploading && !voiceRecording && !voiceUploading) return null;
+    const recordingTime = `${Math.floor(recordingSeconds / 60).toString().padStart(2, '0')}:${(recordingSeconds % 60).toString().padStart(2, '0')}`;
+    return <div aria-live="polite" className={`absolute left-0 right-0 top-full z-[75] mt-2 rounded-xl border px-3 py-2 text-xs shadow-xl ${theme === 'dark' ? 'border-white/10 bg-slate-900 text-slate-200' : 'border-slate-200 bg-white text-slate-700'}`}>
+      {cameraUploading ? <p role="status">Uploading image...</p> : null}
+      {voiceRecording ? <p role="status">Recording audio · {recordingTime}</p> : null}
+      {voiceUploading ? <p role="status">Uploading voice recording...</p> : null}
+      {mediaFeedback ? <div className={mediaFeedback.kind === 'error' ? 'text-rose-300' : 'text-emerald-300'} role={mediaFeedback.kind === 'error' ? 'alert' : 'status'}>
+        <span>{mediaFeedback.message}</span>
+        {mediaFeedback.result ? <a href={mediaFeedback.result.secureUrl} target="_blank" rel="noreferrer" title={`Media reference: ${mediaFeedback.result.publicId}`} data-public-id={mediaFeedback.result.publicId} className="ml-2 underline underline-offset-2">View {mediaFeedback.mediaType}</a> : null}
+      </div> : null}
+    </div>;
+  };
+  useEffect(() => {
     const query = headerSearch.trim();
     const generation = ++searchRequestGeneration.current;
     if (query.length < 2) {
@@ -257,7 +438,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return value.startsWith('/') ? `${API_BASE_URL}${value}` : `${API_BASE_URL}/${value}`;
   };
   const renderSearchSuggestions = () => {
-    if (!searchSuggestionsOpen || headerSearch.trim().length < 2) return null;
+    if (!searchSuggestionsOpen || headerSearch.trim().length < 2 || mediaFeedback || cameraUploading || voiceRecording || voiceUploading) return null;
     return <div role="listbox" aria-label="Search suggestions" className={`absolute left-0 right-0 top-full z-[70] mt-2 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto rounded-xl border p-2 shadow-2xl ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
       {searchSuggestionsLoading ? <p className={`px-3 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Searching...</p> : searchSuggestions.length === 0 ? <p className={`px-3 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No products found</p> : searchSuggestions.map((item) => <button key={`${item.type}-${item.id}`} type="button" role="option" onClick={() => { setSearchSuggestionsOpen(false); navigate(`/product/${item.id}`); }} className={`flex w-full min-w-0 items-center gap-3 rounded-lg p-2 text-left transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}>
         <img src={suggestionImageUrl(item.image)} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
@@ -275,6 +456,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
+      <input ref={cameraInputRef} type="file" accept={ACCEPTED_CAMERA_TYPES.join(',')} capture="environment" className="hidden" onChange={(event) => { void handleCameraSelection(event); }} />
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
@@ -300,10 +482,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 placeholder="Search products, auctions, sellers..."
                 className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
               />
-              <button type="button" aria-label="Visual search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}><Camera className="h-4 w-4" /></button>
-              <button type="button" aria-label="Voice search" onClick={() => desktopSearchRef.current?.focus()} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
-                <Mic className="h-4 w-4" />
+              <button type="button" aria-label={cameraUploading ? 'Uploading image' : 'Visual search'} title={cameraUploading ? 'Uploading image' : 'Visual search'} disabled={cameraUploading} onClick={() => { setMediaFeedback(null); cameraInputRef.current?.click(); }} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition disabled:cursor-wait disabled:opacity-60 ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}>{cameraUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}</button>
+              <button type="button" aria-label={voiceUploading ? 'Uploading voice recording' : voiceRecording ? `Stop recording, ${recordingSeconds} seconds` : 'Voice search'} title={voiceUploading ? 'Uploading voice recording' : voiceRecording ? `Stop recording (${Math.floor(recordingSeconds / 60).toString().padStart(2, '0')}:${(recordingSeconds % 60).toString().padStart(2, '0')})` : 'Voice search'} disabled={voiceUploading} onClick={() => { void startVoiceRecording(); }} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition disabled:cursor-wait disabled:opacity-60 ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}>
+                {voiceUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : voiceRecording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
               </button>
+              {renderMediaFeedback()}
               {renderSearchSuggestions()}
             </div>
           </div> : null}
@@ -342,8 +525,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {mobileSearchOpen ? <button type="button" aria-label="Exit search" onClick={() => setMobileSearchOpen(false)} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><ArrowLeft className="h-4 w-4" /></button> : <button type="button" aria-label="Open search" onClick={focusMobileSearch} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><Search className="h-4 w-4" /></button>}
               <input ref={mobileSearchRef} value={headerSearch} onFocus={() => setMobileSearchOpen(true)} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products & auctions" className={`w-full min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
               <span aria-hidden="true" className={`h-6 w-px shrink-0 ${theme === 'dark' ? 'bg-white/15' : 'bg-slate-300'}`} />
-              <button type="button" aria-label="Visual search" onClick={focusMobileSearch} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}><Camera className="h-4 w-4" /></button>
-              <button type="button" aria-label="Voice search" onClick={focusMobileSearch} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}><Mic className="h-4 w-4" /></button>
+              <button type="button" aria-label={cameraUploading ? 'Uploading image' : 'Visual search'} title={cameraUploading ? 'Uploading image' : 'Visual search'} disabled={cameraUploading} onClick={() => { setMediaFeedback(null); cameraInputRef.current?.click(); }} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border disabled:cursor-wait disabled:opacity-60 ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}>{cameraUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}</button>
+              <button type="button" aria-label={voiceUploading ? 'Uploading voice recording' : voiceRecording ? `Stop recording, ${recordingSeconds} seconds` : 'Voice search'} title={voiceUploading ? 'Uploading voice recording' : voiceRecording ? `Stop recording (${Math.floor(recordingSeconds / 60).toString().padStart(2, '0')}:${(recordingSeconds % 60).toString().padStart(2, '0')})` : 'Voice search'} disabled={voiceUploading} onClick={() => { void startVoiceRecording(); }} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border disabled:cursor-wait disabled:opacity-60 ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}>{voiceUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : voiceRecording ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}</button>
+              {renderMediaFeedback()}
               {mobileSearchOpen ? <button type="button" aria-label="Close search" onClick={() => setMobileSearchOpen(false)} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><X className="h-4 w-4" /></button> : null}
               {renderSearchSuggestions()}
             </div>
