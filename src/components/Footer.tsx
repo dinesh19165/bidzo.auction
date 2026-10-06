@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchJson } from '../api/apiClient';
+import Logo from './Logo';
 
 interface GeneralSettings {
   platformName?: unknown;
@@ -36,7 +37,7 @@ export function Footer() {
     <footer className="mobile-footer border-t border-[var(--border-color)] bg-[var(--surface-elevated)]">
       <div className="footer-grid mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-2 lg:grid-cols-5 lg:px-8">
         <div>
-          <p className="text-lg font-semibold text-[var(--text-primary)]">{platformName}</p>
+          <Logo className="h-8 w-auto max-w-[160px] object-contain object-left" />
           <p className="mt-3 text-sm text-[var(--text-muted)]">A premium marketplace for real products, live auctions, verified sellers, and fast delivery across India.</p>
           {(supportEmail || address) && <p className="mt-3 text-sm text-[var(--text-muted)]">{supportEmail}{supportEmail && address ? ' · ' : ''}{address}</p>}
           <div className="mt-6 flex flex-wrap items-center gap-3 text-[var(--text-muted)]">
