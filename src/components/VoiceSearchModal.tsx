@@ -79,6 +79,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const openRef = useRef(open);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const recognitionStartTimeoutRef = useRef<number | null>(null);
+  const keywordInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -88,6 +89,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const recognitionEndedRef = useRef(false);
   const transcriptRef = useRef('');
   const finalTranscriptRef = useRef('');
+  const androidSpeechFallbackRef = useRef(false);
   const mountedRef = useRef(true);
   const [keyword, setKeyword] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -104,6 +106,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const [recognitionErrorCode, setRecognitionErrorCode] = useState('');
   const [microphonePermissionState, setMicrophonePermissionState] = useState<MicrophonePermissionState>('not-requested');
   const [microphoneInputState, setMicrophoneInputState] = useState<MicrophoneInputState>('not-checked');
+  const [keyboardFallbackMode, setKeyboardFallbackMode] = useState(false);
   openRef.current = open;
 
   const stopCapture = (discard: boolean) => {
@@ -230,7 +233,30 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     }
   };
 
+  const useKeyboardMicrophone = () => {
+    androidSpeechFallbackRef.current = true;
+    setKeyboardFallbackMode(true);
+    setVoiceState('unsupported');
+    setError('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+    setUnsupportedMessage('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+    setTimeout(() => {
+      keywordInputRef.current?.focus();
+      keywordInputRef.current?.click();
+      keywordInputRef.current?.setSelectionRange(keywordInputRef.current.value.length, keywordInputRef.current.value.length);
+    }, 80);
+  };
+
   const startCapture = () => {
+    if (androidSpeechFallbackRef.current) {
+      setVoiceState('unsupported');
+      setError('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+      setUnsupportedMessage('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+      setTimeout(() => {
+        keywordInputRef.current?.focus();
+      }, 80);
+      return;
+    }
+
     const speechWindow = typeof window === 'undefined' ? null : window as SpeechRecognitionWindow;
     const standardRecognition = speechWindow?.SpeechRecognition;
     const webkitRecognition = speechWindow?.webkitSpeechRecognition;
@@ -333,6 +359,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       recognitionStartTimeoutRef.current = null;
       if (!mountedRef.current) return;
       if (import.meta.env.DEV) console.warn('[Bidzo voice search] recognition onerror', { code: event.error });
+      const isAndroidNoSpeech = event.error === 'no-speech' && /Android/i.test(navigator.userAgent || '');
       const messages: Record<string, string> = {
         'not-allowed': 'Microphone permission was denied. Please allow microphone access and try again.',
         'service-not-allowed': 'Microphone permission was denied. Please allow microphone access and try again.',
@@ -344,8 +371,19 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       };
       const message = messages[event.error] || 'Speech recognition failed. Please try again.';
       setRecognitionErrorCode(event.error);
-      setError(event.error === 'no-speech' ? 'No speech detected. Please speak clearly and try again.' : message);
-      setVoiceState(event.error === 'no-speech' ? 'no-speech' : event.error === 'not-allowed' || event.error === 'service-not-allowed' ? 'not-allowed' : 'error');
+      if (isAndroidNoSpeech) {
+        androidSpeechFallbackRef.current = true;
+        setKeyboardFallbackMode(true);
+        setError('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+        setUnsupportedMessage('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+        setVoiceState('unsupported');
+        setTimeout(() => {
+          keywordInputRef.current?.focus();
+        }, 80);
+      } else {
+        setError(event.error === 'no-speech' ? 'No speech detected. Please speak clearly and try again.' : message);
+        setVoiceState(event.error === 'no-speech' ? 'no-speech' : event.error === 'not-allowed' || event.error === 'service-not-allowed' ? 'not-allowed' : 'error');
+      }
       stopCapture(true);
     };
     recognition.onend = () => {
@@ -489,6 +527,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   };
 
   const retryCapture = () => {
+    androidSpeechFallbackRef.current = false;
+    setKeyboardFallbackMode(false);
     stopCapture(true);
     setAudioFile(null);
     setKeyword('');
@@ -505,6 +545,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   };
 
   const cancel = () => {
+    androidSpeechFallbackRef.current = false;
+    setKeyboardFallbackMode(false);
     stopCapture(true);
     setAudioFile(null);
     setKeyword('');
@@ -590,9 +632,19 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         void startCapture();
       }} className="flex min-h-28 w-full flex-col items-center justify-center gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-4 text-center transition hover:border-blue-500/40 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
         {listening ? <span className="relative flex h-12 w-12 items-center justify-center"><span className="absolute inset-0 animate-ping rounded-full bg-rose-500/30" /><Mic className="relative h-6 w-6 text-rose-300" /></span> : processing || searching ? <LoaderCircle className="h-7 w-7 animate-spin text-blue-300" /> : <Mic className="h-6 w-6 text-slate-300" />}
-        <p role="status" className="text-sm text-slate-200">{searching ? 'Finding matching products...' : processing ? 'Starting microphone...' : voiceStatusText[voiceState]}</p>
+        <p role="status" className="text-sm text-slate-200">{searching ? 'Finding matching products...' : processing ? 'Starting microphone...' : keyboardFallbackMode ? 'Voice recognition is unavailable on this device.' : voiceStatusText[voiceState]}</p>
       </button> : null}
-      <div role="status" aria-label="Voice search diagnostics" className="space-y-1 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
+      {keyboardFallbackMode ? <div className="space-y-3 rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+        <p className="font-medium">Voice recognition is unavailable on this device.</p>
+        <p>Use your keyboard microphone to enter your search.</p>
+        <button type="button" onClick={() => {
+          setKeyboardFallbackMode(false);
+          setError('');
+          setVoiceState('idle');
+          setTimeout(() => keywordInputRef.current?.focus(), 60);
+        }} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-300/30 px-3 text-sm font-medium text-amber-100">Use Keyboard</button>
+      </div> : null}
+      {import.meta.env.DEV ? <div role="status" aria-label="Voice search diagnostics" className="space-y-1 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
         <p>Browser: {getBrowserLabel()}</p>
         <p>SpeechRecognition: {speechWindow?.SpeechRecognition ? 'YES' : 'NO'}</p>
         <p>webkitSpeechRecognition: {speechWindow?.webkitSpeechRecognition ? 'YES' : 'NO'}</p>
@@ -602,10 +654,10 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         <p>Error: {recognitionErrorCode || 'none'}</p>
         <p>Microphone permission: {microphonePermissionState === 'granted' ? 'GRANTED' : microphonePermissionState === 'denied' ? 'DENIED' : microphonePermissionState === 'checking' ? 'CHECKING' : 'NOT REQUESTED'}</p>
         <p>Microphone input: {microphoneInputState === 'detected' ? 'DETECTED' : microphoneInputState === 'no-audio' ? 'NO AUDIO' : microphoneInputState === 'checking' ? 'CHECKING' : microphoneInputState === 'unavailable' ? 'UNAVAILABLE' : 'NOT CHECKED'}</p>
-      </div>
+      </div> : null}
       {keywordOnlyMode ? <p role="status" className="text-xs text-amber-200">Audio recording is unavailable here; speech recognition can still search by keyword.</p> : null}
       {voiceState === 'success' && keyword.trim() ? <p role="status" className="text-sm font-medium text-emerald-300">Recognized: {keyword.trim()}</p> : null}
-      <input aria-label="Voice search keyword" maxLength={100} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Recognized text or type a keyword" className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50" />
+      <input ref={keywordInputRef} aria-label="Voice search keyword" maxLength={100} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Recognized text or type a keyword" className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50" />
       <select aria-label="Voice search category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50">
         <option value="">Select category (optional)</option>
         {categories.map((category) => <option key={category.id} value={String(category.id)}>{category.parentId === undefined || category.parentId === null || category.parentId === '' ? category.name : `  - ${category.name}`}</option>)}
@@ -615,7 +667,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         <button type="button" disabled={searching} onClick={cancel} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel</button>
         {listening ? <button type="button" onClick={() => recognitionRef.current?.stop()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-400/30 px-4 text-sm font-medium text-rose-200"><Square className="h-3.5 w-3.5 fill-current" /> Stop</button> : null}
         {!showTypedSearch && !listening && !processing && !searching && (error || voiceState === 'no-speech' || voiceState === 'not-allowed' || voiceState === 'error' || voiceState === 'unsupported') ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />Try Again</button> : null}
-        {!showTypedSearch && !listening && !processing && !searching && !error && voiceState === 'success' && keyword.trim() ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Speak Again</button> : null}
+        {!showTypedSearch && !listening && !processing && !searching && !error && !keyboardFallbackMode && voiceState === 'success' && keyword.trim() ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Speak Again</button> : null}
         {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : showTypedSearch ? 'Type Search' : 'Search'}</button> : null}
       </div>
     </div>
