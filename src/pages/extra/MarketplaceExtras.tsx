@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Search } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
@@ -8,7 +8,16 @@ import { categoryLabel, getCategories, type CategoryRecord } from '../../api/cat
 import { deduplicateMarketplaceResults, searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../../api/apiClient';
 import { StockBadge } from '../../components/common/StockBadge';
+import { ProductCard } from '../../components/cards/MarketplaceCards';
+import type { ProductApiResponse } from '../../api/productApi';
+import type { VoiceProductSearchData } from '../../api/voiceSearchApi';
 import { useCustomerLocation } from '../../utils/customerLocation';
+
+interface VisualSearchRouteState {
+  keyword?: string;
+  categoryId?: number | string;
+  products: ProductApiResponse[];
+}
 
 export function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
@@ -78,6 +87,12 @@ export function SubCategoriesPage() {
 
 export function SearchResultsPage() {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routeState = location.state as { visualSearch?: VisualSearchRouteState; voiceSearch?: VoiceProductSearchData } | null;
+  const visualSearch = routeState?.visualSearch;
+  const voiceSearch = routeState?.voiceSearch;
+  const directSearch = visualSearch || voiceSearch;
   const query = params.get('q') || '';
   const categoryId = params.get('categoryId') || '';
   const categoryName = params.get('category') || '';
@@ -99,6 +114,12 @@ export function SearchResultsPage() {
 
   useEffect(() => {
     let active = true;
+    if (directSearch) {
+      setResults(null);
+      setLoading(false);
+      setError(null);
+      return () => { active = false; };
+    }
     const selectedCategory = categories.find((item) => String(item.id) === categoryId) || categories.find((item) => item.name === categoryName);
     const category = selectedCategory?.name || '';
     if (!query.trim() && !category) {
@@ -120,15 +141,47 @@ export function SearchResultsPage() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [categoryId, categoryName, categories, page, query, customerLocation?.latitude, customerLocation?.longitude]);
+  }, [categoryId, categoryName, categories, page, query, customerLocation?.latitude, customerLocation?.longitude, directSearch]);
 
   const updateParams = (nextQuery: string, nextCategoryId: string) => {
     const next = new URLSearchParams();
     if (nextQuery.trim()) next.set('q', nextQuery.trim());
     if (nextCategoryId) next.set('categoryId', nextCategoryId);
     next.set('page', '0');
-    setParams(next);
+    if (directSearch) navigate(`/search?${next.toString()}`, { state: null });
+    else setParams(next);
   };
+
+  const directProductCards = directSearch?.products.map((product) => {
+    const images = Array.isArray(product.images) ? product.images.map((image) => typeof image === 'string' ? image : image.url || image.imageUrl || '').filter(Boolean) : [];
+    return <div key={product.id} className="w-full min-w-0">
+      <ProductCard
+        id={product.id}
+        title={product.name || 'Product'}
+        description={product.description || ''}
+        image={product.imageUrl || product.image || images[0] || '/logo.png'}
+        images={images}
+        price={String(product.offerPrice ?? product.price ?? '')}
+        category={product.category?.name || product.categoryName || 'Marketplace product'}
+        condition="Available"
+        seller="Seller"
+        showSellerMeta={false}
+        wishlistItemType="PRODUCT"
+        wishlistProductId={product.id}
+        showAddToCart
+        availableQuantity={product.availableQuantity}
+        offerPrice={product.offerPrice}
+        originalPrice={product.originalPrice}
+        discountType={product.discountType}
+        discountValue={product.discountValue}
+        offerEndsAt={product.offerEndsAt}
+        offerActive={product.offerActive}
+        actionLink={`/product/${product.id}`}
+        actionLabel="View product"
+        containImage
+      />
+    </div>;
+  });
 
   return <SectionShell title="Search results" subtitle="Products, auctions, and sellers from the marketplace">
     <div className="mb-6 grid gap-3 rounded-[24px] border border-white/10 bg-slate-900/70 p-4 md:grid-cols-[1fr_240px_auto]">
@@ -136,7 +189,7 @@ export function SearchResultsPage() {
       <select aria-label="Search category" value={categoryId || (categories.find((item) => item.name === categoryName)?.id ?? '')} onChange={(event) => updateParams(query, event.target.value)} title={categoriesError ?? undefined} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white"><option value="">All Categories</option>{categoriesLoading ? <option disabled>Loading categories...</option> : categories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}</select>
       <button type="button" onClick={() => updateParams(query, categoryId)} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white">Search</button>
     </div>
-    {loading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div> : error ? <ErrorState title="Search failed" description={error} /> : results && results.content.length > 0 ? <>
+    {directSearch ? directSearch.products.length > 0 ? <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{directProductCards}</div> : <EmptyState title="No matching products found." description="Try another keyword or category." /> : loading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div> : error ? <ErrorState title="Search failed" description={error} /> : results && results.content.length > 0 ? <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{results.content.map((item) => <MarketplaceResultCard key={`${item.type}-${item.id}`} item={item} />)}</div>
       <div className="mt-6 flex items-center justify-between text-sm text-slate-400"><span>{results.totalElements} results</span><div className="flex gap-2"><button type="button" disabled={results.first} onClick={() => setParams((current) => { current.set('page', String(Math.max(0, page - 1))); return current; })} className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-40">Previous</button><button type="button" disabled={results.last} onClick={() => setParams((current) => { current.set('page', String(page + 1)); return current; })} className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-40">Next</button></div></div>
     </> : results ? <EmptyState title={customerLocation ? 'No products available in this location' : 'No results found'} description={customerLocation ? 'Change location to explore products nearby.' : 'Try a different search or category.'} /> : <EmptyState title="Search the marketplace" description="Enter a keyword or choose a category to find products, auctions, and sellers." />}
