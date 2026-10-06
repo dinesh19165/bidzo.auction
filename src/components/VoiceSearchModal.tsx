@@ -478,6 +478,16 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     }
   };
 
+  const handleModalMicClick = () => {
+    console.debug('[Bidzo voice] modal mic clicked');
+    setVoiceState('starting');
+    setError('');
+    setRecognitionErrorCode('');
+    setUnsupportedMessage('');
+    setKeywordOnlyMode(false);
+    void startCapture();
+  };
+
   const retryCapture = () => {
     stopCapture(true);
     setAudioFile(null);
@@ -570,10 +580,18 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   return <Modal open={open} title="Voice product search" onClose={cancel}>
     <div className="space-y-4">
       {unsupportedMessage ? <p role="status" className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-200">{unsupportedMessage}</p> : null}
-      {!showTypedSearch ? <div className="flex min-h-28 flex-col items-center justify-center gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-4 text-center">
+      {!showTypedSearch ? <button type="button" onClick={() => {
+        console.debug('[Bidzo voice] modal mic clicked');
+        setVoiceState('starting');
+        setError('');
+        setRecognitionErrorCode('');
+        setUnsupportedMessage('');
+        setKeywordOnlyMode(false);
+        void startCapture();
+      }} className="flex min-h-28 w-full flex-col items-center justify-center gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-4 text-center transition hover:border-blue-500/40 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
         {listening ? <span className="relative flex h-12 w-12 items-center justify-center"><span className="absolute inset-0 animate-ping rounded-full bg-rose-500/30" /><Mic className="relative h-6 w-6 text-rose-300" /></span> : processing || searching ? <LoaderCircle className="h-7 w-7 animate-spin text-blue-300" /> : <Mic className="h-6 w-6 text-slate-300" />}
         <p role="status" className="text-sm text-slate-200">{searching ? 'Finding matching products...' : processing ? 'Starting microphone...' : voiceStatusText[voiceState]}</p>
-      </div> : null}
+      </button> : null}
       <div role="status" aria-label="Voice search diagnostics" className="space-y-1 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
         <p>Browser: {getBrowserLabel()}</p>
         <p>SpeechRecognition: {speechWindow?.SpeechRecognition ? 'YES' : 'NO'}</p>

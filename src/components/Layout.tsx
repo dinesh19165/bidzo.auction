@@ -602,7 +602,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 className={`w-full bg-transparent text-sm outline-none transition duration-300 ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`}
               />
               <button type="button" aria-label="Visual search" onClick={openVisualSearch} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}><Camera className="h-4 w-4" /></button>
-              <button type="button" aria-label="Voice search" onClick={() => setVoiceSearchOpen(true)} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}><Mic className="h-4 w-4" /></button>
+              <button type="button" aria-label="Voice search" onClick={() => {
+                console.debug('[Bidzo voice] header mic clicked');
+                setVoiceSearchOpen(true);
+              }} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl p-2 transition ${theme === 'dark' ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}><Mic className="h-4 w-4" /></button>
               {renderSearchSuggestions()}
             </div>
           </div> : null}
@@ -642,7 +645,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <input ref={mobileSearchRef} value={headerSearch} onFocus={() => setMobileSearchOpen(true)} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products & auctions" className={`w-full min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
               <span aria-hidden="true" className={`h-6 w-px shrink-0 ${theme === 'dark' ? 'bg-white/15' : 'bg-slate-300'}`} />
               <button type="button" aria-label="Visual search" onClick={openVisualSearch} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}><Camera className="h-4 w-4" /></button>
-              <button type="button" aria-label="Voice search" onClick={() => setVoiceSearchOpen(true)} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}><Mic className="h-4 w-4" /></button>
+              <button type="button" aria-label="Voice search" onClick={() => {
+                console.debug('[Bidzo voice] header mic clicked');
+                setVoiceSearchOpen(true);
+              }} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}><Mic className="h-4 w-4" /></button>
               {mobileSearchOpen ? <button type="button" aria-label="Close search" onClick={() => setMobileSearchOpen(false)} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><X className="h-4 w-4" /></button> : null}
               {renderSearchSuggestions()}
             </div>
