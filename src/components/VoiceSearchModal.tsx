@@ -15,6 +15,7 @@ interface SpeechRecognitionResultItem {
 
 interface SpeechRecognitionEventLike extends Event {
   results: ArrayLike<SpeechRecognitionResultItem>;
+  resultIndex?: number;
 }
 
 interface SpeechRecognitionErrorEventLike extends Event {
@@ -25,6 +26,7 @@ interface SpeechRecognitionLike {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
@@ -67,6 +69,10 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const discardRecordingRef = useRef(false);
+  const captureGenerationRef = useRef(0);
+  const mediaSetupPendingRef = useRef(false);
+  const recognitionEndedRef = useRef(false);
+  const transcriptRef = useRef('');
   const mountedRef = useRef(true);
   const [keyword, setKeyword] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -80,10 +86,13 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   openRef.current = open;
 
   const stopCapture = (discard: boolean) => {
+    captureGenerationRef.current += 1;
+    mediaSetupPendingRef.current = false;
     discardRecordingRef.current = discard;
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
     if (recognition) {
+      recognition.onstart = null;
       recognition.onresult = null;
       recognition.onerror = null;
       recognition.onend = null;
@@ -112,10 +121,13 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      captureGenerationRef.current += 1;
+      mediaSetupPendingRef.current = false;
       discardRecordingRef.current = true;
       const recognition = recognitionRef.current;
       recognitionRef.current = null;
       if (recognition) {
+        recognition.onstart = null;
         recognition.onresult = null;
         recognition.onerror = null;
         recognition.onend = null;
@@ -145,8 +157,17 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     };
   }, []);
 
-  const startCapture = async () => {
-    const SpeechRecognition = getSpeechRecognitionConstructor();
+  const startCapture = () => {
+    const speechWindow = typeof window === 'undefined' ? null : window as SpeechRecognitionWindow;
+    const standardRecognition = speechWindow?.SpeechRecognition;
+    const webkitRecognition = speechWindow?.webkitSpeechRecognition;
+    const SpeechRecognition = standardRecognition || webkitRecognition;
+    if (import.meta.env.DEV) {
+      console.debug('[Bidzo voice search] browser support', {
+        speechRecognition: Boolean(standardRecognition),
+        webkitSpeechRecognition: Boolean(webkitRecognition),
+      });
+    }
     if (!SpeechRecognition) {
       setUnsupportedMessage('Voice search is not supported in this browser. Please type your search.');
       setError('');
@@ -160,71 +181,20 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     setProcessing(true);
     discardRecordingRef.current = false;
     audioChunksRef.current = [];
+    transcriptRef.current = '';
+    recognitionEndedRef.current = false;
 
-    let stream: MediaStream | null = null;
+    const generation = ++captureGenerationRef.current;
     let recorder: MediaRecorder | null = null;
-    if (typeof MediaRecorder !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+    let mediaAccess: Promise<MediaStream> | null = null;
+    const canRecord = typeof MediaRecorder !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
+    if (canRecord) {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaAccess = navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaSetupPendingRef.current = true;
       } catch {
-        if (!mountedRef.current || !openRef.current) return;
-        setProcessing(false);
-        setError('Microphone permission is required for voice search.');
-        return;
-      }
-
-      if (!mountedRef.current || !openRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-
-      streamRef.current = stream;
-      const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
-      const mimeType = typeof MediaRecorder.isTypeSupported === 'function'
-        ? supportedTypes.find((type) => MediaRecorder.isTypeSupported(type))
-        : undefined;
-      try {
-        recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      } catch {
-        stream.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-        stream = null;
+        mediaAccess = null;
         setKeywordOnlyMode(true);
-        setError('Audio recording is unavailable. Speech recognition can still search by keyword.');
-      }
-
-      if (recorder && stream) {
-        recorderRef.current = recorder;
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) audioChunksRef.current.push(event.data);
-        };
-        recorder.onstop = () => {
-          stream?.getTracks().forEach((track) => track.stop());
-          if (streamRef.current === stream) streamRef.current = null;
-          if (recorderRef.current === recorder) recorderRef.current = null;
-          if (!mountedRef.current || discardRecordingRef.current) {
-            audioChunksRef.current = [];
-            return;
-          }
-
-          const type = recorder?.mimeType || audioChunksRef.current.find((chunk) => chunk.type)?.type || 'audio/webm';
-          const blob = new Blob(audioChunksRef.current, { type });
-          audioChunksRef.current = [];
-          if (!blob.size) {
-            setProcessing(false);
-            setError('No audio was recorded. Please try again.');
-            return;
-          }
-
-          const extension = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
-          setAudioFile(new File([blob], `voice-search-${Date.now()}.${extension}`, { type }));
-          setProcessing(false);
-        };
-        recorder.onerror = () => {
-          if (!mountedRef.current) return;
-          setError('Unable to record audio. Please try again.');
-          stopCapture(true);
-        };
       }
     } else {
       setKeywordOnlyMode(true);
@@ -234,72 +204,159 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     try {
       recognition = new SpeechRecognition();
     } catch {
-      stream?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
       setProcessing(false);
       setError('Unable to start voice recognition. Please try typing your search.');
       return;
     }
 
     recognitionRef.current = recognition;
-
-    recognition.lang = language === 'en' ? (navigator.language || 'en-US') : `${language}-IN`;
+    recognition.lang = language === 'en' ? (navigator.language || 'en-IN') : `${language}-IN`;
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
+    recognition.onstart = () => {
+      if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition onstart');
+      if (mountedRef.current && openRef.current) {
+        setListening(true);
+        setProcessing(false);
+      }
+    };
     recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .filter((result) => result.isFinal)
-        .map((result) => result[0].transcript.trim())
-        .filter(Boolean)
-        .join(' ');
-      if (transcript) setKeyword(transcript.slice(0, 100));
-      recognition.stop();
+      const results = Array.from(event.results);
+      const finalTranscript = results.filter((result) => result.isFinal).map((result) => result[0].transcript.trim()).filter(Boolean).join(' ');
+      const interimTranscript = results.filter((result) => !result.isFinal).map((result) => result[0].transcript.trim()).filter(Boolean).join(' ');
+      const transcript = [finalTranscript, interimTranscript].filter(Boolean).join(' ').slice(0, 100);
+      if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition onresult', { resultCount: results.length, resultIndex: event.resultIndex, finalTranscript, interimTranscript });
+      if (transcript) {
+        transcriptRef.current = transcript;
+        setKeyword(transcript);
+      }
+      if (finalTranscript) {
+        try {
+          recognition.stop();
+        } catch {
+          // Recognition may have ended between the result event and stop call.
+        }
+      }
     };
     recognition.onerror = (event) => {
       if (!mountedRef.current) return;
-      const message = event.error === 'not-allowed' || event.error === 'service-not-allowed'
-        ? 'Microphone permission is required for voice search.'
-        : event.error === 'no-speech'
-          ? 'No speech was detected. Please try again.'
-          : 'Speech recognition failed. Please try again.';
+      if (import.meta.env.DEV) console.warn('[Bidzo voice search] recognition onerror', { code: event.error });
+      const messages: Record<string, string> = {
+        'not-allowed': 'Microphone permission was denied. Please allow microphone access and try again.',
+        'service-not-allowed': 'Microphone permission was denied. Please allow microphone access and try again.',
+        'audio-capture': 'Microphone is unavailable. Please check your microphone permission.',
+        'no-speech': 'No speech detected. Please try again.',
+        network: 'Voice recognition is unavailable right now. Please try again or type your search.',
+        'language-not-supported': 'Voice recognition does not support this language. Please try another language or type your search.',
+        aborted: 'Voice recognition stopped. Please try again.',
+      };
+      const message = messages[event.error] || 'Speech recognition failed. Please try again.';
       setError(message);
       stopCapture(true);
     };
     recognition.onend = () => {
+      recognitionEndedRef.current = true;
+      if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition onend', { transcript: transcriptRef.current });
       if (!mountedRef.current || discardRecordingRef.current) return;
       recognitionRef.current = null;
+      recognition.onstart = null;
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
       setListening(false);
       const activeRecorder = recorderRef.current;
       if (activeRecorder?.state === 'recording') {
         setProcessing(true);
         activeRecorder.stop();
+      } else if (mediaSetupPendingRef.current) {
+        setProcessing(true);
       } else {
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         setProcessing(false);
+        if (!transcriptRef.current) setError('No speech detected. Please try again.');
       }
     };
 
     try {
-      if (recorder) {
-        try {
-          recorder.start();
-        } catch {
-          recorderRef.current = null;
-          stream?.getTracks().forEach((track) => track.stop());
-          streamRef.current = null;
-          stream = null;
-          recorder = null;
-          setKeywordOnlyMode(true);
-          setError('Audio recording is unavailable. Speech recognition can still search by keyword.');
-        }
-      }
+      if (import.meta.env.DEV) console.debug('[Bidzo voice search] recognition.start called');
       recognition.start();
       setListening(true);
       setProcessing(false);
-    } catch {
-      setError('Unable to start voice search. Please check microphone permission and try again.');
+    } catch (startError) {
+      if (import.meta.env.DEV) console.warn('[Bidzo voice search] recognition.start failed', { message: startError instanceof Error ? startError.message : 'Unknown start error' });
       stopCapture(true);
+      setError('Unable to start voice search. Please check microphone permission and try again.');
+      return;
+    }
+
+    if (mediaAccess) {
+      void mediaAccess.then((stream) => {
+        mediaSetupPendingRef.current = false;
+        if (generation !== captureGenerationRef.current || !mountedRef.current || !openRef.current || recognitionEndedRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          if (generation === captureGenerationRef.current && mountedRef.current && openRef.current && transcriptRef.current) {
+            setKeywordOnlyMode(true);
+            setProcessing(false);
+          }
+          return;
+        }
+
+        streamRef.current = stream;
+        const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+        const mimeType = typeof MediaRecorder.isTypeSupported === 'function' ? supportedTypes.find((type) => MediaRecorder.isTypeSupported(type)) : undefined;
+        try {
+          recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+          recorderRef.current = recorder;
+          recorder.ondataavailable = (recordingEvent) => {
+            if (recordingEvent.data.size > 0) audioChunksRef.current.push(recordingEvent.data);
+          };
+          recorder.onstop = () => {
+            stream.getTracks().forEach((track) => track.stop());
+            if (streamRef.current === stream) streamRef.current = null;
+            if (recorderRef.current === recorder) recorderRef.current = null;
+            if (!mountedRef.current || discardRecordingRef.current) {
+              audioChunksRef.current = [];
+              return;
+            }
+            const type = recorder?.mimeType || audioChunksRef.current.find((chunk) => chunk.type)?.type || 'audio/webm';
+            const blob = new Blob(audioChunksRef.current, { type });
+            audioChunksRef.current = [];
+            if (!blob.size) {
+              setProcessing(false);
+              setError('No audio was recorded. Please try again.');
+              return;
+            }
+            const extension = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
+            setAudioFile(new File([blob], `voice-search-${Date.now()}.${extension}`, { type }));
+            setProcessing(false);
+          };
+          recorder.onerror = () => {
+            if (!mountedRef.current) return;
+            setError('Unable to record audio. Please try again.');
+            stopCapture(true);
+          };
+          recorder.start();
+        } catch (recorderError) {
+          stream.getTracks().forEach((track) => track.stop());
+          if (streamRef.current === stream) streamRef.current = null;
+          recorderRef.current = null;
+          setKeywordOnlyMode(true);
+          setProcessing(false);
+          if (import.meta.env.DEV) console.warn('[Bidzo voice search] MediaRecorder unavailable', { message: recorderError instanceof Error ? recorderError.message : 'Unknown recorder error' });
+        }
+      }).catch((permissionError: unknown) => {
+        mediaSetupPendingRef.current = false;
+        if (generation !== captureGenerationRef.current || !mountedRef.current || !openRef.current) return;
+        const permissionName = permissionError instanceof DOMException ? permissionError.name : '';
+        if (import.meta.env.DEV) console.warn('[Bidzo voice search] microphone permission failed', { name: permissionName || 'Error' });
+        const permissionMessage = permissionName === 'NotFoundError' || permissionName === 'DevicesNotFoundError'
+          ? 'Microphone is unavailable. Please check your microphone permission.'
+          : 'Microphone permission was denied. Please allow microphone access and try again.';
+        if (transcriptRef.current) setKeywordOnlyMode(true);
+        stopCapture(true);
+        setError(permissionMessage);
+      });
     }
   };
 
@@ -310,6 +367,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     setError('');
     setUnsupportedMessage('');
     setKeywordOnlyMode(false);
+    transcriptRef.current = '';
     void startCapture();
   };
 
@@ -321,6 +379,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     setError('');
     setUnsupportedMessage('');
     setKeywordOnlyMode(false);
+    transcriptRef.current = '';
     onClose();
   };
 
@@ -384,7 +443,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         {listening ? <button type="button" onClick={() => recognitionRef.current?.stop()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-400/30 px-4 text-sm font-medium text-rose-200"><Square className="h-3.5 w-3.5 fill-current" /> Stop</button> : null}
         {!showTypedSearch && !listening && !processing && !searching && (!audioFile || error) ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />{error ? 'Try Again' : audioFile ? 'Record again' : 'Start'}</button> : null}
         {audioFile && !listening && !processing && !searching ? <button type="button" onClick={retryCapture} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Retry</button> : null}
-        {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : 'Search'}</button> : null}
+        {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : showTypedSearch ? 'Type Search' : 'Search'}</button> : null}
       </div>
     </div>
   </Modal>;

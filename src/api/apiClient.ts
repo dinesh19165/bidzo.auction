@@ -195,6 +195,9 @@ export async function uploadFormData<T>(path: string, formData: FormData, method
   headers.set('Accept', 'application/json');
   applyAuthHeaders(headers, token);
   const response = await fetch(getApiUrl(path), { method, headers, body: formData });
+  if (runtimeEnv.DEV && (path === '/api/search/visual' || path === '/api/search/voice')) {
+    console.debug('[Bidzo search] multipart response', { path, status: response.status });
+  }
 
   if (response.status === 401) {
     handleUnauthorized();

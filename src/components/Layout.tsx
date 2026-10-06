@@ -12,7 +12,7 @@ import { CategoryIcon } from './categories/CategoryIcon';
 import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
 import { searchMarketplace, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
 import { visualProductSearch } from '../api/visualSearchApi';
-import { API_BASE_URL } from '../api/apiClient';
+import { API_BASE_URL, ApiError } from '../api/apiClient';
 import { ErrorState } from './loading/LoadingComponents';
 import { Modal } from './common/Feedback';
 import { VoiceSearchModal } from './VoiceSearchModal';
@@ -23,6 +23,67 @@ import { clearCustomerLocation, getRecentCustomerLocations, getStoredCustomerLoc
 
 const ACCEPTED_CAMERA_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_VISUAL_SEARCH_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_VISUAL_SEARCH_DIMENSION = 1280;
+
+async function prepareVisualSearchImage(file: File): Promise<File> {
+  let bitmap: ImageBitmap | null = null;
+  let image: HTMLImageElement | null = null;
+  let objectUrl: string | null = null;
+
+  try {
+    if (typeof createImageBitmap === 'function') {
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        bitmap = null;
+      }
+    }
+    if (!bitmap) {
+      objectUrl = URL.createObjectURL(file);
+      image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        image!.onload = () => resolve();
+        image!.onerror = () => reject(new Error('Unable to decode selected image'));
+        image!.src = objectUrl!;
+      });
+    }
+
+    const source: CanvasImageSource = bitmap || image!;
+    const sourceWidth = bitmap?.width ?? image?.naturalWidth ?? 0;
+    const sourceHeight = bitmap?.height ?? image?.naturalHeight ?? 0;
+    if (!sourceWidth || !sourceHeight) throw new Error('Selected image has no dimensions');
+
+    const scale = Math.min(1, MAX_VISUAL_SEARCH_DIMENSION / Math.max(sourceWidth, sourceHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Image conversion is unavailable');
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+    if (!blob || blob.size === 0 || blob.type !== 'image/jpeg') throw new Error('Unable to encode selected image');
+    if (blob.size > MAX_VISUAL_SEARCH_IMAGE_SIZE) throw new Error('Compressed image exceeds the 10 MB limit');
+
+    return new File([blob], `visual-search-${Date.now()}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+  } finally {
+    bitmap?.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function getVisualSearchErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 413) return 'The image is too large to search. Please choose a smaller image.';
+    if (error.status === 415) return 'This image format is not supported. Please choose another image.';
+    if (error.status === 401 || error.status === 403) return error.message || 'You are not authorized to search this image.';
+    if (error.status === 400) return error.message || 'The image or search details were not accepted.';
+    if (error.status >= 500) return `Visual search service error (${error.status}). ${error.message || 'Please try again.'}`;
+    return `Visual search failed (${error.status}). ${error.message || 'Please try again.'}`;
+  }
+  if (error instanceof TypeError) return 'Unable to connect to visual search. Check your connection and try again.';
+  return error instanceof Error ? error.message : 'Unable to search this image. Please try again.';
+}
 
 function scrollPageToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -146,6 +207,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraRequestGeneration = useRef(0);
+  const visualImageGeneration = useRef(0);
   const visualSearchOpenRef = useRef(false);
   const headerDropdownsRef = useRef<HTMLDivElement>(null);
   const mobileProfileRef = useRef<HTMLDivElement>(null);
@@ -174,6 +236,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [visualSearchCategoryId, setVisualSearchCategoryId] = useState('');
   const [visualSearchLoading, setVisualSearchLoading] = useState(false);
   const [visualSearchError, setVisualSearchError] = useState('');
+  const [visualSearchPreparing, setVisualSearchPreparing] = useState(false);
   const [cameraPermissionError, setCameraPermissionError] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
@@ -297,6 +360,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const openVisualSearch = () => {
     stopCamera();
+    visualImageGeneration.current += 1;
+    setVisualSearchPreparing(false);
     setVisualSearchFile(null);
     setVisualSearchKeyword('');
     setVisualSearchCategoryId('');
@@ -309,6 +374,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const closeVisualSearch = () => {
     if (visualSearchLoading) return;
     stopCamera();
+    visualImageGeneration.current += 1;
+    setVisualSearchPreparing(false);
     visualSearchOpenRef.current = false;
     setVisualSearchOpen(false);
     setVisualSearchFile(null);
@@ -350,47 +417,64 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const captureCameraPhoto = () => {
     const video = cameraVideoRef.current;
     if (!video?.videoWidth || !video.videoHeight) {
+      stopCamera();
       setCameraPermissionError('Unable to read this image. Please try another image.');
       return;
     }
     const requestGeneration = cameraRequestGeneration.current;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const scale = Math.min(1, MAX_VISUAL_SEARCH_DIMENSION / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const context = canvas.getContext('2d');
     if (!context) {
+      stopCamera();
       setCameraPermissionError('Unable to read this image. Please try another image.');
       return;
     }
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {
       if (requestGeneration !== cameraRequestGeneration.current || !visualSearchOpenRef.current) return;
-      if (!blob || blob.size > MAX_VISUAL_SEARCH_IMAGE_SIZE) {
+      if (!blob || blob.size === 0 || blob.type !== 'image/jpeg' || blob.size > MAX_VISUAL_SEARCH_IMAGE_SIZE) {
+        stopCamera();
         setCameraPermissionError('Unable to read this image. Please try another image.');
         return;
       }
       stopCamera();
       setCameraPermissionError('');
       setVisualSearchError('');
-      setVisualSearchFile(new File([blob], `visual-search-${Date.now()}.jpg`, { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.92);
+      setVisualSearchFile(new File([blob], `visual-search-${Date.now()}.jpg`, { type: 'image/jpeg', lastModified: Date.now() }));
+    }, 'image/jpeg', 0.8);
   };
 
-  const handleGallerySelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGallerySelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
-    if (!ACCEPTED_CAMERA_TYPES.includes(file.type) || file.size > MAX_VISUAL_SEARCH_IMAGE_SIZE) {
+    if (!file.type.startsWith('image/')) {
       setVisualSearchError('Unable to read this image. Please try another image.');
       return;
     }
     stopCamera();
+    const imageGeneration = ++visualImageGeneration.current;
     setCameraPermissionError('');
     setVisualSearchError('');
-    setVisualSearchFile(file);
+    setVisualSearchPreparing(true);
+    try {
+      const preparedFile = await prepareVisualSearchImage(file);
+      if (!visualSearchOpenRef.current || imageGeneration !== visualImageGeneration.current) return;
+      if (import.meta.env.DEV) console.debug('[Bidzo visual search] image prepared', { sourceType: file.type, sourceSize: file.size, fileType: preparedFile.type, fileSize: preparedFile.size });
+      setVisualSearchFile(preparedFile);
+    } catch {
+      if (visualSearchOpenRef.current && imageGeneration === visualImageGeneration.current) setVisualSearchError('Unable to read this image. Please try another image.');
+    } finally {
+      if (visualSearchOpenRef.current && imageGeneration === visualImageGeneration.current) setVisualSearchPreparing(false);
+    }
   };
 
   const removeVisualSearchImage = () => {
+    visualImageGeneration.current += 1;
+    setVisualSearchPreparing(false);
     setVisualSearchFile(null);
     setVisualSearchError('');
     setCameraPermissionError('');
@@ -410,6 +494,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     setVisualSearchError('');
     stopCamera();
     try {
+      if (import.meta.env.DEV) console.debug('[Bidzo visual search] submitting prepared file', { fileType: visualSearchFile.type, fileSize: visualSearchFile.size, keyword: visualSearchKeyword.trim(), categoryId: visualSearchCategoryId });
       const data = await visualProductSearch(visualSearchFile, visualSearchKeyword, visualSearchCategoryId || undefined);
       const params = new URLSearchParams({ page: '0', visual: '1' });
       if (visualSearchKeyword.trim()) params.set('q', visualSearchKeyword.trim());
@@ -418,8 +503,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       setVisualSearchOpen(false);
       setVisualSearchFile(null);
       navigate(`/search?${params.toString()}`, { state: { visualSearch: data } });
-    } catch {
-      setVisualSearchError('Unable to search this image. Please try again.');
+    } catch (error) {
+      setVisualSearchError(getVisualSearchErrorMessage(error));
     } finally {
       setVisualSearchLoading(false);
     }
@@ -490,7 +575,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       if (event.target.closest('[data-main-category-toggle]')) return;
       if (event.target.closest('a, header button, [aria-label="Mobile navigation"] button')) resetCategoryNavigationState();
     }}>
-      <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handleGallerySelection} />
+      <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => { void handleGallerySelection(event); }} />
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
@@ -587,6 +672,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="space-y-4">
           {cameraActive ? <div className="flex h-[min(42dvh,360px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/70 p-2"><video ref={cameraVideoRef} autoPlay muted playsInline className="max-h-full max-w-full object-contain" /></div> : visualSearchPreview ? <div className="flex h-[min(42dvh,360px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/70 p-2"><img src={visualSearchPreview} alt="Captured product" onError={() => { setVisualSearchError('Unable to read this image. Please try another image.'); setVisualSearchFile(null); }} className="max-h-full max-w-full object-contain" /></div> : <div className="flex h-[min(42dvh,360px)] items-center justify-center rounded-xl border border-dashed border-white/15 bg-slate-950/50 px-4 text-center text-sm text-slate-400">Take a photo or choose an image</div>}
           {cameraStarting ? <p role="status" className="text-center text-sm text-slate-300">Opening camera...</p> : null}
+          {visualSearchPreparing ? <p role="status" className="text-center text-sm text-slate-300">Preparing image for search...</p> : null}
           {cameraPermissionError ? <div role="alert" className="space-y-2"><ErrorState title="Camera unavailable" description={cameraPermissionError} /><div className="flex flex-wrap gap-2"><button type="button" disabled={cameraStarting || visualSearchLoading} onClick={() => { void startCamera(); }} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 text-sm text-slate-200 disabled:opacity-50">Try Again</button><button type="button" disabled={visualSearchLoading} onClick={() => galleryInputRef.current?.click()} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 text-sm text-slate-200 disabled:opacity-50">Choose from Gallery</button><button type="button" disabled={visualSearchLoading} onClick={closeVisualSearch} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 text-sm text-slate-200 disabled:opacity-50">Cancel</button></div></div> : null}
           <input aria-label="Product keyword" value={visualSearchKeyword} onChange={(event) => setVisualSearchKeyword(event.target.value)} placeholder="Product name / keyword" className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50" />
           <select aria-label="Product category" value={visualSearchCategoryId} onChange={(event) => setVisualSearchCategoryId(event.target.value)} className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus:border-blue-400/50">
@@ -596,8 +682,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {!visualSearchKeyword.trim() && !visualSearchCategoryId ? <p className="text-xs text-slate-400">Enter a keyword or choose a category.</p> : null}
           {visualSearchError ? <div role="alert" className="space-y-2"><ErrorState title="Visual search failed" description={visualSearchError} /><button type="button" disabled={visualSearchLoading} onClick={() => galleryInputRef.current?.click()} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 text-sm text-slate-200 disabled:opacity-50">Choose another image</button></div> : null}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            {cameraActive ? <><button type="button" disabled={visualSearchLoading} onClick={captureCameraPhoto} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Capture Photo</button><button type="button" disabled={visualSearchLoading} onClick={stopCamera} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel Camera</button></> : visualSearchFile ? <><button type="button" disabled={visualSearchLoading} onClick={() => { removeVisualSearchImage(); void startCamera(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Retake</button><button type="button" disabled={visualSearchLoading} onClick={removeVisualSearchImage} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Remove Image</button></> : <><button type="button" disabled={cameraStarting || visualSearchLoading} onClick={() => { void startCamera(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Take Photo</button><button type="button" disabled={visualSearchLoading} onClick={() => galleryInputRef.current?.click()} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Choose/Upload Image</button></>}
-            <button type="button" disabled={visualSearchLoading || cameraActive || cameraStarting || !visualSearchFile || (!visualSearchKeyword.trim() && !visualSearchCategoryId)} onClick={() => { void submitVisualSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{visualSearchLoading ? 'Finding matching products...' : 'Find Products'}</button>
+            {cameraActive ? <><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={captureCameraPhoto} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Capture Photo</button><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={stopCamera} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel Camera</button></> : visualSearchFile ? <><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={() => { removeVisualSearchImage(); void startCamera(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Retake</button><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={removeVisualSearchImage} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Remove Image</button></> : <><button type="button" disabled={cameraStarting || visualSearchLoading || visualSearchPreparing} onClick={() => { void startCamera(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Take Photo</button><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={() => galleryInputRef.current?.click()} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Choose/Upload Image</button></>}
+            <button type="button" disabled={visualSearchLoading || visualSearchPreparing || cameraActive || cameraStarting || !visualSearchFile || (!visualSearchKeyword.trim() && !visualSearchCategoryId)} onClick={() => { void submitVisualSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{visualSearchPreparing ? 'Preparing image...' : visualSearchLoading ? 'Finding matching products...' : 'Find Products'}</button>
           </div>
           {visualSearchLoading ? <p role="status" className="text-center text-sm text-slate-300">Finding matching products...</p> : null}
         </div>
