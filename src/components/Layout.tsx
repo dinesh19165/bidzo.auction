@@ -172,6 +172,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [visualSearchError, setVisualSearchError] = useState('');
   const [voiceSearchOpen, setVoiceSearchOpen] = useState(false);
   const searchRequestGeneration = useRef(0);
+  const previousCategoryPathname = useRef(location.pathname);
   const isLiveAuctionsPage = location.pathname.startsWith('/auctions');
   const isDirectBuyPage = location.pathname.startsWith('/marketplace');
   const isHomePage = location.pathname === '/';
@@ -187,12 +188,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const selectedSubcategories = selectedMainCategory
     ? marketplaceCategories.filter((category) => String(category.parentId) === String(selectedMainCategory.id))
     : [];
+  const resetCategoryNavigationState = () => setSelectedMainCategoryId(null);
   const selectMainCategory = (categoryId: CategoryRecord['id']) => {
     if (selectedMainCategoryId !== null && String(selectedMainCategoryId) !== String(categoryId)) {
       scrollPageToTop();
+      resetCategoryNavigationState();
     }
     setSelectedMainCategoryId(categoryId);
   };
+  useEffect(() => {
+    if (previousCategoryPathname.current !== location.pathname) resetCategoryNavigationState();
+    previousCategoryPathname.current = location.pathname;
+  }, [location.pathname]);
   useEffect(() => {
     const updateHeaderScrollState = () => setIsHeaderScrolled(window.scrollY > 24);
     updateHeaderScrollState();
@@ -367,7 +374,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300" onClickCapture={(event) => { if (location.pathname === '/' && event.target instanceof Element && event.target.closest('a[href="/"]')) scrollPageToTop(); }}>
+    <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300" onClickCapture={(event) => {
+      if (!isHomePage || !(event.target instanceof Element)) return;
+      if (event.target.closest('[data-main-category-toggle]')) return;
+      if (event.target.closest('a, header button, [aria-label="Mobile navigation"] button')) resetCategoryNavigationState();
+    }}>
       <input ref={cameraInputRef} type="file" accept={ACCEPTED_CAMERA_TYPES.join(',')} capture="environment" className="hidden" onChange={handleCameraSelection} />
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
@@ -444,20 +455,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        {showMarketplaceControls ? <nav className={`category-navigation border-t px-3 transition duration-300 sm:px-6 lg:px-8 ${isHeaderScrolled ? 'py-1' : 'py-2'} ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Product categories">
+        <nav className={`category-navigation border-t px-3 transition duration-300 sm:px-6 lg:px-8 ${isHeaderScrolled ? 'py-1' : 'py-2'} ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Product categories">
           <div className="mx-auto flex min-w-0 flex-wrap items-center justify-center gap-2">
-            {mainCategories.map((category) => <button key={category.id} type="button" onClick={() => selectMainCategory(category.id)} aria-current={String(category.id) === String(selectedMainCategoryId) ? 'true' : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
+            {mainCategories.map((category) => <button key={category.id} type="button" data-main-category-toggle onClick={() => selectMainCategory(category.id)} aria-current={String(category.id) === String(selectedMainCategoryId) ? 'true' : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
               <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
             </button>)}
           </div>
-          {selectedMainCategory ? <div className="category-subnavigation mx-auto min-w-0 overflow-x-auto border-t border-inherit py-1 scrollbar-hidden">
+          {isHomePage && selectedMainCategory ? <div className="category-subnavigation mx-auto min-w-0 overflow-x-auto border-t border-inherit py-1 scrollbar-hidden">
             <div className="flex min-w-max items-center justify-center gap-2">
               {selectedSubcategories.map((category) => <Link key={category.id} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} className="category-navigation-item inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden"><CategoryIcon iconUrl={category.iconUrl} className="h-5 w-5" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
               </Link>)}
             </div>
           </div> : null}
-        </nav> : null}
+        </nav>
 
       </header>
 
