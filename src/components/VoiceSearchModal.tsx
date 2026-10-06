@@ -107,6 +107,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const [microphonePermissionState, setMicrophonePermissionState] = useState<MicrophonePermissionState>('not-requested');
   const [microphoneInputState, setMicrophoneInputState] = useState<MicrophoneInputState>('not-checked');
   const [keyboardFallbackMode, setKeyboardFallbackMode] = useState(false);
+  const [voiceFallback, setVoiceFallback] = useState(false);
   openRef.current = open;
 
   const stopCapture = (discard: boolean) => {
@@ -236,8 +237,9 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const useKeyboardMicrophone = () => {
     androidSpeechFallbackRef.current = true;
     setKeyboardFallbackMode(true);
+    setVoiceFallback(true);
     setVoiceState('unsupported');
-    setError('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+    setError('');
     setUnsupportedMessage('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
     setTimeout(() => {
       keywordInputRef.current?.focus();
@@ -248,8 +250,10 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
 
   const startCapture = () => {
     if (androidSpeechFallbackRef.current) {
+      setVoiceFallback(true);
+      setKeyboardFallbackMode(true);
       setVoiceState('unsupported');
-      setError('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+      setError('');
       setUnsupportedMessage('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
       setTimeout(() => {
         keywordInputRef.current?.focus();
@@ -373,8 +377,9 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       setRecognitionErrorCode(event.error);
       if (isAndroidNoSpeech) {
         androidSpeechFallbackRef.current = true;
+        setVoiceFallback(true);
         setKeyboardFallbackMode(true);
-        setError('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+        setError('');
         setUnsupportedMessage('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
         setVoiceState('unsupported');
         setTimeout(() => {
@@ -406,6 +411,14 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         streamRef.current = null;
       }
       setProcessing(false);
+      if (androidSpeechFallbackRef.current || keyboardFallbackMode || voiceFallback) {
+        setVoiceFallback(true);
+        setKeyboardFallbackMode(true);
+        setError('');
+        setUnsupportedMessage('Voice recognition is unavailable on this device. Use your keyboard microphone to enter your search.');
+        setVoiceState('unsupported');
+        return;
+      }
       if (transcriptRef.current) {
         setKeyword(finalTranscriptRef.current || transcriptRef.current);
         setError('');
@@ -622,7 +635,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   return <Modal open={open} title="Voice product search" onClose={cancel}>
     <div className="space-y-4">
       {unsupportedMessage ? <p role="status" className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-200">{unsupportedMessage}</p> : null}
-      {!showTypedSearch ? <button type="button" onClick={() => {
+      {!showTypedSearch && !voiceFallback ? <button type="button" onClick={() => {
         console.debug('[Bidzo voice] modal mic clicked');
         setVoiceState('starting');
         setError('');
@@ -634,15 +647,21 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         {listening ? <span className="relative flex h-12 w-12 items-center justify-center"><span className="absolute inset-0 animate-ping rounded-full bg-rose-500/30" /><Mic className="relative h-6 w-6 text-rose-300" /></span> : processing || searching ? <LoaderCircle className="h-7 w-7 animate-spin text-blue-300" /> : <Mic className="h-6 w-6 text-slate-300" />}
         <p role="status" className="text-sm text-slate-200">{searching ? 'Finding matching products...' : processing ? 'Starting microphone...' : keyboardFallbackMode ? 'Voice recognition is unavailable on this device.' : voiceStatusText[voiceState]}</p>
       </button> : null}
-      {keyboardFallbackMode ? <div className="space-y-3 rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-100">
-        <p className="font-medium">Voice recognition is unavailable on this device.</p>
-        <p>Use your keyboard microphone to enter your search.</p>
+      {voiceFallback ? <div className="space-y-3 rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+        <div className="flex items-center justify-center text-3xl"><Mic className="h-7 w-7" /></div>
+        <p className="text-center font-medium">Voice product search</p>
+        <p className="text-center">Voice recognition isn’t available on this device.</p>
+        <p className="text-center">Use your keyboard microphone to speak your search.</p>
         <button type="button" onClick={() => {
+          stopCapture(true);
+          androidSpeechFallbackRef.current = false;
           setKeyboardFallbackMode(false);
+          setVoiceFallback(false);
           setError('');
+          setUnsupportedMessage('');
           setVoiceState('idle');
           setTimeout(() => keywordInputRef.current?.focus(), 60);
-        }} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-300/30 px-3 text-sm font-medium text-amber-100">Use Keyboard</button>
+        }} className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-amber-300/30 px-3 text-sm font-medium text-amber-100">Use Keyboard</button>
       </div> : null}
       {import.meta.env.DEV ? <div role="status" aria-label="Voice search diagnostics" className="space-y-1 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
         <p>Browser: {getBrowserLabel()}</p>
@@ -666,8 +685,8 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" disabled={searching} onClick={cancel} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel</button>
         {listening ? <button type="button" onClick={() => recognitionRef.current?.stop()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-400/30 px-4 text-sm font-medium text-rose-200"><Square className="h-3.5 w-3.5 fill-current" /> Stop</button> : null}
-        {!showTypedSearch && !listening && !processing && !searching && (error || voiceState === 'no-speech' || voiceState === 'not-allowed' || voiceState === 'error' || voiceState === 'unsupported') ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />Try Again</button> : null}
-        {!showTypedSearch && !listening && !processing && !searching && !error && !keyboardFallbackMode && voiceState === 'success' && keyword.trim() ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Speak Again</button> : null}
+        {!showTypedSearch && !voiceFallback && !listening && !processing && !searching && (error || voiceState === 'no-speech' || voiceState === 'not-allowed' || voiceState === 'error' || voiceState === 'unsupported') && !keyboardFallbackMode ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />Try Again</button> : null}
+        {!showTypedSearch && !voiceFallback && !listening && !processing && !searching && !error && !keyboardFallbackMode && voiceState === 'success' && keyword.trim() ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Speak Again</button> : null}
         {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : showTypedSearch ? 'Type Search' : 'Search'}</button> : null}
       </div>
     </div>
