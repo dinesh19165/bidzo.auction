@@ -24,6 +24,10 @@ import { clearCustomerLocation, getRecentCustomerLocations, getStoredCustomerLoc
 const ACCEPTED_CAMERA_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_VISUAL_SEARCH_IMAGE_SIZE = 10 * 1024 * 1024;
 
+function scrollPageToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: CustomerLocation | null; onSelect: (location: CustomerLocation | null) => void; mobile?: boolean }) {
   const { theme } = useThemeContext();
   const [open, setOpen] = useState(false);
@@ -183,6 +187,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const selectedSubcategories = selectedMainCategory
     ? marketplaceCategories.filter((category) => String(category.parentId) === String(selectedMainCategory.id))
     : [];
+  const selectMainCategory = (categoryId: CategoryRecord['id']) => {
+    if (selectedMainCategoryId !== null && String(selectedMainCategoryId) !== String(categoryId)) {
+      scrollPageToTop();
+    }
+    setSelectedMainCategoryId(categoryId);
+  };
   useEffect(() => {
     const updateHeaderScrollState = () => setIsHeaderScrolled(window.scrollY > 24);
     updateHeaderScrollState();
@@ -357,7 +367,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300">
+    <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300" onClickCapture={(event) => { if (event.target instanceof Element && event.target.closest('a[href="/"]')) scrollPageToTop(); }}>
       <input ref={cameraInputRef} type="file" accept={ACCEPTED_CAMERA_TYPES.join(',')} capture="environment" className="hidden" onChange={handleCameraSelection} />
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
@@ -436,7 +446,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {showMarketplaceControls ? <nav className={`category-navigation border-t px-3 transition duration-300 sm:px-6 lg:px-8 ${isHeaderScrolled ? 'py-1' : 'py-2'} ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Product categories">
           <div className="mx-auto flex min-w-0 flex-wrap items-center justify-center gap-2">
-            {mainCategories.map((category) => <button key={category.id} type="button" onClick={() => setSelectedMainCategoryId(category.id)} aria-current={String(category.id) === String(selectedMainCategoryId) ? 'true' : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
+            {mainCategories.map((category) => <button key={category.id} type="button" onClick={() => selectMainCategory(category.id)} aria-current={String(category.id) === String(selectedMainCategoryId) ? 'true' : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
               <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
             </button>)}
           </div>

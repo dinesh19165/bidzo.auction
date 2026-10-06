@@ -210,7 +210,7 @@ function RouteScrollManager() {
     window.history.scrollRestoration = 'auto';
 
     if (initialRender.current || navigationType !== 'POP') {
-      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       initialRender.current = false;
     }
 
