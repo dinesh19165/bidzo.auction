@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { EmptyState, ErrorState, SkeletonCard } from '../../components/loading/LoadingComponents';
 import { CategoryIcon } from '../../components/categories/CategoryIcon';
-import { categoryLabel, getCategories, type CategoryRecord } from '../../api/categoryApi';
+import { getCategories, type CategoryRecord } from '../../api/categoryApi';
 import { deduplicateMarketplaceResults, searchMarketplace, type MarketplaceSearchPage, type MarketplaceSearchResult } from '../../api/marketplaceSearchApi';
 import { API_BASE_URL } from '../../api/apiClient';
 import { StockBadge } from '../../components/common/StockBadge';
@@ -98,18 +98,15 @@ export function SearchResultsPage() {
   const categoryName = params.get('category') || '';
   const page = Math.max(0, Number(params.get('page') || 0));
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [results, setResults] = useState<MarketplaceSearchPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const customerLocation = useCustomerLocation();
 
   useEffect(() => {
-    getCategories().then(setCategories).catch((error: unknown) => {
+    getCategories().then(setCategories).catch(() => {
       setCategories([]);
-      setCategoriesError(error instanceof Error ? error.message : 'Unable to load categories.');
-    }).finally(() => setCategoriesLoading(false));
+    });
   }, []);
 
   useEffect(() => {
@@ -184,11 +181,6 @@ export function SearchResultsPage() {
   });
 
   return <SectionShell title="Search results" subtitle="Products, auctions, and sellers from the marketplace">
-    <div className="mb-6 grid gap-3 rounded-[24px] border border-white/10 bg-slate-900/70 p-4 md:grid-cols-[1fr_240px_auto]">
-      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3"><Search className="h-4 w-4 text-slate-400" /><input aria-label="Search marketplace" defaultValue={query} onKeyDown={(event) => { if (event.key === 'Enter') updateParams(event.currentTarget.value, categoryId); }} className="w-full bg-transparent text-sm text-white outline-none" placeholder="Search products, auctions, sellers..." /></div>
-      <select aria-label="Search category" value={categoryId || (categories.find((item) => item.name === categoryName)?.id ?? '')} onChange={(event) => updateParams(query, event.target.value)} title={categoriesError ?? undefined} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white"><option value="">All Categories</option>{categoriesLoading ? <option disabled>Loading categories...</option> : categories.map((item) => <option key={item.id} value={String(item.id)}>{categoryLabel(item)}</option>)}</select>
-      <button type="button" onClick={() => updateParams(query, categoryId)} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white">Search</button>
-    </div>
     {directSearch ? directSearch.products.length > 0 ? <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{directProductCards}</div> : <EmptyState title="No matching products found." description="Try another keyword or category." /> : loading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div> : error ? <ErrorState title="Search failed" description={error} /> : results && results.content.length > 0 ? <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{results.content.map((item) => <MarketplaceResultCard key={`${item.type}-${item.id}`} item={item} />)}</div>
       <div className="mt-6 flex items-center justify-between text-sm text-slate-400"><span>{results.totalElements} results</span><div className="flex gap-2"><button type="button" disabled={results.first} onClick={() => setParams((current) => { current.set('page', String(Math.max(0, page - 1))); return current; })} className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-40">Previous</button><button type="button" disabled={results.last} onClick={() => setParams((current) => { current.set('page', String(page + 1)); return current; })} className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-40">Next</button></div></div>
