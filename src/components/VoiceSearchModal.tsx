@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { LoaderCircle, Mic, RotateCcw, Square } from 'lucide-react';
 import type { CategoryRecord } from '../api/categoryApi';
 import { voiceProductSearch, type VoiceProductSearchData } from '../api/voiceSearchApi';
-import { ApiError } from '../api/apiClient';
+import { ApiError, getStoredAuthToken } from '../api/apiClient';
+import { useAuth } from '../context/AuthContext';
 import { ErrorState } from './loading/LoadingComponents';
 import { Modal } from './common/Feedback';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -75,6 +76,7 @@ function getBrowserLabel(): string {
 
 export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const navigate = useNavigate();
+  const { user, clearSession } = useAuth();
   const { language } = useLocaleContext();
   const openRef = useRef(open);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -98,6 +100,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
   const [processing, setProcessing] = useState(false);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
+  const [loginRequired, setLoginRequired] = useState(false);
   const [unsupportedMessage, setUnsupportedMessage] = useState('');
   const [keywordOnlyMode, setKeywordOnlyMode] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceRecognitionState>('idle');
@@ -565,6 +568,7 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
     setKeyword('');
     setCategoryId('');
     setError('');
+    setLoginRequired(false);
     setUnsupportedMessage('');
     setKeywordOnlyMode(false);
     transcriptRef.current = '';
@@ -582,6 +586,14 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       setError('Enter a keyword or select a category.');
       return;
     }
+
+    if (!user || !getStoredAuthToken()) {
+      clearSession();
+      setError('');
+      setLoginRequired(true);
+      return;
+    }
+    setLoginRequired(false);
 
     if (unsupportedMessage || keywordOnlyMode) {
       stopCapture(true);
@@ -607,9 +619,13 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
       onClose();
       navigate(`/search?${searchParams(trimmedKeyword, categoryId).toString()}`, { state: { voiceSearch: data } });
     } catch (searchError) {
-      if (searchError instanceof ApiError && searchError.status === 400) {
+      if (searchError instanceof ApiError && searchError.status === 401) {
+        setLoginRequired(true);
+        setError('');
+      } else if (searchError instanceof ApiError && searchError.status === 400) {
         setError(searchError.message || 'Enter a keyword or select a category.');
       } else {
+        setLoginRequired(false);
         setError('Unable to search by voice. Please try again.');
       }
     } finally {
@@ -681,13 +697,15 @@ export function VoiceSearchModal({ open, categories, onClose }: Props) {
         <option value="">Select category (optional)</option>
         {categories.map((category) => <option key={category.id} value={String(category.id)}>{category.parentId === undefined || category.parentId === null || category.parentId === '' ? category.name : `  - ${category.name}`}</option>)}
       </select>
-      {error ? <ErrorState title="Voice search failed" description={error} /> : null}
+      {loginRequired ? <ErrorState title="Login required" description="Please login to use Voice Search." /> : error ? <ErrorState title="Voice search failed" description={error} /> : null}
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" disabled={searching} onClick={cancel} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel</button>
-        {listening ? <button type="button" onClick={() => recognitionRef.current?.stop()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-400/30 px-4 text-sm font-medium text-rose-200"><Square className="h-3.5 w-3.5 fill-current" /> Stop</button> : null}
-        {!showTypedSearch && !voiceFallback && !listening && !processing && !searching && (error || voiceState === 'no-speech' || voiceState === 'not-allowed' || voiceState === 'error' || voiceState === 'unsupported') && !keyboardFallbackMode ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />Try Again</button> : null}
-        {!showTypedSearch && !voiceFallback && !listening && !processing && !searching && !error && !keyboardFallbackMode && voiceState === 'success' && keyword.trim() ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Speak Again</button> : null}
-        {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : showTypedSearch ? 'Type Search' : 'Search'}</button> : null}
+        {loginRequired ? <button type="button" onClick={() => { onClose(); navigate('/login'); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500">Login</button> : <>
+          {listening ? <button type="button" onClick={() => recognitionRef.current?.stop()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-400/30 px-4 text-sm font-medium text-rose-200"><Square className="h-3.5 w-3.5 fill-current" /> Stop</button> : null}
+          {!showTypedSearch && !voiceFallback && !listening && !processing && !searching && (error || voiceState === 'no-speech' || voiceState === 'not-allowed' || voiceState === 'error' || voiceState === 'unsupported') && !keyboardFallbackMode ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><Mic className="h-4 w-4" />Try Again</button> : null}
+          {!showTypedSearch && !voiceFallback && !listening && !processing && !searching && !error && !keyboardFallbackMode && voiceState === 'success' && keyword.trim() ? <button type="button" onClick={() => { void startCapture(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200"><RotateCcw className="h-4 w-4" /> Speak Again</button> : null}
+          {!listening && !processing ? <button type="button" disabled={!canSearch || searching} onClick={() => { void submitSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Finding matching products...' : showTypedSearch ? 'Type Search' : 'Search'}</button> : null}
+        </>}
       </div>
     </div>
   </Modal>;

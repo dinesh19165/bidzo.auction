@@ -38,7 +38,7 @@ export async function visualProductSearch(file: File, keyword?: string, category
 
   let response: VisualProductSearchResponse;
   try {
-    response = await uploadFormData<VisualProductSearchResponse>('/api/search/visual', formData);
+    response = await uploadFormData<VisualProductSearchResponse>('/api/search/visual', formData, 'POST', { redirectOnUnauthorized: false });
   } catch (error) {
     if (import.meta.env.DEV) {
       console.warn('[Bidzo visual search] request failed', {

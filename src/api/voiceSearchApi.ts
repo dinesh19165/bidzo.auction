@@ -27,7 +27,7 @@ export async function voiceProductSearch(audioFile: File, keyword?: string, cate
   if (trimmedKeyword) formData.append('keyword', trimmedKeyword);
   if (categoryId !== undefined && String(categoryId).trim()) formData.append('categoryId', String(categoryId));
 
-  const response = await uploadFormData<VoiceProductSearchResponse>('/api/search/voice', formData);
+  const response = await uploadFormData<VoiceProductSearchResponse>('/api/search/voice', formData, 'POST', { redirectOnUnauthorized: false });
   if (!response?.success || !response.data || !Array.isArray(response.data.products)) {
     throw new Error(response?.message || 'Unable to search by voice. Please try again.');
   }

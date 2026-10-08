@@ -12,7 +12,7 @@ import { CategoryIcon } from './categories/CategoryIcon';
 import { categoryLabel, getCategories, type CategoryRecord } from '../api/categoryApi';
 import { searchMarketplace, type MarketplaceSearchResult } from '../api/marketplaceSearchApi';
 import { visualProductSearch } from '../api/visualSearchApi';
-import { API_BASE_URL, ApiError } from '../api/apiClient';
+import { API_BASE_URL, ApiError, getStoredAuthToken } from '../api/apiClient';
 import { ErrorState } from './loading/LoadingComponents';
 import { Modal } from './common/Feedback';
 import { VoiceSearchModal } from './VoiceSearchModal';
@@ -214,6 +214,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme } = useThemeContext();
   const { translate, formatCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
+  const { clearSession } = useAuth();
   const { cart } = useCartContext();
   const { unreadCount } = useNotificationContext();
   const location = useLocation();
@@ -236,6 +237,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [visualSearchCategoryId, setVisualSearchCategoryId] = useState('');
   const [visualSearchLoading, setVisualSearchLoading] = useState(false);
   const [visualSearchError, setVisualSearchError] = useState('');
+  const [visualSearchLoginRequired, setVisualSearchLoginRequired] = useState(false);
   const [visualSearchPreparing, setVisualSearchPreparing] = useState(false);
   const [cameraPermissionError, setCameraPermissionError] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
@@ -366,6 +368,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     setVisualSearchKeyword('');
     setVisualSearchCategoryId('');
     setVisualSearchError('');
+    setVisualSearchLoginRequired(false);
     setCameraPermissionError('');
     visualSearchOpenRef.current = true;
     setVisualSearchOpen(true);
@@ -380,6 +383,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     setVisualSearchOpen(false);
     setVisualSearchFile(null);
     setVisualSearchError('');
+    setVisualSearchLoginRequired(false);
     setCameraPermissionError('');
   };
 
@@ -490,6 +494,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (!user || !getStoredAuthToken()) {
+      clearSession();
+      setVisualSearchError('');
+      setVisualSearchLoginRequired(true);
+      return;
+    }
+    setVisualSearchLoginRequired(false);
+
     setVisualSearchLoading(true);
     setVisualSearchError('');
     stopCamera();
@@ -504,7 +516,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
       setVisualSearchFile(null);
       navigate(`/search?${params.toString()}`, { state: { visualSearch: data } });
     } catch (error) {
-      setVisualSearchError(getVisualSearchErrorMessage(error));
+      if (error instanceof ApiError && error.status === 401) {
+        setVisualSearchLoginRequired(true);
+        setVisualSearchError('');
+      } else {
+        setVisualSearchLoginRequired(false);
+        setVisualSearchError(getVisualSearchErrorMessage(error));
+      }
     } finally {
       setVisualSearchLoading(false);
     }
@@ -686,10 +704,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {marketplaceCategories.map((category) => <option key={category.id} value={String(category.id)}>{categoryLabel(category)}</option>)}
           </select>
           {!visualSearchKeyword.trim() && !visualSearchCategoryId ? <p className="text-xs text-slate-400">Enter a keyword or choose a category.</p> : null}
-          {visualSearchError ? <div role="alert" className="space-y-2"><ErrorState title="Visual search failed" description={visualSearchError} /><button type="button" disabled={visualSearchLoading} onClick={() => galleryInputRef.current?.click()} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 text-sm text-slate-200 disabled:opacity-50">Choose another image</button></div> : null}
+          {visualSearchLoginRequired ? <div role="alert"><ErrorState title="Login required" description="Please login to use Camera Search." /></div> : visualSearchError ? <div role="alert" className="space-y-2"><ErrorState title="Visual search failed" description={visualSearchError} /><button type="button" disabled={visualSearchLoading} onClick={() => galleryInputRef.current?.click()} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/10 px-3 text-sm text-slate-200 disabled:opacity-50">Choose another image</button></div> : null}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {visualSearchLoginRequired ? <><button type="button" onClick={closeVisualSearch} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200">Cancel</button><button type="button" onClick={() => { closeVisualSearch(); navigate('/login'); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500">Login</button></> : <>
             {cameraActive ? <><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={captureCameraPhoto} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Capture Photo</button><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={stopCamera} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Cancel Camera</button></> : visualSearchFile ? <><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={() => { removeVisualSearchImage(); void startCamera(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Retake</button><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={removeVisualSearchImage} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Remove Image</button></> : <><button type="button" disabled={cameraStarting || visualSearchLoading || visualSearchPreparing} onClick={() => { void startCamera(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Take Photo</button><button type="button" disabled={visualSearchLoading || visualSearchPreparing} onClick={() => galleryInputRef.current?.click()} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-slate-200 disabled:opacity-50">Choose/Upload Image</button></>}
             <button type="button" disabled={visualSearchLoading || visualSearchPreparing || cameraActive || cameraStarting || !visualSearchFile || (!visualSearchKeyword.trim() && !visualSearchCategoryId)} onClick={() => { void submitVisualSearch(); }} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{visualSearchPreparing ? 'Preparing image...' : visualSearchLoading ? 'Finding matching products...' : 'Find Products'}</button>
+            </>}
           </div>
           {visualSearchLoading ? <p role="status" className="text-center text-sm text-slate-300">Finding matching products...</p> : null}
         </div>

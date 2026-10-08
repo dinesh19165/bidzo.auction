@@ -26,7 +26,7 @@ export function resetAuthExpirationHandling(): void {
   sessionExpirationHandled = false;
 }
 
-export function handleUnauthorized(): void {
+export function handleUnauthorized(options: { redirect?: boolean } = {}): void {
   const token = getStoredAuthToken();
   if (sessionExpirationHandled && !token) {
     localStorage.removeItem('bidzo_user');
@@ -49,8 +49,10 @@ export function handleUnauthorized(): void {
     return;
   }
 
-  sessionExpirationHandled = true;
+  if (options.redirect !== false) sessionExpirationHandled = true;
   window.dispatchEvent(new CustomEvent<AuthExpiryDetail>('bidzo:session-expired', { detail }));
+
+  if (options.redirect === false) return;
 
   if (typeof window !== 'undefined') {
     const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(detail.role || '');
@@ -180,14 +182,15 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth
   return body as T;
 }
 
-export async function uploadFormData<T>(path: string, formData: FormData, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
+export async function uploadFormData<T>(path: string, formData: FormData, method: 'POST' | 'PUT' = 'POST', options: { redirectOnUnauthorized?: boolean } = {}): Promise<T> {
+  const redirectOnUnauthorized = options.redirectOnUnauthorized !== false;
   if (sessionExpirationHandled) {
     throw new ApiError(401, 'Unauthorized');
   }
 
   const token = getStoredAuthToken();
   if (token && isJwtExpired(token)) {
-    handleUnauthorized();
+    handleUnauthorized({ redirect: redirectOnUnauthorized });
     throw new ApiError(401, 'Unauthorized');
   }
 
@@ -200,7 +203,7 @@ export async function uploadFormData<T>(path: string, formData: FormData, method
   }
 
   if (response.status === 401) {
-    handleUnauthorized();
+    handleUnauthorized({ redirect: redirectOnUnauthorized });
     throw new ApiError(response.status, 'Unauthorized');
   }
 
