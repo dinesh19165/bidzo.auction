@@ -5,6 +5,7 @@ import { getPortalHome, useAuth } from '../context/AuthContext';
 import { useLocaleContext } from '../context/LocaleContext';
 import { getCategoryPromotionAdvertisements, getHomeBannerAdvertisements, getProductPromotionAdvertisements, type PublicAdvertisementResponse } from '../api/advertisementApi';
 import { getHomeData, getHomeDeals, type AuctionResponse, type CategoryResponse, type HomeBannerResponse, type HomeDataResponse, type HomeDealResponse, type HomeReviewResponse, type ProductResponse } from '../api/homeApi';
+import { getPublicSellers, type PublicSeller } from '../api/sellerApi';
 import { getPublicPromotionalBanners, type PromotionalBanner } from '../api/promotionalBannerApi';
 import { getAuctions, type AuctionListItem } from '../api/auctionApi';
 import { CategoryIcon } from '../components/categories/CategoryIcon';
@@ -670,6 +671,40 @@ function ProductSection({ title, products, categories, emptyTitle, emptyDescript
   );
 }
 
+function VerifiedSellersSection() {
+  const [sellers, setSellers] = useState<PublicSeller[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadSellers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setSellers(await getPublicSellers(0, 20));
+    } catch (reason) {
+      setSellers([]);
+      setError(reason instanceof Error ? reason.message : 'Unable to load verified sellers.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadSellers(); }, []);
+
+  return <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Trusted sellers</p><h2 className="mt-2 text-2xl font-semibold text-white">Verified sellers</h2></div>
+    {loading ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <SkeletonCard key={item} />)}</div> : error ? <div><ErrorState title="Unable to load verified sellers" description={error} /><button type="button" onClick={() => void loadSellers()} className="mt-3 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Retry</button></div> : sellers.length === 0 ? <EmptyState title="No verified sellers available" description="Verified sellers will appear here when available." /> : <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {sellers.map((seller) => {
+        const name = seller.companyName || seller.name;
+        const location = [seller.city, seller.state].filter((value): value is string => Boolean(value?.trim())).join(', ');
+        return <Link key={seller.id} to={`/seller/${seller.id}`} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 transition hover:border-emerald-400/40">
+          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold text-white">{name}</p>{location ? <p className="mt-1 text-sm text-slate-400">{location}</p> : null}<p className="mt-1 text-sm text-slate-400">{seller.productCount} products</p></div>{seller.verified ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300"><CheckCircle2 className="h-4 w-4" />Verified</span> : null}</div>
+        </Link>;
+      })}
+    </div>}
+  </section>;
+}
+
 function dealCountdown(offerEndsAt: string, now: number): string {
   const totalSeconds = Math.max(0, Math.floor((new Date(offerEndsAt).getTime() - now) / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -857,7 +892,6 @@ export function HomePage() {
   const stats = { ...homeData.stats, liveAuctions: liveAuctions.length };
   const recent = homeData.recentProducts ?? [];
   const popular = homeData.popularProducts ?? [];
-  const sellers = homeData.verifiedSellers ?? [];
   const categories = homeData.categories ?? [];
   const mainCategories = categories.filter((category) => category.parentId === undefined || category.parentId === null || category.parentId === '');
   const selectedCategory = mainCategories.find((category) => String(category.id) === String(selectedCategoryId));
@@ -877,6 +911,6 @@ export function HomePage() {
     <ProductSection title="Recently added" products={recent} categories={categories} emptyTitle="No recently added products" emptyDescription="New products will appear here when available." />
     <ProductSection title="Popular products" products={popular} categories={categories} emptyTitle="No popular products yet" emptyDescription="Popularity information will appear here when available." />
     {testimonials.length > 0 ? <TestimonialsCarousel testimonials={testimonials} /> : null}
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6"><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Trusted sellers</p><h2 className="mt-2 text-2xl font-semibold text-white">Verified sellers</h2></div>{sellers.length === 0 ? <EmptyState title="No verified sellers available" description="Verified sellers will appear here when available." /> : <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{sellers.map((seller, index) => { const name = text(seller.name || seller.vendorName || seller.storeName, 'Seller unavailable'); const sellerId = seller.id || seller.vendorId; return <Link key={String(sellerId || index)} to={sellerId ? `/seller/${sellerId}` : '/marketplace'} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 transition hover:border-emerald-400/40"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold text-white">{name}</p>{seller.productCount !== undefined && seller.productCount !== null ? <p className="mt-1 text-sm text-slate-400">{String(seller.productCount)} products</p> : null}</div><CheckCircle2 className="h-5 w-5 text-emerald-300" /></div></Link>; })}</div>}</section>
+    <VerifiedSellersSection />
   </>;
 }
