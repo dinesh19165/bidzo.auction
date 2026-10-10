@@ -1235,6 +1235,23 @@ html.theme-light .featured-products-section article.group:hover {
   }
 }
 
+@media (max-width: 1024px) {
+  .home-hero-stats {
+    display: none;
+  }
+
+  .home-hero-actions {
+    gap: 0.5rem;
+  }
+
+  .home-hero-actions > a {
+    min-height: 44px;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    line-height: 1.25;
+  }
+}
+
 .app-shell section[class~="relative"][class~="overflow-hidden"][class~="bg-[var(--app-bg)]"] > div[class~="max-w-7xl"] {
   padding-block: 0 !important;
 }
