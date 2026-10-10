@@ -1111,6 +1111,15 @@ html.theme-light .featured-products-section article.group:hover {
   transform: translateY(-2px);
 }
 
+@media (max-width: 1024px) {
+  .home-hero-background img {
+    width: 100%;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center;
+  }
+}
+
 @media (max-width: 767px) {
   .home-hero {
     min-height: 0;
