@@ -1188,7 +1188,7 @@ html.theme-light .featured-products-section article.group:hover {
   .home-hero-actions {
     display: flex;
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
     gap: 0.625rem;
   }
 
@@ -1239,16 +1239,23 @@ html.theme-light .featured-products-section article.group:hover {
   .home-hero-stats {
     display: none;
   }
+}
 
+@media (max-width: 768px) {
   .home-hero-actions {
+    align-items: flex-start;
     gap: 0.5rem;
   }
 
   .home-hero-actions > a {
+    width: fit-content;
+    max-width: 100%;
+    flex: 0 0 auto;
     min-height: 44px;
-    padding: 0.5rem 0.875rem;
+    padding: 0.625rem 1rem;
     font-size: 0.875rem;
     line-height: 1.25;
+    white-space: nowrap;
   }
 }
 
