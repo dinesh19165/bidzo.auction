@@ -1129,8 +1129,8 @@ html.theme-light .featured-products-section article.group:hover {
   }
 
   .home-hero-has-mobile-banner .home-hero-background img {
-    object-fit: contain !important;
-    object-position: center;
+    object-fit: cover !important;
+    object-position: 68% center;
   }
 
   .home-hero-content {
@@ -1193,6 +1193,12 @@ html.theme-light .featured-products-section article.group:hover {
     min-width: 0;
     padding: 0.75rem;
     border-radius: 1rem;
+    background-color: rgba(15, 23, 42, 0.68) !important;
+    backdrop-filter: blur(5px);
+  }
+
+  html.theme-light .home-hero .home-hero-stats > div[class~="rounded-[24px]"][class~="bg-slate-900\/70"] {
+    background-color: rgba(255, 255, 255, 0.82) !important;
   }
 
   .home-hero-stats > div > p:first-child {
@@ -1206,11 +1212,11 @@ html.theme-light .featured-products-section article.group:hover {
   }
 
   .home-hero-overlay {
-    background: linear-gradient(90deg, rgba(2, 6, 23, 0.86) 0%, rgba(2, 6, 23, 0.62) 48%, rgba(2, 6, 23, 0.08) 100%);
+    background: rgba(2, 6, 23, 0.3);
   }
 
   html.theme-light .home-hero-overlay {
-    background: linear-gradient(90deg, rgba(2, 6, 23, 0.78) 0%, rgba(2, 6, 23, 0.52) 48%, rgba(2, 6, 23, 0.06) 100%);
+    background: rgba(2, 6, 23, 0.3);
   }
 }
 
