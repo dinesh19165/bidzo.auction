@@ -20,6 +20,7 @@ import { NotificationList } from './notifications/NotificationList';
 import { useNotificationContext } from '../context/NotificationContext';
 import { useCartContext } from '../context/CartContext';
 import { clearCustomerLocation, getRecentCustomerLocations, getStoredCustomerLocation, reverseGeocode, saveCustomerLocation, searchCustomerLocations, type CustomerLocation } from '../utils/customerLocation';
+import type { User } from '../types';
 
 const ACCEPTED_CAMERA_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_VISUAL_SEARCH_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -87,6 +88,12 @@ function getVisualSearchErrorMessage(error: unknown): string {
 
 function scrollPageToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function getAccountDashboardPath(user: User): string {
+  if (isAdminUser(user)) return getPortalHome(user);
+  if (user.type === 'vendor' || user.role === 'VENDOR') return '/dashboards/vendor';
+  return '/dashboards/customer';
 }
 
 function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: CustomerLocation | null; onSelect: (location: CustomerLocation | null) => void; mobile?: boolean }) {
@@ -211,6 +218,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const visualSearchOpenRef = useRef(false);
   const headerDropdownsRef = useRef<HTMLDivElement>(null);
   const mobileProfileRef = useRef<HTMLDivElement>(null);
+  const mobileProfileTriggerRef = useRef<HTMLButtonElement>(null);
   const { theme } = useThemeContext();
   const { translate, formatCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
@@ -263,6 +271,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     : [];
   const resetCategoryNavigationState = () => setSelectedMainCategoryId(null);
   const selectMainCategory = (categoryId: CategoryRecord['id']) => {
+    setMobileProfileOpen(false);
     if (selectedMainCategoryId !== null && String(selectedMainCategoryId) !== String(categoryId)) {
       scrollPageToTop();
       resetCategoryNavigationState();
@@ -272,7 +281,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (previousCategoryPathname.current !== location.pathname) resetCategoryNavigationState();
     previousCategoryPathname.current = location.pathname;
+    setMobileProfileOpen(false);
   }, [location.pathname]);
+  useEffect(() => {
+    if (!mobileProfileOpen) return undefined;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!mobileProfileRef.current?.contains(target) && !mobileProfileTriggerRef.current?.contains(target)) {
+        setMobileProfileOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
+  }, [mobileProfileOpen]);
   useEffect(() => {
     const updateHeaderScrollState = () => setIsHeaderScrolled(window.scrollY > 24);
     updateHeaderScrollState();
@@ -310,6 +331,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const submitHeaderSearch = () => {
     const query = headerSearch.trim();
     if (!query && !headerCategory) return;
+    setMobileProfileOpen(false);
     const params = new URLSearchParams({ page: '0' });
     if (query) params.set('q', query);
     if (headerCategory) params.set('categoryId', headerCategory);
@@ -573,7 +595,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const renderSearchSuggestions = () => {
     if (!searchSuggestionsOpen || headerSearch.trim().length < 2) return null;
     return <div role="listbox" aria-label="Search suggestions" className={`absolute left-0 right-0 top-full z-[70] mt-2 max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto rounded-xl border p-2 shadow-2xl ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
-      {searchSuggestionsLoading ? <p className={`px-3 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Searching...</p> : searchSuggestions.length === 0 ? <p className={`px-3 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No products found</p> : searchSuggestions.map((item) => <button key={`${item.type}-${item.id}`} type="button" role="option" onClick={() => { setSearchSuggestionsOpen(false); navigate(`/product/${item.id}`); }} className={`flex w-full min-w-0 items-center gap-3 rounded-lg p-2 text-left transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}>
+      {searchSuggestionsLoading ? <p className={`px-3 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Searching...</p> : searchSuggestions.length === 0 ? <p className={`px-3 py-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>No products found</p> : searchSuggestions.map((item) => <button key={`${item.type}-${item.id}`} type="button" role="option" onClick={() => { setMobileProfileOpen(false); setSearchSuggestionsOpen(false); navigate(`/product/${item.id}`); }} className={`flex w-full min-w-0 items-center gap-3 rounded-lg p-2 text-left transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10' : 'text-slate-900 hover:bg-slate-100'}`}>
         <img src={suggestionImageUrl(item.image)} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
         <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.title}</span><span className={`mt-0.5 block truncate text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{item.category?.name || 'Category unavailable'}</span><span className="mt-1 block truncate text-xs font-medium text-emerald-500">{item.price === null ? 'Price unavailable' : `₹${Number(item.price).toLocaleString('en-IN')}`}{item.availableQuantity !== null && item.availableQuantity !== undefined ? ` · ${item.availableQuantity} available` : ''}</span></span>
       </button>)}
@@ -599,7 +621,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
           <div className="flex min-w-0 items-center gap-2">
             {/* Shared header: logo always shown and links to home */}
-            <Link to="/" className="inline-flex items-center flex-shrink-0">
+            <Link to="/" onClick={() => setMobileProfileOpen(false)} className="inline-flex items-center flex-shrink-0">
               {/* Slightly smaller logo on mobile to avoid horizontal overflow */}
               <Logo className="w-[104px] sm:w-[150px] h-auto object-contain" />
            </Link>
@@ -683,7 +705,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
           {isHomePage && selectedMainCategory ? <div className="category-subnavigation mx-auto min-w-0 overflow-x-auto border-t border-inherit py-1 scrollbar-hidden">
             <div className="flex min-w-max items-center justify-center gap-2">
-              {selectedSubcategories.map((category) => <Link key={category.id} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} className="category-navigation-item inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
+              {selectedSubcategories.map((category) => <Link key={category.id} to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`} onClick={() => setMobileProfileOpen(false)} className="category-navigation-item inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden"><CategoryIcon iconUrl={category.iconUrl} className="h-5 w-5" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
               </Link>)}
             </div>
@@ -737,7 +759,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               <div className={`flex items-center justify-between border-b pb-4 ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'}`}>
                 <div className="flex items-center gap-3">
-                    <Link to="/" className="inline-flex items-center"><Logo /></Link>
+                    <Link to="/" onClick={() => { setMobileMenuOpen(false); setMobileProfileOpen(false); }} className="inline-flex items-center"><Logo /></Link>
                   </div>
                 <button type="button" onClick={() => setMobileMenuOpen(false)} className={`inline-flex h-10 w-10 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>
                   <X className="h-4 w-4" />
@@ -760,7 +782,38 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <main className="overflow-x-hidden pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
 
       <Footer />
-      {showMarketplaceControls ? <><nav className={`fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl`} aria-label="Mobile navigation"><div className="grid grid-cols-5 gap-1"><Link to="/" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Home className="h-4 w-4" />Home</Link><Link to="/customer/cart" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><ShoppingCart className="h-4 w-4" />Cart</Link><Link to="/categories" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Grid2X2 className="h-4 w-4" />Categories</Link><button type="button" onClick={() => setMobileProfileOpen((value) => !value)} className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] ${mobileProfileOpen ? 'text-blue-500' : 'mobile-nav-item'}`}><UserRound className="h-4 w-4" />Account</button><button type="button" onClick={() => setMobileMenuOpen(true)} className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Menu className="h-4 w-4" />More</button></div></nav>{mobileProfileOpen && user ? <div ref={mobileProfileRef} className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-9rem)] overflow-y-auto overflow-x-hidden rounded-xl border p-3 shadow-2xl md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}><Link to={user.type === 'vendor' ? '/dashboards/vendor' : '/dashboards/customer'} onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Login</Link>{user.type === 'customer' ? <><Link to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Orders</Link><Link to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wishlist</Link><Link to="/wallet" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wallet</Link><Link to="/customer/rewards" onClick={() => setMobileProfileOpen(false)} className={`block whitespace-normal break-words rounded-md px-3 py-2.5 text-sm leading-5 ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Rewards / Referral &amp; Earn</Link><Link to="/customer/offers" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Offers</Link></> : null}<button onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-2 min-h-11 w-full rounded-md bg-amber-500 px-3 py-2.5 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button></div> : null}</> : null}
+      {showMarketplaceControls ? (
+        <>
+          <nav className={`fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl`} aria-label="Mobile navigation">
+            <div className="grid grid-cols-5 gap-1">
+              <Link to="/" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Home className="h-4 w-4" />Home</Link>
+              <Link to="/customer/cart" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><ShoppingCart className="h-4 w-4" />Cart</Link>
+              <Link to="/categories" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Grid2X2 className="h-4 w-4" />Categories</Link>
+              <button ref={mobileProfileTriggerRef} type="button" onClick={() => setMobileProfileOpen((value) => !value)} aria-haspopup="menu" aria-expanded={mobileProfileOpen} className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] ${mobileProfileOpen ? 'text-blue-500' : 'mobile-nav-item'}`}><UserRound className="h-4 w-4" />Account</button>
+              <button type="button" onClick={() => setMobileMenuOpen(true)} className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Menu className="h-4 w-4" />More</button>
+            </div>
+          </nav>
+          {mobileProfileOpen ? (
+            <div ref={mobileProfileRef} role="menu" aria-label="Account menu" className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-9rem)] overflow-y-auto overflow-x-hidden rounded-xl border p-3 shadow-2xl md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+              {user ? (
+                <>
+                  <Link role="menuitem" to={getAccountDashboardPath(user)} onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Dashboard</Link>
+                  {isCustomerUser ? <>
+                    <Link role="menuitem" to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Orders</Link>
+                    <Link role="menuitem" to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wishlist</Link>
+                    <Link role="menuitem" to="/wallet" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wallet</Link>
+                    <Link role="menuitem" to="/customer/rewards" onClick={() => setMobileProfileOpen(false)} className={`block whitespace-normal break-words rounded-md px-3 py-2.5 text-sm leading-5 ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Rewards / Referral &amp; Earn</Link>
+                    <Link role="menuitem" to="/customer/offers" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Offers</Link>
+                  </> : null}
+                  <button role="menuitem" onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-2 min-h-11 w-full rounded-md bg-amber-500 px-3 py-2.5 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button>
+                </>
+              ) : (
+                <Link role="menuitem" to="/login" state={{ role: 'customer' }} onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Login</Link>
+              )}
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }
@@ -894,6 +947,7 @@ function LoginRoleMenu({ compact = false, onNavigate, onOpenChange, triggerLabel
 
 function MainHeaderActions() {
   const { theme } = useThemeContext();
+  const location = useLocation();
   const { currency, setCurrency } = useLocaleContext();
   const { user, logout } = useAuth();
   const { cart } = useCartContext();
@@ -905,6 +959,11 @@ function MainHeaderActions() {
   const isCustomer = user?.type === 'customer' || user?.role === 'CUSTOMER';
   const isVendor = user?.type === 'vendor' || user?.role === 'VENDOR';
   const showCart = isCustomer;
+  useEffect(() => {
+    setOpen(false);
+    setLoginMenuOpen(false);
+  }, [location.pathname]);
+
   useEffect(() => {
     if (!open && !loginMenuOpen) return;
     const handleOutsidePointer = (event: PointerEvent) => {
@@ -938,8 +997,8 @@ function MainHeaderActions() {
       <div className="mt-1 space-y-1">
         {!user ? <button role="menuitem" type="button" onClick={() => { closeMenu(); navigate('/login', { replace: true, state: { role: 'customer' } }); }} className={itemClass}><span className={iconClass}><UserRound className="h-4 w-4" /></span><span>Login</span></button> : null}
         {!user ? <button role="menuitem" type="button" onClick={() => { closeMenu(); navigate('/login', { replace: true, state: { role: 'vendor' } }); }} className={itemClass}><span className={iconClass}><Store className="h-4 w-4" /></span><span>Become a Seller</span></button> : null}
+        {user ? <Link role="menuitem" to={getAccountDashboardPath(user)} onClick={closeMenu} className={itemClass}><span className={iconClass}><Grid2X2 className="h-4 w-4" /></span><span>Dashboard</span></Link> : null}
         {isCustomer ? <>
-          <Link role="menuitem" to="/dashboards/customer" onClick={closeMenu} className={itemClass}><span className={iconClass}><Grid2X2 className="h-4 w-4" /></span><span>Dashboard</span></Link>
           <Link role="menuitem" to="/customer/orders" onClick={closeMenu} className={itemClass}><span className={iconClass}><ShoppingBag className="h-4 w-4" /></span><span>Orders</span></Link>
           <Link role="menuitem" to="/customer/wishlist" onClick={closeMenu} className={itemClass}><span className={iconClass}><Tag className="h-4 w-4" /></span><span>Wishlist</span></Link>
           <Link role="menuitem" to="/customer/rewards" onClick={closeMenu} className={itemClass}><span className={iconClass}><ShoppingBag className="h-4 w-4" /></span><span>Rewards</span></Link>
