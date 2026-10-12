@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, SkeletonTable } from '../components/loading/Loa
 import VendorSidebar from '../components/layout/VendorSidebar';
 import { showToast } from '../components/ui/toast';
 import { useAuth } from '../context/AuthContext';
+import { useNotificationContext } from '../context/NotificationContext';
 import {
   approveAdminAdvertisement,
   approveFranchiseAdvertisement,
@@ -418,6 +419,7 @@ export function VendorAdvertisementPage() {
 export function VendorAdvertisementCreatePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { refresh: refreshNotifications } = useNotificationContext();
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const mobileBannerInputRef = useRef<HTMLInputElement | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -568,8 +570,9 @@ export function VendorAdvertisementCreatePage() {
               currency,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpayOrderId: response.razorpay_order_id,
-              razorpaySignature: response.razorpay_signature,
+              paymentSignature: response.razorpay_signature,
             });
+            await refreshNotifications();
             showToast('Payment successful — waiting for Franchise Admin approval.', 'Your advertisement has been submitted for review.', 'success');
             navigate(`/vendor/advertisements/${id}`);
           } catch (reason) {
@@ -757,6 +760,7 @@ export function VendorAdvertisementCreatePage() {
 export function VendorAdvertisementDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { refresh: refreshNotifications } = useNotificationContext();
   const [record, setRecord] = useState<AdvertisementRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -816,8 +820,9 @@ export function VendorAdvertisementDetailPage() {
               currency,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpayOrderId: response.razorpay_order_id,
-              razorpaySignature: response.razorpay_signature,
+              paymentSignature: response.razorpay_signature,
             });
+            await refreshNotifications();
             showToast('Payment successful — waiting for Franchise Admin approval.', 'Your advertisement has been submitted for review.', 'success');
             await load();
           } catch (error) {

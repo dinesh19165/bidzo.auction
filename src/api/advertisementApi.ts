@@ -434,7 +434,7 @@ export async function createAdvertisementRazorpayOrder(
   return value as AdvertisementPaymentSession;
 }
 
-export async function verifyAdvertisementPayment(id: number | string, payload: Record<string, unknown>): Promise<AdvertisementRecord> {
+export async function verifyAdvertisementPayment(id: number | string, payload: Record<string, unknown> & { paymentSignature: string }): Promise<AdvertisementRecord> {
   const amountValue = Number(payload.amount ?? payload.totalAmount ?? 0);
   const currencyValue = String(payload.currency ?? 'INR');
   const reasonValue = String(payload.paymentReference ?? payload.razorpayPaymentId ?? payload.paymentId ?? '');
@@ -446,9 +446,9 @@ export async function verifyAdvertisementPayment(id: number | string, payload: R
       paymentReference: reasonValue,
       amount: amountValue,
       currency: currencyValue,
-      razorpayPaymentId: payload.razorpayPaymentId ?? undefined,
-      razorpayOrderId: payload.razorpayOrderId ?? undefined,
-      razorpaySignature: payload.razorpaySignature ?? undefined,
+      razorpayPaymentId: payload.razorpayPaymentId,
+      razorpayOrderId: payload.razorpayOrderId,
+      paymentSignature: payload.paymentSignature,
     }),
   });
 

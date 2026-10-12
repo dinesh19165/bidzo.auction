@@ -46,7 +46,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const [nextItems, nextUnreadCount] = scope === 'vendor'
         ? await Promise.all([getVendorNotifications(), getVendorUnreadNotificationCount()])
         : await Promise.all([getNotifications(), getUnreadNotificationCount()]);
-      setItems(nextItems);
+      setItems([...new Map(nextItems.map((item) => [String(item.id), item])).values()]);
       setUnreadCount(nextUnreadCount);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load notifications.');

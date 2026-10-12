@@ -1,18 +1,27 @@
 import { Bell, ExternalLink } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { isAdminUser, isFranchiseAdminUser, useAuth } from '../../context/AuthContext';
 import { useNotificationContext } from '../../context/NotificationContext';
 import type { NotificationResponse } from '../../api/notificationApi';
+import type { User } from '../../types';
 
-function referencePath(notification: NotificationResponse): string | null {
+export function getNotificationPath(notification: NotificationResponse, user: Pick<User, 'role' | 'type'> | null): string | null {
   const type = String(notification.referenceType ?? '').toUpperCase();
   const id = notification.referenceId;
   if (id === undefined || id === null || String(id).trim() === '') return null;
   if (type === 'AUCTION') return `/auction/${encodeURIComponent(String(id))}`;
   if (type === 'ORDER') return `/customer/orders/${encodeURIComponent(String(id))}`;
+  if (type === 'ADVERTISEMENT') {
+    const encodedId = encodeURIComponent(String(id));
+    if (isFranchiseAdminUser(user)) return `/franchise/advertisements/${encodedId}`;
+    if (isAdminUser(user)) return `/admin/advertisements/${encodedId}`;
+    if (user?.type === 'vendor' || user?.role === 'VENDOR') return `/vendor/advertisements/${encodedId}`;
+  }
   return null;
 }
 
 export function NotificationList({ compact = false, limit }: { compact?: boolean; limit?: number }) {
+  const { user } = useAuth();
   const { items, loading, error, refresh, markRead } = useNotificationContext();
   const navigate = useNavigate();
   const visibleItems = limit ? items.slice(0, limit) : items;
@@ -22,7 +31,7 @@ export function NotificationList({ compact = false, limit }: { compact?: boolean
   if (visibleItems.length === 0) return <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400"><Bell className="mx-auto mb-2 h-5 w-5" />No notifications yet.</div>;
 
   return <div className={compact ? 'space-y-2' : 'space-y-3'}>{visibleItems.map((notification) => {
-    const path = referencePath(notification);
+    const path = getNotificationPath(notification, user);
     const open = async () => {
       try { await markRead(notification); } catch { return; }
       if (path) navigate(path);
