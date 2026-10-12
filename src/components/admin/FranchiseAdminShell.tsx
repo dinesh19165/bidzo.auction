@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { BarChart3, Boxes, ClipboardCheck, LayoutGrid, LogOut, Megaphone, Package, Store, Users } from 'lucide-react';
+import { BarChart3, Bell, Boxes, ClipboardCheck, LayoutGrid, LogOut, Megaphone, Package, Store, Users } from 'lucide-react';
 import Logo from '../Logo';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationContext } from '../../context/NotificationContext';
 import { getFranchiseMe, type FranchiseMe } from '../../api/franchiseApi';
 import { ApiError } from '../../api/apiClient';
 import { ErrorState, SkeletonDashboard } from '../loading/LoadingComponents';
+import { NotificationList } from '../notifications/NotificationList';
 
 const navItems = [
   { label: 'Dashboard', to: '/franchise/dashboard', icon: LayoutGrid },
@@ -48,9 +50,11 @@ export function franchiseDisplayLocation(franchise: FranchiseMe): string {
 
 export function FranchiseAdminShell({ title, subtitle, activePath, breadcrumbs = [], actions, children }: FranchiseAdminShellProps) {
   const { logout } = useAuth();
+  const { unreadCount, refresh } = useNotificationContext();
   const [franchise, setFranchise] = useState<FranchiseMe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +68,10 @@ export function FranchiseAdminShell({ title, subtitle, activePath, breadcrumbs =
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (activePath === '/franchise/dashboard') void refresh();
+  }, [activePath, refresh]);
 
   if (loading) return <div className="min-h-screen bg-[var(--app-bg)] p-4 sm:p-6"><SkeletonDashboard /></div>;
   if (error) {
@@ -99,7 +107,19 @@ export function FranchiseAdminShell({ title, subtitle, activePath, breadcrumbs =
           <header className="rounded-[30px] border border-[var(--border-color)] bg-[var(--surface)] p-4 shadow-lg">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">{title}</p><h1 className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{subtitle}</h1><p className="mt-2 text-sm text-[var(--text-muted)]">{name}{location ? ` · ${location}` : ''}</p></div>
-              <div className="flex items-center gap-2">{actions}</div>
+              <div className="flex items-center gap-2">
+                {actions}
+                <div className="relative">
+                  <button type="button" aria-label="Notifications" aria-haspopup="dialog" aria-expanded={notificationsOpen} onClick={() => { const nextOpen = !notificationsOpen; setNotificationsOpen(nextOpen); if (nextOpen) void refresh(); }} className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] text-[var(--text-secondary)] transition hover:bg-blue-500/10 hover:text-[var(--text-primary)]">
+                    <Bell className="h-4 w-4" />
+                    {unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
+                  </button>
+                  {notificationsOpen ? <div role="dialog" aria-label="Notifications" className="absolute right-0 top-full z-50 mt-2 max-h-[min(70vh,32rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-[var(--border-color)] bg-[var(--surface)] p-3 shadow-2xl">
+                    <div className="mb-3 flex items-center justify-between gap-3 border-b border-[var(--border-color)] pb-2"><h2 className="text-sm font-semibold text-[var(--text-primary)]">Notifications</h2><span className="text-xs text-[var(--text-muted)]">{unreadCount} unread</span></div>
+                    <NotificationList compact limit={10} />
+                  </div> : null}
+                </div>
+              </div>
             </div>
             {breadcrumbs.length > 0 ? <nav className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]" aria-label="Breadcrumb">{breadcrumbs.map((item, index) => <span key={`${item.label}-${index}`}>{item.to ? <Link to={item.to} className="hover:text-[var(--text-primary)]">{item.label}</Link> : item.label}{index < breadcrumbs.length - 1 ? ' / ' : ''}</span>)}</nav> : null}
           </header>

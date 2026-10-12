@@ -121,6 +121,20 @@ export async function getVendorUnreadNotificationCount(): Promise<number> {
   return typeof value === 'number' ? value : Number(value.count ?? 0);
 }
 
+export async function getAdminNotificationInbox(): Promise<NotificationResponse[]> {
+  const response = await fetchJson<ApiResponse<NotificationResponse[]>>('/api/admin/notifications/inbox', { method: 'GET' });
+  if (!Array.isArray(response?.data)) throw new Error(response?.message || 'Failed to load notification inbox');
+  return response.data;
+}
+
+export async function getAdminNotificationInboxUnreadCount(): Promise<number> {
+  const response = await fetchJson<ApiResponse<number>>('/api/admin/notifications/inbox/unread/count', { method: 'GET' });
+  if (typeof response?.data !== 'number' || !Number.isFinite(response.data)) {
+    throw new Error(response?.message || 'Failed to load unread notification count');
+  }
+  return response.data;
+}
+
 export async function getNotificationById(notificationId: number): Promise<NotificationResponse> {
   const response = await fetchJson<ApiResponse<NotificationResponse>>(`/api/customer/notifications/${notificationId}`, {
     method: 'GET',
