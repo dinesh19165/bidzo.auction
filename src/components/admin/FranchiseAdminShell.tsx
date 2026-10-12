@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { BarChart3, Bell, Boxes, ClipboardCheck, LayoutGrid, LogOut, Megaphone, Package, Store, Users } from 'lucide-react';
 import Logo from '../Logo';
 import { useAuth } from '../../context/AuthContext';
@@ -55,6 +56,9 @@ export function FranchiseAdminShell({ title, subtitle, activePath, breadcrumbs =
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationAnchorRef = useRef<HTMLDivElement>(null);
+  const notificationPanelRef = useRef<HTMLDivElement>(null);
+  const [notificationPosition, setNotificationPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -72,6 +76,47 @@ export function FranchiseAdminShell({ title, subtitle, activePath, breadcrumbs =
   useEffect(() => {
     if (activePath === '/franchise/dashboard') void refresh();
   }, [activePath, refresh]);
+
+  useLayoutEffect(() => {
+    if (!notificationsOpen || !notificationAnchorRef.current) return undefined;
+
+    const updateNotificationPosition = () => {
+      const anchorRect = notificationAnchorRef.current?.getBoundingClientRect();
+      if (!anchorRect) return;
+
+      const safeMargin = 12;
+      const viewportWidth = document.documentElement.clientWidth;
+      const width = Math.min(420, Math.max(0, viewportWidth - safeMargin * 2));
+      const left = Math.min(
+        Math.max(safeMargin, anchorRect.right - width),
+        Math.max(safeMargin, viewportWidth - safeMargin - width),
+      );
+      const top = anchorRect.bottom + 8;
+      const availableHeight = Math.max(0, window.innerHeight - top - safeMargin);
+      const maxHeight = Math.min(520, window.innerHeight * 0.7, availableHeight);
+      setNotificationPosition({ top, left, width, maxHeight });
+    };
+
+    updateNotificationPosition();
+    window.addEventListener('resize', updateNotificationPosition);
+    window.addEventListener('scroll', updateNotificationPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateNotificationPosition);
+      window.removeEventListener('scroll', updateNotificationPosition, true);
+    };
+  }, [notificationsOpen]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return undefined;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!notificationAnchorRef.current?.contains(target) && !notificationPanelRef.current?.contains(target)) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
+  }, [notificationsOpen]);
 
   if (loading) return <div className="min-h-screen bg-[var(--app-bg)] p-4 sm:p-6"><SkeletonDashboard /></div>;
   if (error) {
@@ -109,15 +154,18 @@ export function FranchiseAdminShell({ title, subtitle, activePath, breadcrumbs =
               <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">{title}</p><h1 className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{subtitle}</h1><p className="mt-2 text-sm text-[var(--text-muted)]">{name}{location ? ` · ${location}` : ''}</p></div>
               <div className="flex items-center gap-2">
                 {actions}
-                <div className="relative">
+                <div ref={notificationAnchorRef} className="relative shrink-0">
                   <button type="button" aria-label="Notifications" aria-haspopup="dialog" aria-expanded={notificationsOpen} onClick={() => { const nextOpen = !notificationsOpen; setNotificationsOpen(nextOpen); if (nextOpen) void refresh(); }} className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--surface-muted)] text-[var(--text-secondary)] transition hover:bg-blue-500/10 hover:text-[var(--text-primary)]">
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
                   </button>
-                  {notificationsOpen ? <div role="dialog" aria-label="Notifications" className="absolute right-0 top-full z-50 mt-2 max-h-[min(70vh,32rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-[var(--border-color)] bg-[var(--surface)] p-3 shadow-2xl">
-                    <div className="mb-3 flex items-center justify-between gap-3 border-b border-[var(--border-color)] pb-2"><h2 className="text-sm font-semibold text-[var(--text-primary)]">Notifications</h2><span className="text-xs text-[var(--text-muted)]">{unreadCount} unread</span></div>
-                    <NotificationList compact limit={10} />
-                  </div> : null}
+                  {notificationsOpen && typeof document !== 'undefined' ? createPortal(
+                    <div ref={notificationPanelRef} role="dialog" aria-label="Notifications" style={{ position: 'fixed', top: notificationPosition?.top ?? 12, left: notificationPosition?.left ?? 12, width: notificationPosition?.width ?? 420, maxWidth: 'calc(100vw - 24px)', maxHeight: notificationPosition?.maxHeight ?? 'min(70vh, 520px)', visibility: notificationPosition ? 'visible' : 'hidden' }} className="z-[100] box-border flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border-color)] bg-[var(--surface)] p-3 shadow-2xl">
+                      <div className="mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-color)] pb-2"><h2 className="text-sm font-semibold text-[var(--text-primary)]">Notifications</h2><span className="text-xs text-[var(--text-muted)]">{unreadCount} unread</span></div>
+                      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain"><NotificationList compact limit={10} /></div>
+                    </div>,
+                    document.body,
+                  ) : null}
                 </div>
               </div>
             </div>
