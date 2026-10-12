@@ -1169,7 +1169,7 @@ function AuthActions() {
             ) : (
               <div className="max-h-[420px] overflow-y-auto overflow-x-hidden p-2">
                 {items.slice(0, 5).map((item) => (
-                  <button key={String(item.id)} type="button" onClick={() => void markRead(item)} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:bg-white/10 ${item.isRead ? 'border-transparent bg-white/[0.03]' : 'border-blue-400/20 bg-blue-500/[0.09]'}`}>
+                  <button key={String(item.id)} type="button" onClick={() => void markRead(item.id)} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:bg-white/10 ${item.isRead ? 'border-transparent bg-white/[0.03]' : 'border-blue-400/20 bg-blue-500/[0.09]'}`}>
                     <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${item.isRead ? 'bg-white/10 text-slate-400' : 'bg-blue-400/15 text-blue-300'}`}><Bell className="h-4 w-4" /></span>
                     <span className="min-w-0 flex-1" style={{ wordBreak: 'normal', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
                       <span className="block text-sm font-medium text-white" style={{ wordBreak: 'normal', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{item.title}</span>

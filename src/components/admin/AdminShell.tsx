@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import Logo from '../Logo';
 import type { ReactNode } from 'react';
 import { Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, Inbox, Images, LayoutGrid, LogOut, Megaphone, Percent, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotificationContext } from '../../context/NotificationContext';
+import { NotificationList } from '../notifications/NotificationList';
 
 type Breadcrumb = { label: string; to?: string };
 
@@ -40,7 +42,8 @@ const navItems = [
 
 export function AdminShell({ title, subtitle, breadcrumbs = [], children, activePath, actions }: AdminShellProps) {
   const { logout } = useAuth();
-  const { unreadCount } = useNotificationContext();
+  const { unreadCount, refresh, markAllRead } = useNotificationContext();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_25%),linear-gradient(135deg,_#020617,_#0f172a)] text-slate-100">
@@ -78,6 +81,17 @@ export function AdminShell({ title, subtitle, breadcrumbs = [], children, active
               </div>
               <div className="flex items-center gap-2">
                 {actions}
+                <div className="relative">
+                  <button type="button" aria-label="Notifications" aria-haspopup="dialog" aria-expanded={notificationsOpen} onClick={() => { const nextOpen = !notificationsOpen; setNotificationsOpen(nextOpen); if (nextOpen) void refresh(); }} className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10">
+                    <Bell className="h-4 w-4" />
+                    {unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
+                  </button>
+                  {notificationsOpen ? <div role="dialog" aria-label="Notifications" className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(70vh,520px)] w-[min(26rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+                    <div className="mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 pb-2"><h2 className="text-sm font-semibold text-white">Notifications</h2><div className="flex items-center gap-3"><span className="text-xs text-slate-400">{unreadCount} unread</span>{unreadCount > 0 ? <button type="button" onClick={() => void markAllRead()} className="text-xs font-medium text-blue-300 hover:text-blue-200">Mark all read</button> : null}</div></div>
+                    <div className="min-h-0 flex-1 overflow-y-auto"><NotificationList compact limit={10} /></div>
+                    <Link to="/admin/notifications" onClick={() => setNotificationsOpen(false)} className="mt-3 flex shrink-0 justify-center border-t border-white/10 pt-3 text-xs font-medium text-blue-300 hover:text-blue-200">View all notifications</Link>
+                  </div> : null}
+                </div>
               </div>
             </div>
 

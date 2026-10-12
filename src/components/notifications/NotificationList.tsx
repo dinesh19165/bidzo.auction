@@ -22,19 +22,18 @@ export function getNotificationPath(notification: NotificationResponse, user: Pi
 
 export function NotificationList({ compact = false, limit }: { compact?: boolean; limit?: number }) {
   const { user } = useAuth();
-  const { items, loading, error, refresh, markRead } = useNotificationContext();
+  const { items, loading, error, mutationError, refresh, markRead } = useNotificationContext();
   const navigate = useNavigate();
   const visibleItems = limit ? items.slice(0, limit) : items;
 
-  if (loading) return <p className="text-sm text-slate-400">Loading notifications...</p>;
-  if (error) return <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-200"><p>{error}</p><button type="button" onClick={() => void refresh()} className="mt-3 rounded-full border border-rose-300/30 px-3 py-1.5 text-xs hover:bg-rose-500/10">Retry</button></div>;
-  if (visibleItems.length === 0) return <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400"><Bell className="mx-auto mb-2 h-5 w-5" />No notifications yet.</div>;
+  if (loading) return <><NotificationActionError message={mutationError} /><p className="text-sm text-slate-400">Loading notifications...</p></>;
+  if (error) return <><NotificationActionError message={mutationError} /><div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-200"><p>{error}</p><button type="button" onClick={() => void refresh()} className="mt-3 rounded-full border border-rose-300/30 px-3 py-1.5 text-xs hover:bg-rose-500/10">Retry</button></div></>;
+  if (visibleItems.length === 0) return <><NotificationActionError message={mutationError} /><div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400"><Bell className="mx-auto mb-2 h-5 w-5" />No notifications yet.</div></>;
 
-  return <div className={compact ? 'space-y-2' : 'space-y-3'}>{visibleItems.map((notification) => {
+  return <div className={compact ? 'space-y-2' : 'space-y-3'}><NotificationActionError message={mutationError} />{visibleItems.map((notification) => {
     const path = getNotificationPath(notification, user);
     const open = async () => {
-      try { await markRead(notification); } catch { return; }
-      if (path) navigate(path);
+      if (await markRead(notification.id) && path) navigate(path);
     };
     return <div key={String(notification.id)} className={`rounded-2xl border bg-slate-900/70 p-4 ${notification.isRead ? 'border-white/10' : 'border-blue-500/40'}`}>
       <div className="flex items-start justify-between gap-3">
@@ -47,8 +46,12 @@ export function NotificationList({ compact = false, limit }: { compact?: boolean
       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
         <span>{notification.type}</span>
         <time dateTime={notification.createdAt}>{new Date(notification.createdAt).toLocaleString()}</time>
-        {path ? <Link to={path} onClick={() => void markRead(notification)} className="inline-flex items-center gap-1 text-blue-300 hover:text-blue-200">Open <ExternalLink className="h-3 w-3" /></Link> : null}
+        {path ? <Link to={path} onClick={(event) => { event.preventDefault(); void open(); }} className="inline-flex items-center gap-1 text-blue-300 hover:text-blue-200">Open <ExternalLink className="h-3 w-3" /></Link> : null}
       </div>
     </div>;
   })}</div>;
+}
+
+function NotificationActionError({ message }: { message: string | null }) {
+  return message ? <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{message}</p> : null;
 }

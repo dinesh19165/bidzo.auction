@@ -135,6 +135,14 @@ export async function getAdminNotificationInboxUnreadCount(): Promise<number> {
   return response.data;
 }
 
+export async function markAdminNotificationAsRead(notificationId: number | string): Promise<void> {
+  await fetchJson<unknown>(`/api/admin/notifications/inbox/${encodeURIComponent(String(notificationId))}/read`, { method: 'PATCH' });
+}
+
+export async function markAllAdminNotificationsAsRead(): Promise<void> {
+  await fetchJson<unknown>('/api/admin/notifications/inbox/read-all', { method: 'PATCH' });
+}
+
 export async function getNotificationById(notificationId: number): Promise<NotificationResponse> {
   const response = await fetchJson<ApiResponse<NotificationResponse>>(`/api/customer/notifications/${notificationId}`, {
     method: 'GET',

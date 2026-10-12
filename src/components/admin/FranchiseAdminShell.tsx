@@ -51,7 +51,7 @@ export function franchiseDisplayLocation(franchise: FranchiseMe): string {
 
 export function FranchiseAdminShell({ title, subtitle, activePath, breadcrumbs = [], actions, children }: FranchiseAdminShellProps) {
   const { logout } = useAuth();
-  const { unreadCount, refresh } = useNotificationContext();
+  const { unreadCount, refresh, markAllRead } = useNotificationContext();
   const [franchise, setFranchise] = useState<FranchiseMe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -161,7 +161,7 @@ export function FranchiseAdminShell({ title, subtitle, activePath, breadcrumbs =
                   </button>
                   {notificationsOpen && typeof document !== 'undefined' ? createPortal(
                     <div ref={notificationPanelRef} role="dialog" aria-label="Notifications" style={{ position: 'fixed', top: notificationPosition?.top ?? 12, left: notificationPosition?.left ?? 12, width: notificationPosition?.width ?? 420, maxWidth: 'calc(100vw - 24px)', maxHeight: notificationPosition?.maxHeight ?? 'min(70vh, 520px)', visibility: notificationPosition ? 'visible' : 'hidden' }} className="z-[100] box-border flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border-color)] bg-[var(--surface)] p-3 shadow-2xl">
-                      <div className="mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-color)] pb-2"><h2 className="text-sm font-semibold text-[var(--text-primary)]">Notifications</h2><span className="text-xs text-[var(--text-muted)]">{unreadCount} unread</span></div>
+                      <div className="mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-color)] pb-2"><h2 className="text-sm font-semibold text-[var(--text-primary)]">Notifications</h2><div className="flex items-center gap-3"><span className="text-xs text-[var(--text-muted)]">{unreadCount} unread</span>{unreadCount > 0 ? <button type="button" onClick={() => void markAllRead()} className="text-xs font-medium text-blue-500 hover:underline">Mark all read</button> : null}</div></div>
                       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain"><NotificationList compact limit={10} /></div>
                     </div>,
                     document.body,

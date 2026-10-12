@@ -1,11 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { ApiError } from '../api/apiClient';
 import {
   getNotifications,
   getUnreadNotificationCount,
   getAdminNotificationInbox,
   getAdminNotificationInboxUnreadCount,
+  markAdminNotificationAsRead,
+  markAllAdminNotificationsAsRead,
   getVendorNotifications,
   getVendorUnreadNotificationCount,
   markAllNotificationsAsRead,
@@ -20,12 +23,19 @@ interface NotificationContextValue {
   unreadCount: number;
   loading: boolean;
   error: string | null;
+  mutationError: string | null;
   refresh: () => Promise<void>;
-  markRead: (notification: NotificationResponse) => Promise<void>;
+  markRead: (notificationId: number | string) => Promise<boolean>;
   markAllRead: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
+
+function mutationErrorMessage(reason: unknown, action: string): string {
+  if (reason instanceof ApiError && reason.status === 401) return 'Your session has expired. Sign in again to update notifications.';
+  if (reason instanceof ApiError && reason.status === 403) return reason.message || 'You do not have permission to update these notifications.';
+  return reason instanceof Error ? reason.message : `Unable to ${action}.`;
+}
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -35,12 +45,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const refreshSequence = useRef(0);
 
   const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
     if (!scope) {
       setItems([]);
       setUnreadCount(0);
+      setLoading(false);
       setError(null);
+      setMutationError(null);
       return;
     }
     setLoading(true);
@@ -49,21 +64,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       let nextItems: NotificationResponse[];
       let nextUnreadCount: number;
       if (scope === 'franchise-admin' || scope === 'admin-inbox') {
-        nextItems = await getAdminNotificationInbox();
-        nextUnreadCount = await getAdminNotificationInboxUnreadCount();
+        [nextItems, nextUnreadCount] = await Promise.all([getAdminNotificationInbox(), getAdminNotificationInboxUnreadCount()]);
       } else if (scope === 'vendor') {
         [nextItems, nextUnreadCount] = await Promise.all([getVendorNotifications(), getVendorUnreadNotificationCount()]);
       } else {
         [nextItems, nextUnreadCount] = await Promise.all([getNotifications(), getUnreadNotificationCount()]);
       }
+      if (sequence !== refreshSequence.current) return;
       setItems([...new Map(nextItems.map((item) => [String(item.id), item])).values()]);
       setUnreadCount(nextUnreadCount);
+      setMutationError(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to load notifications.');
+      if (sequence === refreshSequence.current) setError(reason instanceof Error ? reason.message : 'Unable to load notifications.');
     } finally {
-      setLoading(false);
+      if (sequence === refreshSequence.current) setLoading(false);
     }
-  }, [scope]);
+  }, [scope, user?.id, user?.token]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -74,25 +90,36 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('visibilitychange', refreshOnFocus);
   }, [refresh, scope]);
 
-  const markRead = useCallback(async (notification: NotificationResponse) => {
-    if (notification.isRead || !scope) return;
-    if (scope === 'franchise-admin' || scope === 'admin-inbox') return;
-    if (scope === 'vendor') await markVendorNotificationAsRead(notification.id);
-    else await markNotificationAsRead(Number(notification.id));
-    setItems((current) => current.map((item) => item.id === notification.id ? { ...item, isRead: true } : item));
-    setUnreadCount((current) => Math.max(0, current - 1));
-  }, [scope]);
+  const markRead = useCallback(async (notificationId: number | string): Promise<boolean> => {
+    const notification = items.find((item) => String(item.id) === String(notificationId));
+    if (!scope || !notification || notification.isRead) return true;
+    setMutationError(null);
+    try {
+      if (scope === 'franchise-admin' || scope === 'admin-inbox') await markAdminNotificationAsRead(notificationId);
+      else if (scope === 'vendor') await markVendorNotificationAsRead(notificationId);
+      else await markNotificationAsRead(Number(notificationId));
+      await refresh();
+      return true;
+    } catch (reason) {
+      setMutationError(mutationErrorMessage(reason, 'mark notification as read'));
+      return false;
+    }
+  }, [items, refresh, scope]);
 
   const markAllRead = useCallback(async () => {
     if (!scope) return;
-    if (scope === 'franchise-admin' || scope === 'admin-inbox') return;
-    if (scope === 'vendor') await markAllVendorNotificationsAsRead();
-    else await markAllNotificationsAsRead();
-    setItems((current) => current.map((item) => ({ ...item, isRead: true })));
-    setUnreadCount(0);
-  }, [scope]);
+    setMutationError(null);
+    try {
+      if (scope === 'franchise-admin' || scope === 'admin-inbox') await markAllAdminNotificationsAsRead();
+      else if (scope === 'vendor') await markAllVendorNotificationsAsRead();
+      else await markAllNotificationsAsRead();
+      await refresh();
+    } catch (reason) {
+      setMutationError(mutationErrorMessage(reason, 'mark notifications as read'));
+    }
+  }, [refresh, scope]);
 
-  const value = useMemo(() => ({ items, unreadCount, loading, error, refresh, markRead, markAllRead }), [items, unreadCount, loading, error, refresh, markRead, markAllRead]);
+  const value = useMemo(() => ({ items, unreadCount, loading, error, mutationError, refresh, markRead, markAllRead }), [items, unreadCount, loading, error, mutationError, refresh, markRead, markAllRead]);
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 }
