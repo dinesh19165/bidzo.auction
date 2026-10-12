@@ -3,6 +3,7 @@ import Logo from '../Logo';
 import type { ReactNode } from 'react';
 import { Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, Inbox, Images, LayoutGrid, LogOut, Megaphone, Percent, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationContext } from '../../context/NotificationContext';
 
 type Breadcrumb = { label: string; to?: string };
 
@@ -39,6 +40,7 @@ const navItems = [
 
 export function AdminShell({ title, subtitle, breadcrumbs = [], children, activePath, actions }: AdminShellProps) {
   const { logout } = useAuth();
+  const { unreadCount } = useNotificationContext();
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_25%),linear-gradient(135deg,_#020617,_#0f172a)] text-slate-100">
@@ -55,7 +57,8 @@ export function AdminShell({ title, subtitle, breadcrumbs = [], children, active
               return (
                 <NavLink key={item.to} to={item.to} className={`flex items-center gap-3 rounded-[16px] px-3 py-2.5 text-sm transition ${isActive ? 'bg-blue-600/20 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
                   <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
+                  <span className="min-w-0 flex-1">{item.label}</span>
+                  {item.to === '/admin/notifications' && unreadCount > 0 ? <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[10px] font-bold leading-5 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
                 </NavLink>
               );
             })}

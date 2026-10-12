@@ -30,7 +30,7 @@ const NotificationContext = createContext<NotificationContextValue | undefined>(
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const role = String(user?.role ?? '').trim().toUpperCase();
-  const scope = role === 'FRANCHISE_ADMIN' ? 'franchise-admin' : user?.type === 'vendor' ? 'vendor' : user?.type === 'customer' ? 'customer' : null;
+  const scope = role === 'FRANCHISE_ADMIN' ? 'franchise-admin' : role === 'SUPER_ADMIN' || role === 'ADMIN' ? 'admin-inbox' : user?.type === 'vendor' ? 'vendor' : user?.type === 'customer' ? 'customer' : null;
   const [items, setItems] = useState<NotificationResponse[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -48,7 +48,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try {
       let nextItems: NotificationResponse[];
       let nextUnreadCount: number;
-      if (scope === 'franchise-admin') {
+      if (scope === 'franchise-admin' || scope === 'admin-inbox') {
         nextItems = await getAdminNotificationInbox();
         nextUnreadCount = await getAdminNotificationInboxUnreadCount();
       } else if (scope === 'vendor') {
@@ -76,7 +76,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markRead = useCallback(async (notification: NotificationResponse) => {
     if (notification.isRead || !scope) return;
-    if (scope === 'franchise-admin') return;
+    if (scope === 'franchise-admin' || scope === 'admin-inbox') return;
     if (scope === 'vendor') await markVendorNotificationAsRead(notification.id);
     else await markNotificationAsRead(Number(notification.id));
     setItems((current) => current.map((item) => item.id === notification.id ? { ...item, isRead: true } : item));
@@ -85,7 +85,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markAllRead = useCallback(async () => {
     if (!scope) return;
-    if (scope === 'franchise-admin') return;
+    if (scope === 'franchise-admin' || scope === 'admin-inbox') return;
     if (scope === 'vendor') await markAllVendorNotificationsAsRead();
     else await markAllNotificationsAsRead();
     setItems((current) => current.map((item) => ({ ...item, isRead: true })));

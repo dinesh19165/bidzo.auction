@@ -4,6 +4,8 @@ import type { FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, Bell, Boxes, CheckCircle2, Clock3, CreditCard, Download, Eye, EyeOff, FileText, Filter, Gavel, Globe, LayoutGrid, Megaphone, MessageSquare, Plus, Search, Settings2, ShieldCheck, Store, TrendingUp, Truck, Users, Wallet2 } from 'lucide-react';
 import { AdminShell } from '../../components/admin/AdminShell';
+import { NotificationList } from '../../components/notifications/NotificationList';
+import { useNotificationContext } from '../../context/NotificationContext';
 import { Card } from '../../components/common/Card';
 import { Badge, PrimaryButton, SecondaryButton } from '../../components/common/Buttons';
 import { Table } from '../../components/common/Table';
@@ -3154,6 +3156,7 @@ export function ReportsFranchisePage() { return <AdminShell title="Enterprise ad
 
 export function ContentAnnouncementsPage() { return <AdminShell title="Enterprise admin" subtitle="Announcements" breadcrumbs={[{ label: 'Admin' }, { label: 'Content', to: '/admin/content' }, { label: 'Announcements' }]} activePath="/admin/content" actions={<PrimaryButton icon={<Megaphone className="h-4 w-4" />}>Announce</PrimaryButton>}><Card className="p-4"><Table columns={[{ key: 'title', label: 'Title' }, { key: 'status', label: 'Status' }]} data={[{title:'New seller onboarding', status:'Published'}, {title:'Festival campaign', status:'Scheduled'}]} className="p-0" /></Card></AdminShell>; }
 export function ContentNotificationsPage() {
+  const { unreadCount, refresh: refreshInbox } = useNotificationContext();
   const [history, setHistory] = useState<AdminNotificationRecord[]>([]);
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -3185,6 +3188,7 @@ export function ContentNotificationsPage() {
   };
 
   useEffect(() => { void loadHistory(1); }, []);
+  useEffect(() => { void refreshInbox(); }, [refreshInbox]);
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -3240,6 +3244,13 @@ export function ContentNotificationsPage() {
 
   return <AdminShell title="Notifications" subtitle="Send announcements, offers, festival updates and important messages to your users." breadcrumbs={[{ label: 'Admin' }, { label: 'Notifications' }]} activePath="/admin/notifications">
     <div className="space-y-6">
+      <Card className="p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="text-lg font-semibold text-white">Inbox</h2><p className="mt-1 text-sm text-slate-400">{unreadCount} unread advertisement and account notifications</p></div>
+          <SecondaryButton onClick={() => void refreshInbox()}>Refresh inbox</SecondaryButton>
+        </div>
+        <NotificationList compact />
+      </Card>
       <Card className="p-6">
         <div><h2 className="text-lg font-semibold text-white">Send Notification</h2><p className="mt-1 text-sm text-slate-400">Send announcements, offers, festival updates and important messages to your users.</p></div>
         {error ? <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
