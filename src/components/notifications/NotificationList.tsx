@@ -35,17 +35,17 @@ export function NotificationList({ compact = false, limit }: { compact?: boolean
     const open = async () => {
       if (await markRead(notification.id) && path) navigate(path);
     };
-    return <div key={String(notification.id)} className={`rounded-2xl border bg-slate-900/70 p-4 ${notification.isRead ? 'border-white/10' : 'border-blue-500/40'}`}>
+    return <div key={String(notification.id)} className={`box-border w-full min-w-0 rounded-2xl border bg-slate-900/70 p-4 ${notification.isRead ? 'border-white/10' : 'border-blue-500/40'}`}>
       <div className="flex items-start justify-between gap-3">
         <button type="button" onClick={() => void open()} className="min-w-0 flex-1 text-left">
-          <p className="font-semibold text-white">{notification.title}</p>
-          <p className="mt-1 text-sm text-slate-300">{notification.message}</p>
+          <p className="break-words font-semibold text-white">{notification.title}</p>
+          <p className="mt-1 break-words text-sm text-slate-300">{notification.message}</p>
         </button>
         {!notification.isRead ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-400" aria-label="Unread" /> : null}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
         <span>{notification.type}</span>
-        <time dateTime={notification.createdAt}>{new Date(notification.createdAt).toLocaleString()}</time>
+        <time className="min-w-0 break-words" dateTime={notification.createdAt}>{new Date(notification.createdAt).toLocaleString()}</time>
         {path ? <Link to={path} onClick={(event) => { event.preventDefault(); void open(); }} className="inline-flex items-center gap-1 text-blue-300 hover:text-blue-200">Open <ExternalLink className="h-3 w-3" /></Link> : null}
       </div>
     </div>;

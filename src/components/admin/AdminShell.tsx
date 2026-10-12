@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import Logo from '../Logo';
 import type { ReactNode } from 'react';
 import { Bell, BookOpen, Boxes, Building2, ChevronRight, FileText, Gavel, Inbox, Images, LayoutGrid, LogOut, Megaphone, Percent, Settings2, ShieldCheck, Store, Truck, Users, Wallet2 } from 'lucide-react';
@@ -44,6 +45,54 @@ export function AdminShell({ title, subtitle, breadcrumbs = [], children, active
   const { logout } = useAuth();
   const { unreadCount, refresh, markAllRead } = useNotificationContext();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationAnchorRef = useRef<HTMLDivElement>(null);
+  const notificationPanelRef = useRef<HTMLDivElement>(null);
+  const [notificationPosition, setNotificationPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!notificationsOpen || !notificationAnchorRef.current) return undefined;
+
+    const updateNotificationPosition = () => {
+      const anchorRect = notificationAnchorRef.current?.getBoundingClientRect();
+      if (!anchorRect) return;
+
+      const safeMargin = 12;
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight;
+      const width = Math.min(400, Math.max(0, viewportWidth - safeMargin * 2));
+      const left = Math.min(
+        Math.max(safeMargin, anchorRect.right - width),
+        Math.max(safeMargin, viewportWidth - safeMargin - width),
+      );
+      const maximumHeight = Math.min(480, Math.max(0, viewportHeight - safeMargin * 2));
+      const spaceBelow = viewportHeight - anchorRect.bottom - 8 - safeMargin;
+      const spaceAbove = anchorRect.top - 8 - safeMargin;
+      const placeBelow = spaceBelow >= Math.min(maximumHeight, 240) || spaceBelow >= spaceAbove;
+      const top = placeBelow ? anchorRect.bottom + 8 : Math.max(safeMargin, anchorRect.top - 8 - maximumHeight);
+      const maxHeight = Math.max(0, Math.min(maximumHeight, viewportHeight - top - safeMargin));
+      setNotificationPosition({ top, left, width, maxHeight });
+    };
+
+    updateNotificationPosition();
+    window.addEventListener('resize', updateNotificationPosition);
+    window.addEventListener('scroll', updateNotificationPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateNotificationPosition);
+      window.removeEventListener('scroll', updateNotificationPosition, true);
+    };
+  }, [notificationsOpen]);
+
+  useLayoutEffect(() => {
+    if (!notificationsOpen) return undefined;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!notificationAnchorRef.current?.contains(target) && !notificationPanelRef.current?.contains(target)) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
+  }, [notificationsOpen]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_25%),linear-gradient(135deg,_#020617,_#0f172a)] text-slate-100">
@@ -81,16 +130,19 @@ export function AdminShell({ title, subtitle, breadcrumbs = [], children, active
               </div>
               <div className="flex items-center gap-2">
                 {actions}
-                <div className="relative">
+                <div ref={notificationAnchorRef} className="relative shrink-0">
                   <button type="button" aria-label="Notifications" aria-haspopup="dialog" aria-expanded={notificationsOpen} onClick={() => { const nextOpen = !notificationsOpen; setNotificationsOpen(nextOpen); if (nextOpen) void refresh(); }} className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10">
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
                   </button>
-                  {notificationsOpen ? <div role="dialog" aria-label="Notifications" className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(70vh,520px)] w-[min(26rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
-                    <div className="mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 pb-2"><h2 className="text-sm font-semibold text-white">Notifications</h2><div className="flex items-center gap-3"><span className="text-xs text-slate-400">{unreadCount} unread</span>{unreadCount > 0 ? <button type="button" onClick={() => void markAllRead()} className="text-xs font-medium text-blue-300 hover:text-blue-200">Mark all read</button> : null}</div></div>
-                    <div className="min-h-0 flex-1 overflow-y-auto"><NotificationList compact limit={10} /></div>
-                    <Link to="/admin/notifications" onClick={() => setNotificationsOpen(false)} className="mt-3 flex shrink-0 justify-center border-t border-white/10 pt-3 text-xs font-medium text-blue-300 hover:text-blue-200">View all notifications</Link>
-                  </div> : null}
+                  {notificationsOpen && typeof document !== 'undefined' ? createPortal(
+                    <div ref={notificationPanelRef} role="dialog" aria-label="Notifications" style={{ position: 'fixed', top: notificationPosition?.top ?? 12, left: notificationPosition?.left ?? 12, width: notificationPosition?.width ?? 400, maxWidth: 'calc(100vw - 24px)', maxHeight: notificationPosition?.maxHeight ?? 'min(480px, calc(100vh - 24px))', boxSizing: 'border-box', visibility: notificationPosition ? 'visible' : 'hidden' }} className="z-[100] flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+                      <div className="mb-3 flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-white/10 pb-2"><h2 className="min-w-0 whitespace-nowrap text-sm font-semibold text-white">Notifications</h2><div className="ml-auto flex shrink-0 items-center gap-3"><span className="whitespace-nowrap text-xs text-slate-400">{unreadCount} unread</span>{unreadCount > 0 ? <button type="button" onClick={() => void markAllRead()} className="whitespace-nowrap text-xs font-medium text-blue-300 hover:text-blue-200">Mark all read</button> : null}</div></div>
+                      <div className="min-h-0 min-w-0 w-full flex-1 overflow-y-auto overscroll-contain"><NotificationList compact limit={10} /></div>
+                      <Link to="/admin/notifications" onClick={() => setNotificationsOpen(false)} className="mt-3 flex shrink-0 justify-center border-t border-white/10 pt-3 text-xs font-medium text-blue-300 hover:text-blue-200">View all notifications</Link>
+                    </div>,
+                    document.body,
+                  ) : null}
                 </div>
               </div>
             </div>
