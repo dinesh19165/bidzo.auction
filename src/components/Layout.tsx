@@ -27,15 +27,18 @@ const MAX_VISUAL_SEARCH_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_VISUAL_SEARCH_DIMENSION = 1280;
 const INSTALL_BANNER_DISMISSED_KEY = 'bidzo-install-banner-dismissed';
 
-function resolveAndroidApkUrl(): string | null {
+function resolveAndroidApkUrl(): { url: string | null; error: string | null } {
   const configuredUrl = import.meta.env.VITE_ANDROID_APK_URL?.trim();
-  if (!configuredUrl) return null;
+  if (!configuredUrl) return { url: null, error: 'APK download is not configured yet.' };
 
   try {
-    const url = new URL(configuredUrl, window.location.origin);
-    return url.protocol === 'https:' ? url.href : null;
+    const url = new URL(configuredUrl);
+    if (url.protocol !== 'https:' || !url.pathname.toLowerCase().endsWith('.apk')) {
+      return { url: null, error: 'The APK download link is invalid. Please contact support.' };
+    }
+    return { url: url.href, error: null };
   } catch {
-    return null;
+    return { url: null, error: 'The APK download link is invalid. Please contact support.' };
   }
 }
 
@@ -47,7 +50,8 @@ function InstallAppBanner() {
       return false;
     }
   });
-  const downloadUrl = resolveAndroidApkUrl();
+  const [openingDownload, setOpeningDownload] = useState(false);
+  const { url: downloadUrl, error: downloadError } = resolveAndroidApkUrl();
 
   const dismiss = () => {
     try {
@@ -65,18 +69,29 @@ function InstallAppBanner() {
       <img src="/icons/bidzo-192.png" alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-[var(--text-primary)]">Get the Bidzo App</p>
-        <p className="truncate text-xs text-[var(--text-muted)]">Bid, shop, and follow auctions on the go.</p>
+        {downloadUrl ? (
+          <p role="status" aria-live="polite" className="truncate text-xs text-[var(--text-muted)]">
+            {openingDownload ? 'Opening the APK download...' : 'Bid, shop, and follow auctions on the go.'}
+          </p>
+        ) : (
+          <p role="status" className="text-xs leading-4 text-[var(--text-muted)]">{downloadError}</p>
+        )}
       </div>
       {downloadUrl ? (
-        <a href={downloadUrl} className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-500">
+        <a
+          href={downloadUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => {
+            setOpeningDownload(true);
+            window.setTimeout(() => setOpeningDownload(false), 2500);
+          }}
+          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-500 active:bg-blue-700 sm:px-4"
+        >
           <Download aria-hidden="true" className="h-4 w-4" />Install App
         </a>
-      ) : (
-        <button type="button" disabled title="Configure VITE_ANDROID_APK_URL to enable app downloads" className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white opacity-60">
-          <Download aria-hidden="true" className="h-4 w-4" />Install App
-        </button>
-      )}
-      <button type="button" onClick={dismiss} aria-label="Dismiss app banner" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
+      ) : null}
+      <button type="button" onClick={dismiss} aria-label="Dismiss app banner" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
         <X aria-hidden="true" className="h-4 w-4" />
       </button>
     </aside>
