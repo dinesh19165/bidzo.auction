@@ -19,6 +19,23 @@
       ]
     },
     {
+      "source": "/downloads/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"bidzo.apk\""
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
       "source": "/.well-known/assetlinks.json",
       "headers": [
         {
@@ -30,7 +47,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!manifest\\.webmanifest$|icons/|\\.well-known/assetlinks\\.json$).*)",
+      "source": "/((?!manifest\\.webmanifest$|icons/|downloads/|\\.well-known/assetlinks\\.json$).*)",
       "destination": "/index.html"
     }
   ]
