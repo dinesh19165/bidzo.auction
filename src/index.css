@@ -212,6 +212,12 @@ input.peer.sr-only {
   color: var(--text-primary);
 }
 
+@media (min-width: 1024px) {
+  section[aria-labelledby="shop-by-category-heading"] + .homepage-theme-section {
+    padding-block: 0.75rem;
+  }
+}
+
 .homepage-theme-card {
   background-color: var(--card-bg);
   border-color: var(--border-color);

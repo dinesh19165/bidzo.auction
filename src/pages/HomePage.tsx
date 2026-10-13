@@ -864,17 +864,17 @@ export function HomePage() {
   return <><CategoryPromotionBanner categoryIds={categories.map((category) => category.id)} productIds={promotionProductIds} /><div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8"><HomeBanner advertisements={homeAdvertisements} banners={homeData.banners ?? []}>
     <section className="relative overflow-visible rounded-[inherit] bg-[var(--app-bg)] text-white"><div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"><div className="home-hero-copy flex max-w-4xl flex-col gap-5"><div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10"><Sparkles className="h-4 w-4 text-amber-300" /> Trusted auctions and verified sellers</div><h1 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl"><span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-amber-300 bg-clip-text text-transparent">Buy with confidence.</span> Bid on what matters.</h1><p className="max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">Search real marketplace inventory, discover live auctions, and connect with verified sellers.</p><div className="home-hero-actions flex flex-wrap gap-3"><Link to="/auctions" className="rounded-full bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950">Browse Live Auctions</Link><Link to="/marketplace" className="rounded-full bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:bg-orange-600">Browse Marketplace</Link></div>{stats ? <div className="home-hero-stats grid gap-4 sm:grid-cols-3">{[['Live auctions', stats.liveAuctions], ['Products', stats.totalProducts], ['Verified sellers', stats.totalVendors]].map(([label, value]) => value !== null && value !== undefined ? <div key={String(label)} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5"><p className="text-xs uppercase tracking-[0.18em] text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{String(value)}</p></div> : null)}</div> : null}</div></div></section>
     </HomeBanner></div>
-    <section aria-labelledby="shop-by-category-heading" className="homepage-theme-section mx-auto w-full max-w-7xl px-4 py-2 sm:px-6 lg:px-8">
-      <div className="mb-3 flex items-center justify-between">
+    <section aria-labelledby="shop-by-category-heading" className="homepage-theme-section mx-auto w-full max-w-7xl px-4 py-2 sm:px-6 lg:px-8 lg:py-1">
+      <div className="mb-3 flex items-center justify-between lg:mb-2">
         <h2 id="shop-by-category-heading" className="text-lg font-bold sm:text-xl">Shop by Category</h2>
       </div>
       {categories.length === 0 ? <EmptyState title="No categories available" description="Categories will appear here when available." /> : (
-        <div className="grid max-w-3xl grid-cols-5 gap-x-1.5 gap-y-2 sm:gap-x-3 sm:gap-y-3">
+        <div className="grid max-w-3xl grid-cols-5 gap-x-1.5 gap-y-2 sm:gap-x-3 sm:gap-y-3 lg:max-w-none lg:grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] lg:gap-y-1">
           {mainCategories.map((category, index) => (
             <Link
               key={category.id}
               to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`}
-              className="group flex min-w-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 text-center transition-colors hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="group flex min-w-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 text-center transition-colors hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 lg:py-0"
             >
               <span className={`flex h-11 w-11 items-center justify-center rounded-full transition-transform group-hover:scale-105 sm:h-12 sm:w-12 ${categoryIconBackgrounds[index % categoryIconBackgrounds.length]}`}>
                 <CategoryIcon iconUrl={category.iconUrl} className="h-7 w-7 sm:h-8 sm:w-8" />
@@ -885,7 +885,7 @@ export function HomePage() {
           {!mainCategories.some((category) => category.name.trim().toLowerCase() === 'more') ? (
             <Link
               to="/categories"
-              className="group flex min-w-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 text-center transition-colors hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="group flex min-w-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 text-center transition-colors hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 lg:py-0"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-100 transition-transform group-hover:scale-105 sm:h-12 sm:w-12">
                 <MoreHorizontal aria-hidden="true" className="h-6 w-6 text-sky-700" />
