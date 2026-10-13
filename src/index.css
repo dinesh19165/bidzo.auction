@@ -936,6 +936,11 @@ html.theme-light .admin-rewards-toggle-knob {
   border-radius: inherit;
 }
 
+.home-hero-background img {
+  object-fit: cover !important;
+  object-position: center center;
+}
+
 .home-hero > section[class~="relative"][class~="overflow-hidden"] {
   background-color: transparent !important;
   padding-block: 0 !important;
@@ -1165,7 +1170,8 @@ html.theme-light .featured-products-section article.group:hover {
   .home-hero-content > .max-w-4xl > .inline-flex,
   .home-hero-content > .max-w-4xl > h1,
   .home-hero-content > .max-w-4xl > p {
-    visibility: hidden;
+    visibility: visible;
+    opacity: 1;
   }
 
   .home-hero-content h1 {
