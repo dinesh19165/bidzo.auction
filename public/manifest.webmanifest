@@ -1,0 +1,22 @@
+{
+  "name": "Bidzo - Online Auctions",
+  "short_name": "Bidzo",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#0875e1",
+  "background_color": "#ffffff",
+  "description": "Discover products, place bids, and shop in Bidzo's online marketplace and auctions.",
+  "icons": [
+    {
+      "src": "/icons/bidzo-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/bidzo-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
