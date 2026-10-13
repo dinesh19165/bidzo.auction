@@ -20,27 +20,13 @@ import { NotificationList } from './notifications/NotificationList';
 import { useNotificationContext } from '../context/NotificationContext';
 import { useCartContext } from '../context/CartContext';
 import { clearCustomerLocation, getRecentCustomerLocations, getStoredCustomerLocation, reverseGeocode, saveCustomerLocation, searchCustomerLocations, type CustomerLocation } from '../utils/customerLocation';
+import { resolveAndroidApkUrl } from '../utils/androidApkUrl';
 import type { User } from '../types';
 
 const ACCEPTED_CAMERA_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_VISUAL_SEARCH_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_VISUAL_SEARCH_DIMENSION = 1280;
 const INSTALL_BANNER_DISMISSED_KEY = 'bidzo-install-banner-dismissed';
-
-function resolveAndroidApkUrl(): { url: string | null; error: string | null } {
-  const configuredUrl = import.meta.env.VITE_ANDROID_APK_URL?.trim();
-  if (!configuredUrl) return { url: null, error: 'APK download is not configured yet.' };
-
-  try {
-    const url = new URL(configuredUrl);
-    if (url.protocol !== 'https:' || !url.pathname.toLowerCase().endsWith('.apk')) {
-      return { url: null, error: 'The APK download link is invalid. Please contact support.' };
-    }
-    return { url: url.href, error: null };
-  } catch {
-    return { url: null, error: 'The APK download link is invalid. Please contact support.' };
-  }
-}
 
 function InstallAppBanner() {
   const [dismissed, setDismissed] = useState(() => {
@@ -51,7 +37,8 @@ function InstallAppBanner() {
     }
   });
   const [openingDownload, setOpeningDownload] = useState(false);
-  const { url: downloadUrl, error: downloadError } = resolveAndroidApkUrl();
+  const [downloadFeedback, setDownloadFeedback] = useState('');
+  const { url: downloadUrl, error: downloadError } = resolveAndroidApkUrl(import.meta.env.VITE_ANDROID_APK_URL);
 
   const dismiss = () => {
     try {
@@ -65,17 +52,13 @@ function InstallAppBanner() {
   if (dismissed) return null;
 
   return (
-    <aside aria-label="Get the Bidzo App" className="mx-auto flex w-full max-w-7xl items-center gap-3 px-3 py-2 md:hidden sm:px-6">
+    <aside aria-label="Get the Bidzo App" className="flex w-full items-center gap-2 border-b border-[var(--border-color)] bg-[var(--section-bg)] px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
       <img src="/icons/bidzo-192.png" alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-[var(--text-primary)]">Get the Bidzo App</p>
-        {downloadUrl ? (
-          <p role="status" aria-live="polite" className="truncate text-xs text-[var(--text-muted)]">
-            {openingDownload ? 'Opening the APK download...' : 'Bid, shop, and follow auctions on the go.'}
-          </p>
-        ) : (
-          <p role="status" className="text-xs leading-4 text-[var(--text-muted)]">{downloadError}</p>
-        )}
+        <p role="status" aria-live="polite" className="text-xs leading-4 text-[var(--text-muted)]">
+          {openingDownload ? 'Opening the APK download...' : downloadFeedback || 'Bid, shop, and follow auctions on the go.'}
+        </p>
       </div>
       {downloadUrl ? (
         <a
@@ -83,14 +66,23 @@ function InstallAppBanner() {
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => {
+            setDownloadFeedback('');
             setOpeningDownload(true);
             window.setTimeout(() => setOpeningDownload(false), 2500);
           }}
-          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-500 active:bg-blue-700 sm:px-4"
+          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-500 active:bg-blue-700 sm:px-4"
         >
           <Download aria-hidden="true" className="h-4 w-4" />Install App
         </a>
-      ) : null}
+      ) : (
+        <button
+          type="button"
+          onClick={() => setDownloadFeedback(downloadError === 'APK download is not configured yet.' ? 'Bidzo APK download is not available yet.' : 'Bidzo APK download link is invalid. Please contact support.')}
+          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-500 active:bg-blue-700 sm:px-4"
+        >
+          <Download aria-hidden="true" className="h-4 w-4" />Install App
+        </button>
+      )}
       <button type="button" onClick={dismiss} aria-label="Dismiss app banner" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
         <X aria-hidden="true" className="h-4 w-4" />
       </button>
