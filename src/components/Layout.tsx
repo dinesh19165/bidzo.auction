@@ -674,7 +674,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
   const mobileNavItemClass = (active: boolean) => `flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[9px] font-medium sm:text-[10px] ${active ? 'text-blue-600' : 'mobile-nav-item'}`;
   const auctionsNavActive = location.pathname.startsWith('/auctions') || location.pathname.startsWith('/auction/');
-  const sellNavActive = location.pathname.startsWith('/register/vendor') || location.pathname.startsWith('/vendor');
 
   return (
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300" onClickCapture={(event) => {
@@ -858,7 +857,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Link to="/" aria-current={isHomePage ? 'page' : undefined} className={mobileNavItemClass(isHomePage)}><Home aria-hidden="true" className="h-4 w-4" />Home</Link>
               <Link to="/categories" aria-current={location.pathname === '/categories' ? 'page' : undefined} className={mobileNavItemClass(location.pathname === '/categories')}><Grid2X2 aria-hidden="true" className="h-4 w-4" />Categories</Link>
               <Link to="/auctions" aria-current={auctionsNavActive ? 'page' : undefined} className={mobileNavItemClass(auctionsNavActive)}><Gavel aria-hidden="true" className="h-4 w-4" />Auctions</Link>
-              <Link to="/register/vendor" aria-current={sellNavActive ? 'page' : undefined} className={mobileNavItemClass(sellNavActive)}><Store aria-hidden="true" className="h-4 w-4" />Sell</Link>
+              <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} aria-current={location.pathname.startsWith('/customer/cart') ? 'page' : undefined} className={`${mobileNavItemClass(location.pathname.startsWith('/customer/cart'))} relative`}>
+                <span className="relative inline-flex">
+                  <ShoppingCart aria-hidden="true" className="h-4 w-4" />
+                  {cartItemCount > 0 ? <span aria-hidden="true" className="absolute -right-2 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{cartItemCount > 99 ? '99+' : cartItemCount}</span> : null}
+                </span>
+                Cart
+              </Link>
               <button ref={mobileProfileTriggerRef} type="button" onClick={() => setMobileProfileOpen((value) => !value)} aria-haspopup="menu" aria-expanded={mobileProfileOpen} className={mobileNavItemClass(mobileProfileOpen)}><UserRound aria-hidden="true" className="h-4 w-4" />Account</button>
             </div>
           </nav>
