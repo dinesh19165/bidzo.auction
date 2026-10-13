@@ -870,15 +870,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {isCustomerUser ? <>
                     <Link role="menuitem" to="/customer/orders" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Orders</Link>
                     <Link role="menuitem" to="/customer/wishlist" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wishlist</Link>
-                    <Link role="menuitem" to="/wallet" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wallet</Link>
                     <Link role="menuitem" to="/customer/rewards" onClick={() => setMobileProfileOpen(false)} className={`block whitespace-normal break-words rounded-md px-3 py-2.5 text-sm leading-5 ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Rewards / Referral &amp; Earn</Link>
                     <Link role="menuitem" to="/customer/offers" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Offers</Link>
+                    <Link role="menuitem" to="/wallet" onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Wallet</Link>
                   </> : null}
-                  <button role="menuitem" onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-2 min-h-11 w-full rounded-md bg-amber-500 px-3 py-2.5 text-sm font-medium text-slate-950 hover:bg-amber-400">Logout</button>
                 </>
               ) : (
                 <Link role="menuitem" to="/login" state={{ role: 'customer' }} onClick={() => setMobileProfileOpen(false)} className={`block rounded-md px-3 py-2.5 text-sm ${theme === 'dark' ? 'text-slate-200 hover:bg-white/5' : 'text-slate-900 hover:bg-slate-100'}`}>Login</Link>
               )}
+              {user && (isCustomerUser || isVendorUser) ? (
+                <Link
+                  role="menuitem"
+                  to={isVendorUser ? '/vendor/notifications' : '/customer/notifications'}
+                  onClick={() => setMobileProfileOpen(false)}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10 hover:text-white' : 'text-slate-800 hover:bg-slate-100'}`}
+                >
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-600'}`}><Bell aria-hidden="true" className="h-4 w-4" /></span>
+                  <span>Notifications</span>
+                </Link>
+              ) : null}
+              <Link
+                role="menuitem"
+                to="/help"
+                onClick={() => setMobileProfileOpen(false)}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${theme === 'dark' ? 'text-slate-200 hover:bg-white/10 hover:text-white' : 'text-slate-800 hover:bg-slate-100'}`}
+              >
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-slate-300' : 'bg-slate-100 text-slate-600'}`}><CircleHelp aria-hidden="true" className="h-4 w-4" /></span>
+                <span>Help</span>
+              </Link>
+              {user ? <button role="menuitem" type="button" onClick={() => { setMobileProfileOpen(false); logout(); }} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl border-t px-3 py-2.5 text-left text-sm font-medium transition border-slate-200 text-amber-700 hover:bg-amber-50 dark:border-white/10 dark:text-amber-200 dark:hover:bg-amber-500/10"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'bg-white/10 text-amber-200' : 'bg-amber-50 text-amber-700'}`}><LogOut aria-hidden="true" className="h-4 w-4" /></span><span>Logout</span></button> : null}
             </div>
           ) : null}
         </>
