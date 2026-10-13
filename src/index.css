@@ -1201,14 +1201,28 @@ html.theme-light .featured-products-section article.group:hover {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.625rem;
-  }
+      justify-content: center;
+      width: 100%;
+      gap: 0.625rem;
+    }
 
-  .home-hero-stats {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
-  }
+    .home-hero-actions > a {
+      display: inline-flex;
+      width: min(100%, 18rem);
+      max-width: 100%;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.875rem;
+      padding: 0.75rem 1rem;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .home-hero-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
 
   .home-hero-stats > div {
     min-width: 0;
@@ -1255,12 +1269,13 @@ html.theme-light .featured-products-section article.group:hover {
 
 @media (max-width: 768px) {
   .home-hero-actions {
-    align-items: flex-start;
+    align-items: center;
+    justify-content: center;
     gap: 0.5rem;
   }
 
   .home-hero-actions > a {
-    width: fit-content;
+    width: min(100%, 18rem);
     max-width: 100%;
     flex: 0 0 auto;
     min-height: 44px;
