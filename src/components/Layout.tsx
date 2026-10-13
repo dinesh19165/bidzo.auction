@@ -847,7 +847,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         ) : null}
       </AnimatePresence>
 
-      <main className="overflow-x-hidden pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+      <main className="overflow-x-hidden pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
 
       <Footer />
       {showMarketplaceControls ? (
