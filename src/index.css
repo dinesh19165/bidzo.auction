@@ -1162,12 +1162,6 @@ html.theme-light .featured-products-section article.group:hover {
     gap: 0.75rem;
   }
 
-  .home-hero-content > .max-w-4xl > .inline-flex,
-  .home-hero-content > .max-w-4xl > h1,
-  .home-hero-content > .max-w-4xl > p {
-    display: none;
-  }
-
   .home-hero-content h1 {
     max-width: 100%;
     font-size: clamp(1.75rem, 7.5vw, 2.5rem);
