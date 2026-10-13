@@ -3,7 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Logo from './Logo';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, CircleHelp, Crosshair, Gavel, Globe, Grid2X2, Home, LoaderCircle, LogOut, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Bell, Briefcase, Camera, Check, ChevronDown, CircleHelp, Crosshair, Download, Gavel, Globe, Grid2X2, Home, LoaderCircle, LogOut, MapPin, Menu, Mic, Search, ShoppingBag, ShoppingCart, Store, Tag, UserRound, X } from 'lucide-react';
 import { getPortalHome, isAdminUser, useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useLocaleContext } from '../context/LocaleContext';
@@ -25,6 +25,63 @@ import type { User } from '../types';
 const ACCEPTED_CAMERA_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_VISUAL_SEARCH_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_VISUAL_SEARCH_DIMENSION = 1280;
+const INSTALL_BANNER_DISMISSED_KEY = 'bidzo-install-banner-dismissed';
+
+function resolveAndroidApkUrl(): string | null {
+  const configuredUrl = import.meta.env.VITE_ANDROID_APK_URL?.trim();
+  if (!configuredUrl) return null;
+
+  try {
+    const url = new URL(configuredUrl, window.location.origin);
+    return url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function InstallAppBanner() {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return window.localStorage.getItem(INSTALL_BANNER_DISMISSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const downloadUrl = resolveAndroidApkUrl();
+
+  const dismiss = () => {
+    try {
+      window.localStorage.setItem(INSTALL_BANNER_DISMISSED_KEY, 'true');
+    } catch {
+      // Keep the current dismissal effective when storage is unavailable.
+    }
+    setDismissed(true);
+  };
+
+  if (dismissed) return null;
+
+  return (
+    <aside aria-label="Get the Bidzo App" className="mx-auto flex w-full max-w-7xl items-center gap-3 px-3 py-2 md:hidden sm:px-6">
+      <img src="/icons/bidzo-192.png" alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-[var(--text-primary)]">Get the Bidzo App</p>
+        <p className="truncate text-xs text-[var(--text-muted)]">Bid, shop, and follow auctions on the go.</p>
+      </div>
+      {downloadUrl ? (
+        <a href={downloadUrl} className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-500">
+          <Download aria-hidden="true" className="h-4 w-4" />Install App
+        </a>
+      ) : (
+        <button type="button" disabled title="Configure VITE_ANDROID_APK_URL to enable app downloads" className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white opacity-60">
+          <Download aria-hidden="true" className="h-4 w-4" />Install App
+        </button>
+      )}
+      <button type="button" onClick={dismiss} aria-label="Dismiss app banner" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]">
+        <X aria-hidden="true" className="h-4 w-4" />
+      </button>
+    </aside>
+  );
+}
 
 async function prepareVisualSearchImage(file: File): Promise<File> {
   let bitmap: ImageBitmap | null = null;
@@ -608,6 +665,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { to: '/marketplace', label: 'Direct Buy' },
     // vendor/admin and other non-essential links intentionally omitted for mobile
   ];
+  const mobileNavItemClass = (active: boolean) => `flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[9px] font-medium sm:text-[10px] ${active ? 'text-blue-600' : 'mobile-nav-item'}`;
+  const auctionsNavActive = location.pathname.startsWith('/auctions') || location.pathname.startsWith('/auction/');
+  const sellNavActive = location.pathname.startsWith('/register/vendor') || location.pathname.startsWith('/vendor');
 
   return (
     <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300" onClickCapture={(event) => {
@@ -714,6 +774,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       </header>
 
+      <InstallAppBanner />
+
       <Modal open={visualSearchOpen} title="Visual product search" onClose={closeVisualSearch}>
         <div className="space-y-4">
           {cameraActive ? <div className="flex h-[min(42dvh,360px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/70 p-2"><video ref={cameraVideoRef} autoPlay muted playsInline className="max-h-full max-w-full object-contain" /></div> : visualSearchPreview ? <div className="flex h-[min(42dvh,360px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/70 p-2"><img src={visualSearchPreview} alt="Captured product" onError={() => { setVisualSearchError('Unable to read this image. Please try another image.'); setVisualSearchFile(null); }} className="max-h-full max-w-full object-contain" /></div> : <div className="flex h-[min(42dvh,360px)] items-center justify-center rounded-xl border border-dashed border-white/15 bg-slate-950/50 px-4 text-center text-sm text-slate-400">Take a photo or choose an image</div>}
@@ -786,11 +848,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <>
           <nav className={`fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden ${theme === 'dark' ? 'border-white/10 bg-slate-950/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl`} aria-label="Mobile navigation">
             <div className="grid grid-cols-5 gap-1">
-              <Link to="/" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Home className="h-4 w-4" />Home</Link>
-              <Link to="/customer/cart" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><ShoppingCart className="h-4 w-4" />Cart</Link>
-              <Link to="/categories" className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Grid2X2 className="h-4 w-4" />Categories</Link>
-              <button ref={mobileProfileTriggerRef} type="button" onClick={() => setMobileProfileOpen((value) => !value)} aria-haspopup="menu" aria-expanded={mobileProfileOpen} className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] ${mobileProfileOpen ? 'text-blue-500' : 'mobile-nav-item'}`}><UserRound className="h-4 w-4" />Account</button>
-              <button type="button" onClick={() => setMobileMenuOpen(true)} className="mobile-nav-item flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px]"><Menu className="h-4 w-4" />More</button>
+              <Link to="/" aria-current={isHomePage ? 'page' : undefined} className={mobileNavItemClass(isHomePage)}><Home aria-hidden="true" className="h-4 w-4" />Home</Link>
+              <Link to="/categories" aria-current={location.pathname === '/categories' ? 'page' : undefined} className={mobileNavItemClass(location.pathname === '/categories')}><Grid2X2 aria-hidden="true" className="h-4 w-4" />Categories</Link>
+              <Link to="/auctions" aria-current={auctionsNavActive ? 'page' : undefined} className={mobileNavItemClass(auctionsNavActive)}><Gavel aria-hidden="true" className="h-4 w-4" />Auctions</Link>
+              <Link to="/register/vendor" aria-current={sellNavActive ? 'page' : undefined} className={mobileNavItemClass(sellNavActive)}><Store aria-hidden="true" className="h-4 w-4" />Sell</Link>
+              <button ref={mobileProfileTriggerRef} type="button" onClick={() => setMobileProfileOpen((value) => !value)} aria-haspopup="menu" aria-expanded={mobileProfileOpen} className={mobileNavItemClass(mobileProfileOpen)}><UserRound aria-hidden="true" className="h-4 w-4" />Account</button>
             </div>
           </nav>
           {mobileProfileOpen ? (

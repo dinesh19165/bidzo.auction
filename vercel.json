@@ -17,11 +17,20 @@
           "value": "image/png"
         }
       ]
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        }
+      ]
     }
   ],
   "rewrites": [
     {
-      "source": "/((?!manifest\\.webmanifest$|icons/).*)",
+      "source": "/((?!manifest\\.webmanifest$|icons/|\\.well-known/assetlinks\\.json$).*)",
       "destination": "/index.html"
     }
   ]
