@@ -876,8 +876,8 @@ export function HomePage() {
               to={`/marketplace?categoryId=${encodeURIComponent(String(category.id))}`}
               className="group flex min-w-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 text-center transition-colors hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 lg:py-0"
             >
-              <span className={`flex h-11 w-11 items-center justify-center rounded-full transition-transform group-hover:scale-105 sm:h-12 sm:w-12 ${categoryIconBackgrounds[index % categoryIconBackgrounds.length]}`}>
-                <CategoryIcon iconUrl={category.iconUrl} className="h-7 w-7 sm:h-8 sm:w-8" />
+              <span className={`flex aspect-square h-11 w-11 shrink-0 items-center justify-center rounded-full transition-transform group-hover:scale-105 sm:h-12 sm:w-12 lg:h-14 lg:w-14 ${categoryIconBackgrounds[index % categoryIconBackgrounds.length]}`}>
+                <CategoryIcon iconUrl={category.iconUrl} className="h-7 w-7 object-contain object-center sm:h-8 sm:w-8 lg:h-10 lg:w-10" />
               </span>
               <span className="line-clamp-2 w-full text-[10px] font-medium leading-3.5 sm:text-xs sm:leading-4">{category.name}</span>
             </Link>
@@ -887,8 +887,8 @@ export function HomePage() {
               to="/categories"
               className="group flex min-w-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 text-center transition-colors hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 lg:py-0"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-100 transition-transform group-hover:scale-105 sm:h-12 sm:w-12">
-                <MoreHorizontal aria-hidden="true" className="h-6 w-6 text-sky-700" />
+              <span className="flex aspect-square h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-100 transition-transform group-hover:scale-105 sm:h-12 sm:w-12 lg:h-14 lg:w-14">
+                <MoreHorizontal aria-hidden="true" className="h-6 w-6 text-sky-700 lg:h-7 lg:w-7" />
               </span>
               <span className="text-[10px] font-medium leading-3.5 sm:text-xs sm:leading-4">More</span>
             </Link>
