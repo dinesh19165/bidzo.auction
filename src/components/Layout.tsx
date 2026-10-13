@@ -238,13 +238,15 @@ function CustomerLocationPicker({ value, onSelect, mobile = false }: { value: Cu
   };
 
   const displayName = value?.city || value?.displayName || 'Location';
+  const locationSummary = [value?.city || value?.displayName, value?.pincode].filter(Boolean).join(' - ') || 'Choose your location';
   const choices = query.trim().length >= 3 ? results : recent;
   const controlClass = mobile ? 'h-10 w-[clamp(120px,38vw,200px)] lg:h-12 lg:w-[200px]' : 'h-12 w-[200px]';
 
-  return <div ref={pickerRef} className={`relative shrink-0 ${mobile ? 'min-w-0 flex-1' : ''}`}>
-    <button type="button" aria-label="Location" aria-expanded={open} aria-haspopup="dialog" onClick={() => { setOpen((current) => !current); setError(''); }} className={`inline-flex ${controlClass} min-w-0 items-center gap-2 rounded-2xl border border-blue-100 bg-white px-3 text-sm text-slate-800 shadow-[0_2px_5px_rgba(59,130,246,0.16)] transition hover:border-blue-200 ${mobile ? 'rounded-xl lg:rounded-2xl' : ''}`}>
+  return <div ref={pickerRef} className={`customer-location-picker relative shrink-0 ${mobile ? 'mobile-location-picker min-w-0 flex-1' : ''}`}>
+    <button type="button" aria-label={`Deliver to ${locationSummary}`} aria-expanded={open} aria-haspopup="dialog" onClick={() => { setOpen((current) => !current); setError(''); }} className={`customer-location-control inline-flex ${controlClass} min-w-0 items-center gap-2 rounded-2xl border border-blue-100 bg-white px-3 text-sm text-slate-800 shadow-[0_2px_5px_rgba(59,130,246,0.16)] transition hover:border-blue-200 ${mobile ? 'rounded-xl lg:rounded-2xl' : ''}`}>
       <MapPin className="h-4 w-4 shrink-0 text-blue-500" />
-      <span className="min-w-0 flex-1 truncate text-left">{displayName}</span>
+      <span className="customer-location-current min-w-0 flex-1 truncate text-left">{displayName}</span>
+      <span className="customer-location-delivery min-w-0 flex-1 truncate text-left"><span>Deliver to </span><strong>{locationSummary}</strong></span>
       <ChevronDown className={`h-4 w-4 shrink-0 text-slate-700 transition-transform ${open ? 'rotate-180' : ''}`} />
     </button>
     {open ? <div role="dialog" aria-label="Choose your location" className={`absolute left-0 top-full z-[80] mt-2 w-[min(22rem,calc(100vw-24px))] overflow-hidden rounded-2xl border p-3 shadow-2xl ${theme === 'dark' ? 'border-white/10 bg-slate-900' : 'border-slate-200 bg-white'}`}>
@@ -682,12 +684,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
       if (event.target.closest('a, header button, [aria-label="Mobile navigation"] button')) resetCategoryNavigationState();
     }}>
       <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => { void handleGallerySelection(event); }} />
-      <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
-        <div className="mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
+      <header className={`site-header sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
+        <div className="header-main-row mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="header-brand-location flex min-w-0 items-center gap-2">
             {/* Shared header: logo always shown and links to home */}
-            <Link to="/" onClick={() => setMobileProfileOpen(false)} className="inline-flex items-center flex-shrink-0">
+            <Link to="/" onClick={() => setMobileProfileOpen(false)} className="header-logo inline-flex items-center flex-shrink-0">
               {/* Slightly smaller logo on mobile to avoid horizontal overflow */}
               <Logo className="w-[104px] sm:w-[150px] h-auto object-contain" />
            </Link>
@@ -727,7 +729,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-1.5 lg:hidden">
+          <div className="mobile-header-actions flex flex-wrap items-center justify-end gap-1.5 lg:hidden">
             {showMarketplaceControls ? (
               isCustomerUser ? (
                 <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
@@ -745,10 +747,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {showMarketplaceControls && isHomePage ? (
-          <div className={`border-t px-3 py-1 lg:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-            <div data-header-search className={`relative flex h-[46px] items-center gap-1.5 rounded-xl border px-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-slate-100'}`}>
+          <div className={`mobile-header-search-row border-t px-3 py-1 lg:hidden transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+            <div data-header-search className={`relative flex h-[46px] items-center gap-1.5 rounded-full border px-2 ${theme === 'dark' ? 'border-white/10 bg-slate-950/70' : 'border-slate-200 bg-white'}`}>
               {mobileSearchOpen ? <button type="button" aria-label="Exit search" onClick={() => setMobileSearchOpen(false)} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><ArrowLeft className="h-4 w-4" /></button> : <button type="button" aria-label="Open search" onClick={focusMobileSearch} className={`mobile-header-search-action inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme === 'dark' ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-white'}`}><Search className="h-4 w-4" /></button>}
-              <input ref={mobileSearchRef} value={headerSearch} onFocus={() => setMobileSearchOpen(true)} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search products & auctions" className={`w-full min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
+              <input ref={mobileSearchRef} value={headerSearch} onFocus={() => setMobileSearchOpen(true)} onChange={(event) => setHeaderSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submitHeaderSearch(); }} placeholder="Search for products, brands, auctions..." className={`w-full min-w-0 flex-1 bg-transparent text-sm outline-none ${theme === 'dark' ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500'}`} />
               <span aria-hidden="true" className={`h-6 w-px shrink-0 ${theme === 'dark' ? 'bg-white/15' : 'bg-slate-300'}`} />
               <button type="button" aria-label="Visual search" onClick={openVisualSearch} className={`mobile-header-search-action inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border ${theme === 'dark' ? 'border-white/15 text-slate-300 hover:border-cyan-400/50 hover:bg-white/10 hover:text-cyan-300' : 'border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-white hover:text-blue-600'}`}><Camera className="h-4 w-4" /></button>
               <button type="button" aria-label="Voice search" onClick={() => {
