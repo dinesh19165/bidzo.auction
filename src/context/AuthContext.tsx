@@ -17,7 +17,8 @@ export type UserType = 'customer' | 'vendor' | 'admin' | 'delivery' | 'support';
 export const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'] as const;
 
 export function isAdminUser(user: Pick<User, 'role' | 'type'> | null | undefined): boolean {
-  return user?.type === 'admin' || ADMIN_ROLES.includes((user?.role || '') as typeof ADMIN_ROLES[number]);
+  const role = String(user?.role || '').trim().toUpperCase();
+  return user?.type === 'admin' || ADMIN_ROLES.includes(role as typeof ADMIN_ROLES[number]);
 }
 
 export function isFranchiseAdminUser(user: Pick<User, 'role' | 'type'> | null | undefined): boolean {

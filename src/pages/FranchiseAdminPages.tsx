@@ -77,9 +77,10 @@ function useObject<T extends FranchiseRecord>(loader: () => Promise<T>, requestK
   return { item, loading, error };
 }
 
-function StatCard({ label, input, currency = false }: { label: string; input: unknown; currency?: boolean }) {
+function StatCard({ label, input, currency = false, to }: { label: string; input: unknown; currency?: boolean; to?: string }) {
   const content = currency ? money(input) : text(input);
-  return <Card className="p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</p><p className="mt-2 break-words text-2xl font-semibold text-[var(--text-primary)]">{content}</p></Card>;
+  const card = <Card className="p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</p><p className="mt-2 break-words text-2xl font-semibold text-[var(--text-primary)]">{content}</p></Card>;
+  return to ? <Link to={to} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">{card}</Link> : card;
 }
 
 function metric(record: FranchiseRecord, keys: string[]): unknown {
@@ -142,17 +143,17 @@ export function FranchiseDashboardPage() {
   const { item, loading, error } = useObject(getFranchiseDashboard);
   return <FranchiseAdminShell title="Franchise Admin" subtitle="Dashboard" activePath="/franchise/dashboard" breadcrumbs={[{ label: 'Franchise' }, { label: 'Dashboard' }]}>
     {loading ? <div className="grid gap-4 md:grid-cols-3"><SkeletonCard /><SkeletonCard /><SkeletonCard /></div> : error ? <ErrorOrEmpty error={error} empty={false} title="dashboard" /> : item ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <StatCard label="Total Vendors" input={metric(item, ['totalVendors', 'vendorCount'])} />
-      <StatCard label="Active Vendors" input={metric(item, ['activeVendors'])} />
-      <StatCard label="Total Products" input={metric(item, ['totalProducts', 'productCount'])} />
-      <StatCard label="Active Products" input={metric(item, ['activeProducts'])} />
-      <StatCard label="Total Orders" input={metric(item, ['totalOrders', 'orderCount'])} />
-      <StatCard label="Pending Orders" input={metric(item, ['pendingOrders'])} />
-      <StatCard label="Completed Orders" input={metric(item, ['completedOrders'])} />
-      <StatCard label="Total Sales" input={metric(item, ['totalSales', 'sales'])} currency />
-      <StatCard label="Total Customers" input={metric(item, ['totalCustomers', 'customerCount'])} />
-      <StatCard label="Pending Product Inspections" input={metric(item, ['pendingProductInspections', 'pendingInspections'])} />
-      <StatCard label="Advertisements" input={metric(item, ['advertisementCount', 'totalAdvertisements', 'advertisements'])} />
+      <StatCard label="Total Vendors" input={metric(item, ['totalVendors', 'vendorCount'])} to="/franchise/vendors" />
+      <StatCard label="Active Vendors" input={metric(item, ['activeVendors'])} to="/franchise/vendors" />
+      <StatCard label="Total Products" input={metric(item, ['totalProducts', 'productCount'])} to="/franchise/products" />
+      <StatCard label="Active Products" input={metric(item, ['activeProducts'])} to="/franchise/products" />
+      <StatCard label="Total Orders" input={metric(item, ['totalOrders', 'orderCount'])} to="/franchise/orders" />
+      <StatCard label="Pending Orders" input={metric(item, ['pendingOrders'])} to="/franchise/orders" />
+      <StatCard label="Completed Orders" input={metric(item, ['completedOrders'])} to="/franchise/orders" />
+      <StatCard label="Total Sales" input={metric(item, ['totalSales', 'sales'])} currency to="/franchise/analytics" />
+      <StatCard label="Total Customers" input={metric(item, ['totalCustomers', 'customerCount'])} to="/franchise/customers" />
+      <StatCard label="Pending Product Inspections" input={metric(item, ['pendingProductInspections', 'pendingInspections'])} to="/franchise/product-inspections" />
+      <StatCard label="Advertisements" input={metric(item, ['advertisementCount', 'totalAdvertisements', 'advertisements'])} to="/franchise/advertisements" />
     </div> : null}
   </FranchiseAdminShell>;
 }

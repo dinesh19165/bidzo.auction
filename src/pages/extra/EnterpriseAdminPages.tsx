@@ -12,7 +12,7 @@ import { Table } from '../../components/common/Table';
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { Link } from 'react-router-dom';
 import Logo from '../../components/Logo';
-import { isAdminUser, useAuth } from '../../context/AuthContext';
+import { getPortalHome, isAdminUser, useAuth } from '../../context/AuthContext';
 import { approveVendor, getPendingVendorApprovals, rejectVendor, requestVendorChanges, type ApprovalRequest } from '../../api/approvalApi';
 import { approveVendorDocument } from '../../api/vendorApi';
 import { approveAdminWithdrawal, getAdminWalletSummary, getAdminWalletTransactions, getPendingAdminWithdrawals, rejectAdminWithdrawal, type AdminWalletSummary, type AdminWalletTransaction, type AdminWithdrawal } from '../../api/adminWalletApi';
@@ -563,7 +563,7 @@ export function AdminLoginPage() {
         clearSession();
         throw new Error('Admin access required');
       }
-      navigate('/admin/super-dashboard', { replace: true });
+      navigate(getPortalHome(user), { replace: true });
     } catch (err) {
       clearSession();
       setError(err instanceof Error ? err.message : 'Unable to sign in.');

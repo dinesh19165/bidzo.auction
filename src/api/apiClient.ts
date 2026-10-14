@@ -55,7 +55,9 @@ export function handleUnauthorized(options: { redirect?: boolean } = {}): void {
   if (options.redirect === false) return;
 
   if (typeof window !== 'undefined') {
-    const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(detail.role || '');
+    const role = String(detail.role || '').trim().toUpperCase();
+    const type = String(detail.type || '').trim().toLowerCase();
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'FRANCHISE_ADMIN'].includes(role) || type === 'admin';
     if (!isAdmin && detail.type === 'vendor') {
       sessionStorage.setItem(EXPIRED_LOGIN_ROLE_KEY, 'vendor');
     }
