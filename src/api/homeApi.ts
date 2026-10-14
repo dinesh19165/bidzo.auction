@@ -44,6 +44,65 @@ export interface ProductResponse {
   offerActive?: boolean | null;
 }
 
+export interface HomeProductListingResponse {
+  id: number | string;
+  type?: string | null;
+  sellingType?: string | null;
+  name?: string | null;
+  title?: string | null;
+  description?: string | null;
+  price?: number | string | null;
+  status?: string | null;
+  categoryId?: number | string | null;
+  categoryName?: string | null;
+  category?: { id?: number | string | null; name?: string | null } | null;
+  vendorId?: number | string | null;
+  vendorName?: string | null;
+  vendor?: { id?: number | string | null; name?: string | null } | null;
+  seller?: string | null;
+  image?: string | null;
+  imageUrl?: string | null;
+  images?: string[] | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  reviews?: number | null;
+  verified?: boolean;
+  location?: string | null;
+  condition?: string | null;
+  createdAt?: string | null;
+  availableQuantity?: number | null;
+  offerPrice?: number | string | null;
+  discountedPrice?: number | string | null;
+  originalPrice?: number | string | null;
+  discountType?: string | null;
+  discountValue?: number | string | null;
+  offerEndsAt?: string | null;
+  offerActive?: boolean | null;
+}
+
+export function mapHomeProductListing(product: HomeProductListingResponse): ProductResponse {
+  const type = String(product.type ?? '').trim().toUpperCase();
+  const sellingType = String(product.sellingType ?? '').trim().toUpperCase();
+  return {
+    ...product,
+    name: product.name ?? product.title ?? '',
+    description: product.description ?? undefined,
+    status: product.status ?? undefined,
+    sellingType: sellingType === 'DIRECT_BUY' || sellingType === 'AUCTION'
+      ? sellingType
+      : type === 'PRODUCT'
+        ? 'DIRECT_BUY'
+        : type === 'AUCTION'
+          ? 'AUCTION'
+          : null,
+    categoryId: product.categoryId ?? product.category?.id,
+    categoryName: product.categoryName ?? product.category?.name,
+    vendorId: product.vendorId ?? product.vendor?.id,
+    vendorName: product.vendorName ?? product.vendor?.name ?? product.seller,
+    imageUrl: product.imageUrl ?? product.image,
+  };
+}
+
 export interface HomeDealResponse {
   id: number | string;
   name: string;
@@ -183,15 +242,15 @@ export async function getHomeDeals(limit: number = 12): Promise<HomeDealResponse
  * Fetch featured products
  */
 export async function getFeaturedProducts(limit: number = 8): Promise<ProductResponse[]> {
-  const response = await fetchJson<ApiResponse<ProductResponse[]>>(
+  const response = await fetchJson<ApiResponse<HomeProductListingResponse[]>>(
     `/api/home/featured-products?limit=${limit}`,
     { method: 'GET' },
     false
   );
-  if (!response?.data) {
+  if (!Array.isArray(response?.data)) {
     throw new Error(response?.message || 'Failed to load featured products');
   }
-  return response.data;
+  return response.data.map(mapHomeProductListing);
 }
 
 /**

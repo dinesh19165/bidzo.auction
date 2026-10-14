@@ -4,7 +4,8 @@ import { ArrowRight, ChevronLeft, ChevronRight, Clock3, Gavel, Heart, MoreHorizo
 import { getPortalHome, useAuth } from '../context/AuthContext';
 import { useLocaleContext } from '../context/LocaleContext';
 import { getCategoryPromotionAdvertisements, getHomeBannerAdvertisements, getProductPromotionAdvertisements, type PublicAdvertisementResponse } from '../api/advertisementApi';
-import { getHomeData, getHomeDeals, type AuctionResponse, type CategoryResponse, type HomeBannerResponse, type HomeDataResponse, type HomeDealResponse, type HomeReviewResponse, type ProductResponse } from '../api/homeApi';
+import { getFeaturedProducts, getHomeData, getHomeDeals, mapHomeProductListing, type AuctionResponse, type CategoryResponse, type HomeBannerResponse, type HomeDataResponse, type HomeDealResponse, type HomeReviewResponse, type ProductResponse } from '../api/homeApi';
+import { searchMarketplace } from '../api/marketplaceSearchApi';
 import { getPublicPromotionalBanners, type PromotionalBanner } from '../api/promotionalBannerApi';
 import { getAuctions, type AuctionListItem } from '../api/auctionApi';
 import { CategoryIcon } from '../components/categories/CategoryIcon';
@@ -18,6 +19,7 @@ import { StockBadge } from '../components/common/StockBadge';
 import { useCustomerLocation } from '../utils/customerLocation';
 import { OfferPrice } from '../components/common/OfferPrice';
 import { getActiveProductOffers } from '../services/productOfferService';
+import { buildHomeProductSections } from '../utils/homeProducts';
 
 function imageUrl(value?: string | null): string {
   if (!value) return '/logo.png';
@@ -663,11 +665,11 @@ function AuctionTile({ auction, status }: { auction: AuctionResponse; status: Ho
 }
 
 function ProductSection({ title, products, categories, emptyTitle, emptyDescription }: { title: string; products: ProductResponse[]; categories: CategoryResponse[]; emptyTitle: string; emptyDescription: string }) {
-  const visibleProducts = products.filter((product) => product.sellingType !== 'AUCTION');
+  const visibleProducts = products;
   return (
     <section className={`mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 ${title === 'Featured products' ? 'featured-products-section' : ''}`}>
-      <div className="mb-4 flex items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Bidzo marketplace</p><h2 className="mt-1 text-2xl font-semibold text-white">{title}</h2></div><Link to="/marketplace" className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/80">Browse Marketplace</Link></div>
-        {visibleProducts.length === 0 ? <EmptyState title={emptyTitle} description={emptyDescription} /> : <div className="grid min-w-0 grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4 xl:grid-cols-4 2xl:grid-cols-5">{visibleProducts.map((product) => <ProductCard key={product.id} id={product.id} title={text(product.name, 'Product')} description={text(product.description, 'Product details unavailable')} image={imageUrl(product.imageUrl || product.image || product.images?.[0])} images={(product.images || []).map((value) => imageUrl(value))} price={numberText(product.price)} category={productCategory(product, categories)} condition={text(product.condition, '')} seller={sellerName(product)} rating={product.rating ?? undefined} reviews={product.reviewCount ?? product.reviews ?? undefined} verified={product.verified} createdAt={product.createdAt} badge="Direct Buy" actionLabel="View Product" actionLink={`/product/${product.id}`} wishlistItemType="PRODUCT" wishlistProductId={Number(product.id)} availableQuantity={product.availableQuantity} offerPrice={product.offerPrice ?? product.discountedPrice} originalPrice={product.originalPrice} discountType={product.discountType || undefined} discountValue={product.discountValue == null ? undefined : String(product.discountValue)} offerEndsAt={product.offerEndsAt} offerActive={product.offerActive} showSellerMeta compact={title === 'Recently added'} containImage />)}</div>}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium uppercase tracking-[0.24em] text-blue-300">Bidzo marketplace</p><h2 className="mt-1 text-2xl font-semibold text-white">{title}</h2></div><Link to="/marketplace" className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-300/80">Browse Marketplace</Link></div>
+      {visibleProducts.length === 0 ? <EmptyState title={emptyTitle} description={emptyDescription} /> : <div className="grid min-w-0 grid-cols-2 gap-2.5 md:grid-cols-2 md:gap-4 lg:grid-cols-3 xl:grid-cols-4">{visibleProducts.map((product) => <ProductCard key={product.id} id={product.id} title={text(product.name, 'Product')} description={text(product.description, 'Product details unavailable')} image={imageUrl(product.imageUrl || product.image || product.images?.[0])} images={(product.images || []).map((value) => imageUrl(value))} price={numberText(product.price)} category={productCategory(product, categories)} condition={text(product.condition, '')} seller={sellerName(product)} rating={product.rating ?? undefined} reviews={product.reviewCount ?? product.reviews ?? undefined} verified={product.verified} createdAt={product.createdAt} badge="Direct Buy" actionLabel="View Product" actionLink={`/product/${product.id}`} wishlistItemType="PRODUCT" wishlistProductId={Number(product.id)} availableQuantity={product.availableQuantity} offerPrice={product.offerPrice ?? product.discountedPrice} originalPrice={product.originalPrice} discountType={product.discountType || undefined} discountValue={product.discountValue == null ? undefined : String(product.discountValue)} offerEndsAt={product.offerEndsAt} offerActive={product.offerActive} showSellerMeta compact={title === 'Recently added'} containImage />)}</div>}
     </section>
   );
 }
@@ -758,20 +760,48 @@ export function HomePage() {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      const [data, auctionItems, offers] = await Promise.all([getHomeData(customerLocation ? { latitude: customerLocation.latitude, longitude: customerLocation.longitude, radiusKm: 25 } : undefined), getAuctions(), getActiveProductOffers()]);
+      const [data, auctionItems, offers, featuredListings, recentListingPage] = await Promise.all([
+        getHomeData(customerLocation ? { latitude: customerLocation.latitude, longitude: customerLocation.longitude, radiusKm: 25 } : undefined),
+        getAuctions(),
+        getActiveProductOffers(),
+        getFeaturedProducts(20),
+        searchMarketplace({
+          page: 0,
+          size: 20,
+          sort: 'newest',
+          buyNowOnly: true,
+          latitude: customerLocation?.latitude,
+          longitude: customerLocation?.longitude,
+          radiusKm: 25,
+        }),
+      ]);
       const applyOffer = (product: ProductResponse) => {
         const offer = offers.get(String(product.id));
         return offer ? { ...product, offerPrice: offer.discountedPrice, originalPrice: offer.price, discountType: offer.discountType, discountValue: offer.discountValue, offerEndsAt: offer.offerEndsAt, offerActive: true } : product;
       };
+      const knownProducts = new Map(
+        [...(data.featuredProducts || []), ...(data.recentProducts || [])].map((product) => [String(product.id), product]),
+      );
+      const enrichProduct = (product: ProductResponse) => applyOffer({
+        ...product,
+        ...knownProducts.get(String(product.id)),
+      });
+      const { featuredProducts, recentProducts } = buildHomeProductSections(
+        featuredListings.map(enrichProduct),
+        recentListingPage.content
+          .filter((item) => item.type === 'PRODUCT')
+          .map(mapHomeProductListing)
+          .map(enrichProduct),
+      );
       const homeAuctions = auctionItems.map(toHomeAuction);
       const liveAuctions = data.liveAuctions?.length ? mergeHomeAuctionImages(data.liveAuctions, homeAuctions) : homeAuctions;
       const upcomingAuctions = data.upcomingAuctions?.length ? mergeHomeAuctionImages(data.upcomingAuctions, homeAuctions) : homeAuctions;
       const endingSoonAuctions = data.endingSoonAuctions?.length ? mergeHomeAuctionImages(data.endingSoonAuctions, homeAuctions) : homeAuctions;
       setHomeData({
         ...data,
-        featuredProducts: (data.featuredProducts || []).map(applyOffer),
+        featuredProducts,
         popularProducts: (data.popularProducts || []).map(applyOffer),
-        recentProducts: (data.recentProducts || []).map(applyOffer),
+        recentProducts,
         liveAuctions,
         upcomingAuctions,
         endingSoonAuctions,
