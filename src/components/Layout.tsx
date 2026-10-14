@@ -858,7 +858,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="grid grid-cols-5 gap-1">
               <Link to="/" aria-current={isHomePage ? 'page' : undefined} className={mobileNavItemClass(isHomePage)}><Home aria-hidden="true" className="h-4 w-4" />Home</Link>
               <Link to="/categories" aria-current={location.pathname === '/categories' ? 'page' : undefined} className={mobileNavItemClass(location.pathname === '/categories')}><Grid2X2 aria-hidden="true" className="h-4 w-4" />Categories</Link>
-              <Link to="/auctions" aria-current={auctionsNavActive ? 'page' : undefined} className={mobileNavItemClass(auctionsNavActive)}><Gavel aria-hidden="true" className="h-4 w-4" />Auctions</Link>
+              <Link to="/auctions" aria-current={auctionsNavActive ? 'page' : undefined} className={mobileNavItemClass(auctionsNavActive)}>
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 p-1.5 text-white shadow-md shadow-orange-500/25">
+                  <Gavel aria-hidden="true" className="h-5 w-5" />
+                </span>
+                <span className="leading-none">Auctions</span>
+              </Link>
               <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} aria-current={location.pathname.startsWith('/customer/cart') ? 'page' : undefined} className={`${mobileNavItemClass(location.pathname.startsWith('/customer/cart'))} relative`}>
                 <span className="relative inline-flex">
                   <ShoppingCart aria-hidden="true" className="h-4 w-4" />
