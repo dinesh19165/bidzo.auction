@@ -862,8 +862,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Link to="/" aria-current={isHomePage ? 'page' : undefined} className={mobileNavItemClass(isHomePage)}><Home aria-hidden="true" className="h-4 w-4" />Home</Link>
               <Link to="/categories" aria-current={location.pathname === '/categories' ? 'page' : undefined} className={mobileNavItemClass(location.pathname === '/categories')}><Grid2X2 aria-hidden="true" className="h-4 w-4" />Categories</Link>
               <Link to="/auctions" aria-current={auctionsNavActive ? 'page' : undefined} className={mobileNavItemClass(auctionsNavActive)}>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-white shadow-md shadow-orange-500/25">
-                  <Gavel aria-hidden="true" className="h-5 w-5" strokeWidth={2.5} />
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 text-white shadow-md shadow-orange-500/25">
+                  <Gavel aria-hidden="true" className="h-7 w-7" strokeWidth={2.5} />
                 </span>
                 <span className="leading-none">Auctions</span>
               </Link>
