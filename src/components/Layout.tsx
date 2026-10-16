@@ -731,16 +731,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <div className="mobile-header-actions flex flex-wrap items-center justify-end gap-1.5 lg:hidden">
             {showMarketplaceControls ? (
-              isCustomerUser ? (
-                <button type="button" aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`} onClick={() => navigate('/customer/notifications')} className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
-                  <Bell aria-hidden="true" className="h-4 w-4" />
-                  {unreadCount > 0 ? <span aria-hidden="true" className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
-                </button>
-              ) : !user ? (
-                <>
+              <>
+                <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border md:hidden ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+                  <ShoppingCart aria-hidden="true" className="h-4 w-4" />
+                  {cartItemCount > 0 ? <span aria-hidden="true" className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{cartItemCount > 99 ? '99+' : cartItemCount}</span> : null}
+                </Link>
+                {isCustomerUser ? (
+                  <button type="button" aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`} onClick={() => navigate('/customer/notifications')} className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>
+                    <Bell aria-hidden="true" className="h-4 w-4" />
+                    {unreadCount > 0 ? <span aria-hidden="true" className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
+                  </button>
+                ) : !user ? (
                   <Link to="/customer/offers" aria-label="Offers" className={`mobile-header-icon-control relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${theme === 'dark' ? 'border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20' : 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'}`}><Tag className="h-4 w-4" /></Link>
-                </>
-              ) : null
+                ) : null}
+              </>
             ) : null}
           </div>
         </div>
@@ -863,13 +867,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </span>
                 <span className="leading-none">Auctions</span>
               </Link>
-              <Link to="/customer/cart" aria-label={`Cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`} aria-current={location.pathname.startsWith('/customer/cart') ? 'page' : undefined} className={`${mobileNavItemClass(location.pathname.startsWith('/customer/cart'))} relative`}>
-                <span className="relative inline-flex">
-                  <ShoppingCart aria-hidden="true" className="h-4 w-4" />
-                  {cartItemCount > 0 ? <span aria-hidden="true" className="absolute -right-2 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-bold leading-4 text-white">{cartItemCount > 99 ? '99+' : cartItemCount}</span> : null}
-                </span>
-                Cart
-              </Link>
+              <Link to="/customer/offers" aria-current={location.pathname.startsWith('/customer/offers') ? 'page' : undefined} className={mobileNavItemClass(location.pathname.startsWith('/customer/offers'))}><Tag aria-hidden="true" className="h-4 w-4" />Offers</Link>
               <button ref={mobileProfileTriggerRef} type="button" onClick={() => setMobileProfileOpen((value) => !value)} aria-haspopup="menu" aria-expanded={mobileProfileOpen} className={mobileNavItemClass(mobileProfileOpen)}><UserRound aria-hidden="true" className="h-4 w-4" />Account</button>
             </div>
           </nav>
