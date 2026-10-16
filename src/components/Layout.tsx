@@ -678,13 +678,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const auctionsNavActive = location.pathname.startsWith('/auctions') || location.pathname.startsWith('/auction/');
 
   return (
-    <div className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300" onClickCapture={(event) => {
+    <div className="app-shell min-h-screen overflow-x-clip transition-colors duration-300" onClickCapture={(event) => {
       if (!isHomePage || !(event.target instanceof Element)) return;
       if (event.target.closest('[data-main-category-toggle]')) return;
       if (event.target.closest('a, header button, [aria-label="Mobile navigation"] button')) resetCategoryNavigationState();
     }}>
       <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => { void handleGallerySelection(event); }} />
-      <header className={`site-header sticky top-0 z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
+      <header className={`site-header sticky top-[env(safe-area-inset-top)] z-50 border-b backdrop-blur-xl transition duration-300 ${theme === 'dark' ? 'border-white/10 bg-slate-950/95 shadow-black/20' : 'border-slate-200 bg-white/95 shadow-slate-200/10'}`}>
         <div className="header-main-row mx-auto flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6 lg:px-8">
           {/* Logo component: uses /logo.png if present in public/, falls back to text */}
           <div className="header-brand-location flex min-w-0 items-center gap-2">
