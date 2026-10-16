@@ -218,12 +218,7 @@ export function ProductDetailPage() {
         </section>
 
         <section aria-label="Product information" className="flex min-w-0 flex-col">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-muted)]">
-            <Link to="/" className="hover:text-blue-500">Home</Link>
-            {product.category ? <><span aria-hidden="true">›</span><Link to="/categories" className="max-w-[12rem] truncate hover:text-blue-500">{product.category}</Link></> : null}
-            {product.sku ? <><span aria-hidden="true">›</span><span className="break-all">SKU: {product.sku}</span></> : null}
-          </div>
-          <div className="mt-3 flex min-w-0 items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start justify-between gap-3">
             <h1 className="min-w-0 break-words text-2xl font-semibold leading-snug text-[var(--text-primary)] sm:text-3xl [overflow-wrap:anywhere]">{product.title}</h1>
             {averageRating !== null ? <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-sm font-semibold text-emerald-600"><Star aria-hidden="true" className="h-4 w-4 fill-current" />{averageRating.toFixed(1)}</span> : null}
           </div>
@@ -248,7 +243,6 @@ export function ProductDetailPage() {
               {addingToCart ? 'Adding...' : 'Add to cart'}
             </button> : null}
           </div>
-          {product.seller && product.vendorId != null ? <Link to={`/customer/seller/${product.vendorId}`} className="mt-4 w-fit text-sm font-medium text-blue-600 hover:text-blue-700">Visit seller profile <span aria-hidden="true">→</span></Link> : null}
         </section>
       </div>
 
@@ -306,19 +300,6 @@ export function ProductDetailPage() {
           )}
         </section>
 
-        <section id="product-questions" aria-labelledby="product-questions-heading" className="py-5">
-          <h2 id="product-questions-heading" className="text-lg font-semibold text-[var(--text-primary)]">Questions &amp; Answers</h2>
-          {product.qna?.length ? (
-            <div className="mt-3 divide-y divide-[var(--border-color)]">
-              {product.qna.map((item, index) => (
-                <article key={`${item.question}-${index}`} className="py-3 text-sm text-[var(--text-secondary)]">
-                  <p className="font-medium text-[var(--text-primary)]">Q: {item.question}</p>
-                  <p className="mt-1">A: {item.answer}</p>
-                </article>
-              ))}
-            </div>
-          ) : <p className="mt-2 text-sm text-[var(--text-muted)]">No questions yet.</p>}
-        </section>
       </div>
 
       <div className="mt-8">
