@@ -429,8 +429,8 @@ export function AuctionCard({ id, title, image, status, currentBid, endsIn, sell
   return (
     <motion.article whileHover={{ y: -8, scale: 1.01, boxShadow: '0 32px 80px -24px rgba(59,130,246,0.35)' }} transition={{ duration: 0.24 }} className="group w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300 hover:border-blue-400/40">
       <div className="relative overflow-hidden">
-        <div className="thumbnail-wrapper" style={{ width: 280, height: 180, maxWidth: '100%', overflow: 'hidden', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-          <img src={image} alt={title} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} className="bg-slate-800 transition-all duration-300 group-hover:scale-[1.05]" />
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-800">
+          <img src={image} alt={title} loading="lazy" decoding="async" className="h-full w-full object-contain object-center p-2" />
         </div>
         <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-2">
           <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${status === 'Live' ? 'bg-emerald-500/15 text-emerald-300' : status === 'Upcoming' ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-700/80 text-slate-300'}`}>
