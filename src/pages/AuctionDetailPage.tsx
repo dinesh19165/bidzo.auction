@@ -1,9 +1,9 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { SectionShell } from '../components/SectionShell';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, Heart, ShieldCheck, Sparkles, Star, Users, Clock3, CheckCircle2 } from 'lucide-react';
+import { Heart, Share2, ShieldCheck, Sparkles, Clock3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useWishlist } from '../context/WishlistContext';
 import { createAuctionRazorpayPayment, getAuctionById, getAuctionImages, getAuctionWinner, getEffectiveAuctionStatus, getProductImages, verifyAuctionRazorpayPayment, type AuctionImageResponse, type AuctionResponse, type AuctionWinnerResponse } from '../api/auctionApi';
 import { getAuctionBids, placeBid, type BidResponse } from '../api/bidApi';
 import { getAuctionPaymentState, getOrderById, isPaidStatus } from '../api/orderApi';
@@ -14,7 +14,8 @@ import type { AuctionRegistrationStatusResponse, RazorpayOrderResponse, PaymentR
 import { EmptyState, ErrorState, SkeletonCard } from '../components/loading/LoadingComponents';
 import { ProductSpecification } from '../components/marketplace/MarketplaceComponents';
 import { formatCurrency } from '../utils/formatters';
-import { BidHistory, BidCard, CountdownTimer, WinnerBanner } from '../components/auction/AuctionComponents';
+import { BidHistory, WinnerBanner } from '../components/auction/AuctionComponents';
+import { showToast } from '../components/ui/toast';
 import { getProductById } from '../api/productApi';
 import DeliveryAddressSelector from '../components/checkout/DeliveryAddressSelector';
 import { getAddresses, type AddressResponse } from '../api/addressApi';
@@ -70,6 +71,7 @@ export function AuctionDetailPage() {
   const { id } = useParams();
   const auctionId = Number(id);
   const { user, authReady } = useAuth();
+  const { getItem, isPending, toggle } = useWishlist();
   const [auction, setAuction] = useState<AuctionResponse | null>(null);
   const [productDetails, setProductDetails] = useState<Awaited<ReturnType<typeof getProductById>> | null>(null);
   const [images, setImages] = useState<AuctionImageResponse[]>([]);
@@ -357,6 +359,56 @@ export function AuctionDetailPage() {
   };
 
   const isWinner = Boolean(winner && user && String(winner.winnerId) === String(user.id));
+  const auctionWishlistParams = auction ? { itemType: 'AUCTION' as const, auctionId: auction.id } : null;
+  const currentAuctionWishlistItem = auctionWishlistParams ? getItem(auctionWishlistParams) : undefined;
+  const favoritePending = auctionWishlistParams ? isPending(auctionWishlistParams) : false;
+
+  const toggleAuctionFavorite = async () => {
+    if (!auction || !auctionWishlistParams || favoritePending) return;
+    if (!user || (user.type !== 'customer' && user.role !== 'CUSTOMER')) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await toggle(auctionWishlistParams);
+      showToast(
+        currentAuctionWishlistItem ? 'Removed from favourites' : 'Added to favourites',
+        currentAuctionWishlistItem ? 'The auction is no longer in your saved collection.' : 'Saved for your next bidding session.',
+        currentAuctionWishlistItem ? 'info' : 'success',
+      );
+    } catch (reason) {
+      showToast('Unable to update favourites', reason instanceof Error ? reason.message : 'Please try again.', 'warning');
+    }
+  };
+
+  const handleShareAuction = async () => {
+    if (!auction) return;
+    const auctionUrl = typeof window === 'undefined'
+      ? `/auctions/${auction.id}`
+      : new URL(`/auctions/${auction.id}`, window.location.origin).toString();
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: auction.title, text: `Check out ${auction.title} on Bidzo`, url: auctionUrl });
+        showToast('Auction shared', 'The auction link has been opened in your sharing sheet.', 'success');
+        return;
+      }
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(auctionUrl);
+        showToast('Auction link copied', 'The auction link has been copied to your clipboard.', 'success');
+        return;
+      }
+      throw new Error('Clipboard API unavailable');
+    } catch (reason) {
+      const cancelled = reason instanceof Error && reason.name === 'AbortError';
+      showToast(
+        cancelled ? 'Share cancelled' : 'Unable to share auction',
+        cancelled ? 'Share was cancelled.' : 'Unable to share this auction right now. Please try again.',
+        cancelled ? 'info' : 'warning',
+      );
+    }
+  };
 
   useEffect(() => {
     if (!isWinner || !authReady || !user || paymentCompleted) return;
@@ -705,201 +757,204 @@ export function AuctionDetailPage() {
   }
 
   return (
-    <SectionShell title="Auction details" subtitle={auction.title}>
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24 }} className="space-y-4">
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">
-                <Sparkles className="h-4 w-4" /> {statusLabel} auction
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-300">
-                <ShieldCheck className="h-4 w-4 text-blue-300" /> Verified seller
-              </div>
+    <main className="mx-auto w-full max-w-[1440px] min-w-0 px-4 py-5 sm:px-6 lg:px-8">
+      <h1 className="mb-5 break-words text-2xl font-semibold leading-snug text-[var(--text-primary)] sm:mb-7 sm:text-3xl [overflow-wrap:anywhere]">{auction.title}</h1>
+      <div className="grid min-w-0 items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10">
+        <section aria-label="Auction images" className="grid min-w-0 content-start gap-3 lg:grid-cols-[4.5rem_minmax(0,1fr)]">
+          <div className="order-2 flex max-w-full gap-2 overflow-x-auto lg:order-1 lg:flex-col lg:overflow-x-hidden">
+            {gallery.map((image, index) => (
+              <button key={image.id} type="button" onClick={() => setSelectedImage(index)} aria-label={`Show auction image ${index + 1}`} aria-pressed={selectedImage === index} className={`h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition sm:h-20 sm:w-20 lg:h-[4.5rem] lg:w-[4.5rem] ${selectedImage === index ? 'border-blue-500' : 'border-[var(--border-color)]'}`}>
+                <img src={image.url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+          <div className="relative order-1 min-w-0 overflow-hidden rounded-xl bg-[var(--surface-muted)] lg:order-2">
+            <img src={mainImage} alt={gallery[selectedImage]?.altText || auction.title} loading="lazy" decoding="async" className="aspect-[4/3] max-h-[38rem] w-full object-contain" />
+            <div className="absolute right-3 top-3 flex gap-2 sm:right-4 sm:top-4">
+              <button type="button" onClick={() => void toggleAuctionFavorite()} disabled={favoritePending} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--text-secondary)] transition hover:text-rose-500 disabled:cursor-wait disabled:opacity-60" aria-label="Toggle auction favorite" aria-busy={favoritePending}>
+                <Heart className={`h-5 w-5 transition ${currentAuctionWishlistItem ? 'fill-current text-rose-500' : ''}`} />
+              </button>
+              <button type="button" onClick={() => void handleShareAuction()} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--text-secondary)] transition hover:text-blue-600" aria-label="Share auction">
+                <Share2 className="h-5 w-5" />
+              </button>
             </div>
-            <img src={mainImage} alt={gallery[selectedImage]?.altText || auction.title} loading="lazy" decoding="async" className="mt-4 aspect-[4/3] max-h-80 w-full rounded-[20px] object-contain" />
-            <div className="mt-4 flex max-w-full gap-2 overflow-x-auto">
-              {gallery.map((image, index) => (
-                <button key={image.id} type="button" onClick={() => setSelectedImage(index)} className={`shrink-0 overflow-hidden rounded-xl border ${selectedImage === index ? 'border-blue-500' : 'border-white/10'}`}>
-                  <img src={image.url} alt={image.altText || auction.title} loading="lazy" decoding="async" className="h-16 w-16 rounded-lg object-cover sm:h-20 sm:w-20" />
-                </button>
-              ))}
-            </div>
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-              <p className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-amber-300" /> Starting price: {formatCurrency(getAmountValue(auction.startingPrice))}</p>
-              <p className="mt-2">Current highest bid: {currentBidLabel}</p>
-              <p className="mt-2">Starts: {formatDateTime(auction.startAt)}</p>
-              <p className="mt-2">Ends: {formatDateTime(auction.endAt)}</p>
-            </div>
-            {auction.videoUrl ? (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-sm font-semibold text-white">Auction video</h3>
-                <video src={auction.videoUrl} controls playsInline className="mt-3 aspect-video w-full max-w-xl rounded-xl bg-slate-950 object-contain" />
-              </div>
-            ) : null}
+            {gallery.length > 1 ? <span className="absolute bottom-3 right-3 rounded-full bg-slate-950/75 px-2.5 py-1 text-xs font-medium text-white">{selectedImage + 1} / {gallery.length}</span> : null}
+          </div>
+          {auction.videoUrl ? <video src={auction.videoUrl} controls playsInline className="aspect-video w-full rounded-xl bg-slate-950 object-contain lg:col-span-2" /> : null}
+        </section>
+
+        <section aria-label="Auction information" className="min-w-0 self-start">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${canBid ? 'bg-emerald-500/10 text-emerald-700' : 'bg-[var(--surface-muted)] text-[var(--text-secondary)]'}`}>
+              <Sparkles aria-hidden="true" className="h-4 w-4" /> {statusLabel} auction
+            </span>
+            <span className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)]">
+              <ShieldCheck aria-hidden="true" className="h-4 w-4 text-blue-600" /> Verified seller
+            </span>
           </div>
 
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <h3 className="text-lg font-semibold text-white">Auction details</h3>
-            <p className="mt-4 text-sm leading-7 text-slate-300">{auction.description || 'No description available for this auction.'}</p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <BidCard title="Auction information">
-                <div className="space-y-3 text-sm text-slate-300">
-                  <div className="flex items-center justify-between"><span className="text-slate-400">Status</span><span className="font-semibold text-white">{statusLabel}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-slate-400">Start time</span><span className="font-semibold text-white">{formatDateTime(auction.startAt)}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-slate-400">End time</span><span className="font-semibold text-white">{formatDateTime(auction.endAt)}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-slate-400">Bid count</span><span className="font-semibold text-white">{bids.length}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-slate-400">Auction ID</span><span className="font-semibold text-white">{auction.id}</span></div>
-                </div>
-              </BidCard>
-              <BidCard title="Seller details">
-                <div className="space-y-3 text-sm text-slate-300">
-                  <div className="flex items-center justify-between"><span className="text-slate-400">Vendor</span><span className="font-semibold text-white">{auction.vendorId ? `Vendor ${auction.vendorId}` : 'TBD'}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-slate-400">Product</span><span className="font-semibold text-white">{auction.productId ? `#${auction.productId}` : 'N/A'}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-slate-400">Auction created</span><span className="font-semibold text-white">{formatDateTime(auction.createdAt)}</span></div>
-                </div>
-              </BidCard>
-            </div>
+          <div className="mt-5 border-t border-[var(--border-color)] pt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Current bid</p>
+            <p className="mt-1 break-words text-3xl font-semibold text-[var(--text-primary)] sm:text-4xl">{currentBidLabel}</p>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">Starting price: <span className="font-medium text-[var(--text-secondary)]">{formatCurrency(getAmountValue(auction.startingPrice))}</span></p>
           </div>
 
-          {auction.productId && (
-            <div className="mt-4">
-              <ProductSpecification specs={productDetails?.specifications || []} />
-            </div>
-          )}
-        </motion.div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-y border-[var(--border-color)] py-3 text-sm">
+            <span className="inline-flex items-center gap-2 text-[var(--text-muted)]"><Clock3 aria-hidden="true" className="h-4 w-4 text-orange-500" />{isScheduled ? 'Starts in' : canBid ? 'Time left' : 'Auction ended'}</span>
+            <span className="font-semibold text-[var(--text-primary)]">{formatCountdownLabel(auction.startAt, auction.endAt, effectiveAuctionStatus)}</span>
+          </div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24 }} className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.24em] text-amber-300">Current bid</p>
-                <h3 className="mt-2 text-3xl font-semibold text-white">{currentBidLabel}</h3>
-              </div>
-              <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">{statusLabel}</div>
-            </div>
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--text-muted)]">
+            <span>Seller: <span className="font-medium text-[var(--text-secondary)]">{auction.vendorId ? `Vendor ${auction.vendorId}` : 'Verified seller'}</span></span>
+            {auction.productId ? <span>Product #{auction.productId}</span> : null}
+          </div>
 
-            <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4 text-sm text-slate-200">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">{isScheduled ? 'Starts in' : canBid ? 'Time left' : 'Ended'}</span>
-                <span className="font-semibold text-white">{formatCountdownLabel(auction.startAt, auction.endAt, auction.status)}</span>
-              </div>
-            </div>
-
-            {isEnded ? (
-              <div className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-                <WinnerBanner label={winner ? `Winner ID ${winner.winnerId}` : 'Winner information not available yet'} />
-                {winner ? (
-                  <div className="space-y-2 text-sm text-slate-300">
-                    <div className="flex items-center justify-between"><span className="text-slate-400">Final price</span><span className="font-semibold text-white">{formatCurrency(getAmountValue(winner.finalPrice))}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-slate-400">Bid ID</span><span className="font-semibold text-white">{winner.bidId}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-slate-400">Awarded at</span><span className="font-semibold text-white">{formatDateTime(winner.awardedAt)}</span></div>
-                    {isWinner ? (
-                      <div className="mt-4 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
-                        <p className="text-sm text-slate-300">You are the winning bidder.</p>
-                        {paymentStatusLoading ? (
-                          <div className="mt-3 inline-flex items-center justify-between rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-300">
-                            Checking payment status...
-                          </div>
-                        ) : paymentCompleted ? (
-                          <div className="mt-3 space-y-2"><div className="inline-flex items-center justify-between rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300">Payment Completed</div>{confirmedOrderId ? <button type="button" onClick={() => navigate(`/customer/orders/${confirmedOrderId}`)} className="block w-full rounded-full border border-emerald-500/30 px-4 py-2 text-sm font-semibold text-emerald-200">View Order</button> : null}</div>
-                        ) : (
-                          showAddressSelector ? <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                            <DeliveryAddressSelector
-                              selectedAddressId={selectedAddress?.id || readAuctionFlowState().addressId}
-                              onSelect={(address) => {
-                                setSelectedAddress(address);
-                                writeAuctionFlowState({ ...readAuctionFlowState(), addressId: address.id });
-                                setShowAddressSelector(false);
-                                handlePayNow();
-                              }}
-                            />
-                          </div> : <button
-                            type="button"
-                            onClick={handlePayNow}
-                            disabled={paymentLoading || paymentStatusLoading}
-                            className="mt-3 w-full rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {paymentLoading ? 'Preparing payment…' : 'Pay Now'}
-                          </button>
-                        )}
-                        {paymentError ? <p className="mt-3 text-sm text-rose-300">{paymentError}</p> : null}
-                        {!paymentCompleted && isPaymentReady ? <p className="mt-3 text-sm text-slate-400">Razorpay checkout is ready. Complete payment in the popup.</p> : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="mt-5 space-y-3">
-              <label className="block text-sm font-medium text-slate-300">Place bid</label>
-              <input
-                value={bidAmount}
-                onChange={(event) => setBidAmount(event.target.value)}
-                disabled={!canBid || placingBid}
-                placeholder={canBid ? `Enter amount above ${currentBidLabel}` : 'Bidding unavailable'}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/40 disabled:cursor-not-allowed disabled:opacity-60"
-                type="number"
-                min={currentBidValue + 1}
-              />
-              {bidError ? <p className="text-sm text-rose-300">{bidError}</p> : null}
-              {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
-              {isEnded ? <p className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm font-semibold text-amber-300">Auction Ended</p> : null}
-              {!registered && !isEnded ? (
-                <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-300">
-                  {registrationLoading ? (
-                    <p>Checking auction registration status…</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {registrationRequiresPayment && registrationAmountLabel ? (
-                        <p>Pay {registrationAmountLabel} registration fee to place bids for this auction.</p>
+          {isEnded ? (
+            <section aria-label="Auction winner" className="mt-5 border-t border-[var(--border-color)] pt-4">
+              <WinnerBanner label={winner ? `Winner ID ${winner.winnerId}` : 'Winner information not available yet'} />
+              {winner ? (
+                <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                  <div className="flex items-center justify-between gap-3"><span className="text-[var(--text-muted)]">Final price</span><span className="font-semibold text-[var(--text-primary)]">{formatCurrency(getAmountValue(winner.finalPrice))}</span></div>
+                  <div className="flex items-center justify-between gap-3"><span className="text-[var(--text-muted)]">Bid ID</span><span className="font-semibold text-[var(--text-primary)]">{winner.bidId}</span></div>
+                  <div className="flex items-center justify-between gap-3"><span className="text-[var(--text-muted)]">Awarded at</span><span className="text-right font-semibold text-[var(--text-primary)]">{formatDateTime(winner.awardedAt)}</span></div>
+                  {isWinner ? (
+                    <div className="mt-4 border-t border-[var(--border-color)] pt-4">
+                      <p className="text-sm text-[var(--text-secondary)]">You are the winning bidder.</p>
+                      {paymentStatusLoading ? (
+                        <p className="mt-3 text-sm font-semibold text-[var(--text-muted)]">Checking payment status...</p>
+                      ) : paymentCompleted ? (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-sm font-semibold text-emerald-600">Payment Completed</p>
+                          {confirmedOrderId ? <button type="button" onClick={() => navigate(`/customer/orders/${confirmedOrderId}`)} className="text-sm font-semibold text-blue-600 hover:underline">View Order</button> : null}
+                        </div>
                       ) : (
-                        <p>Registration is available for this auction without a payment. Complete registration to bid.</p>
+                        showAddressSelector ? <div className="mt-4">
+                          <DeliveryAddressSelector
+                            selectedAddressId={selectedAddress?.id || readAuctionFlowState().addressId}
+                            onSelect={(address) => {
+                              setSelectedAddress(address);
+                              writeAuctionFlowState({ ...readAuctionFlowState(), addressId: address.id });
+                              setShowAddressSelector(false);
+                              handlePayNow();
+                            }}
+                          />
+                        </div> : <button
+                          type="button"
+                          onClick={handlePayNow}
+                          disabled={paymentLoading || paymentStatusLoading}
+                          className="mt-3 min-h-12 w-full rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {paymentLoading ? 'Preparing payment…' : 'Pay Now'}
+                        </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={handleRegisterNow}
-                        disabled={registrationLoadingAction || isRegistrationReady}
-                        className="w-full rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {registrationLoadingAction ? 'Preparing registration…' : isRegistrationReady ? 'Opening checkout…' : registrationRequiresPayment && registrationAmountLabel ? `Register for ${registrationAmountLabel}` : 'Register now'}
-                      </button>
-                      {registrationErrorAction ? <p className="mt-3 text-sm text-rose-300">{registrationErrorAction}</p> : null}
-                      {registrationSuccessMessage ? <p className="mt-3 text-sm text-emerald-300">{registrationSuccessMessage}</p> : null}
-                      {registrationError && !registrationErrorAction ? <p className="mt-3 text-sm text-rose-300">{registrationError}</p> : null}
+                      {paymentError ? <p className="mt-3 text-sm text-rose-600">{paymentError}</p> : null}
+                      {!paymentCompleted && isPaymentReady ? <p className="mt-3 text-sm text-[var(--text-muted)]">Razorpay checkout is ready. Complete payment in the popup.</p> : null}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ) : null}
-              <button
-                type="button"
-                onClick={handlePlaceBid}
-                disabled={bidDisabled}
-                className="mt-4 w-full rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {placingBid ? 'Placing bid…' : canBid ? 'Place Bid' : isScheduled ? 'Auction scheduled' : 'Bidding closed'}
-              </button>
-              {isScheduled ? <p className="text-sm text-slate-400">Bidding opens when the auction starts.</p> : null}
-              {isEnded ? <p className="text-sm text-slate-400">Bidding is closed for ended auctions.</p> : null}
-            </div>
+            </section>
+          ) : null}
+
+          <div className="mt-5 space-y-3 border-t border-[var(--border-color)] pt-4">
+            <label htmlFor="auction-bid-amount" className="block text-sm font-semibold text-[var(--text-primary)]">Place bid</label>
+            <input
+              id="auction-bid-amount"
+              value={bidAmount}
+              onChange={(event) => setBidAmount(event.target.value)}
+              disabled={!canBid || placingBid}
+              placeholder={canBid ? `Enter amount above ${currentBidLabel}` : 'Bidding unavailable'}
+              className="w-full min-w-0 rounded-xl border border-[var(--border-color)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              type="number"
+              min={currentBidValue + 1}
+            />
+            {bidError ? <p className="text-sm text-rose-600">{bidError}</p> : null}
+            {message ? <p className="text-sm text-emerald-600">{message}</p> : null}
+            {isEnded ? <p className="text-sm font-semibold text-amber-600">Auction Ended</p> : null}
+            {!registered && !isEnded ? (
+              <div className="space-y-3 border-y border-[var(--border-color)] py-3 text-sm text-[var(--text-secondary)]">
+                {registrationLoading ? (
+                  <p>Checking auction registration status…</p>
+                ) : (
+                  <>
+                    <p>{registrationRequiresPayment && registrationAmountLabel
+                      ? `Pay ${registrationAmountLabel} registration fee to place bids for this auction.`
+                      : 'Registration is available for this auction without a payment. Complete registration to bid.'}</p>
+                    <button
+                      type="button"
+                      onClick={handleRegisterNow}
+                      disabled={registrationLoadingAction || isRegistrationReady}
+                      className="min-h-12 w-full rounded-xl border border-blue-600 px-5 py-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {registrationLoadingAction ? 'Preparing registration…' : isRegistrationReady ? 'Opening checkout…' : registrationRequiresPayment && registrationAmountLabel ? `Register for ${registrationAmountLabel}` : 'Register now'}
+                    </button>
+                    {registrationErrorAction ? <p className="text-sm text-rose-600">{registrationErrorAction}</p> : null}
+                    {registrationSuccessMessage ? <p className="text-sm text-emerald-600">{registrationSuccessMessage}</p> : null}
+                    {registrationError && !registrationErrorAction ? <p className="text-sm text-rose-600">{registrationError}</p> : null}
+                  </>
+                )}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={handlePlaceBid}
+              disabled={bidDisabled}
+              className="min-h-12 w-full rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {placingBid ? 'Placing bid…' : canBid ? 'Place Bid' : isScheduled ? 'Auction scheduled' : 'Bidding closed'}
+            </button>
+            {isScheduled ? <p className="text-sm text-[var(--text-muted)]">Bidding opens when the auction starts.</p> : null}
+            {isEnded ? <p className="text-sm text-[var(--text-muted)]">Bidding is closed for ended auctions.</p> : null}
           </div>
 
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6">
-            <div className="flex items-center justify-between">
-              <h4 className="text-lg font-semibold text-white">Bid history</h4>
-              <span className="text-sm text-slate-400">Newest first</span>
+          <section aria-labelledby="auction-bid-history-heading" className="mt-6 border-t border-[var(--border-color)] pt-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="auction-bid-history-heading" className="text-lg font-semibold text-[var(--text-primary)]">Bid history</h2>
+              <span className="text-sm text-[var(--text-muted)]">{bids.length} {bids.length === 1 ? 'bid' : 'bids'} · Newest first</span>
             </div>
-            <div className="mt-4">
+            <div className="mt-3">
               {bids.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">No bids placed yet.</div>
+                <p className="text-sm text-[var(--text-muted)]">No bids placed yet.</p>
               ) : (
                 <BidHistory bids={bids.map((bid) => ({ bidder: String(bid.userId), amount: formatCurrency(getAmountValue(bid.amount)) }))} />
               )}
             </div>
-          </div>
-        </motion.div>
+          </section>
+        </section>
       </div>
-    </SectionShell>
+
+      <div className="mt-8 divide-y divide-[var(--border-color)] border-y border-[var(--border-color)]">
+        <section aria-labelledby="auction-description-heading" className="py-5">
+          <h2 id="auction-description-heading" className="text-lg font-semibold text-[var(--text-primary)]">Auction details</h2>
+          <p className="mt-3 whitespace-pre-line break-words text-sm leading-6 text-[var(--text-secondary)] [overflow-wrap:anywhere]">{auction.description || 'No description available for this auction.'}</p>
+        </section>
+        <section aria-labelledby="auction-information-heading" className="py-5">
+          <h2 id="auction-information-heading" className="text-lg font-semibold text-[var(--text-primary)]">Auction information</h2>
+          <dl className="mt-3 grid min-w-0 grid-cols-1 divide-y divide-[var(--border-color)] sm:grid-cols-2 sm:gap-x-8 sm:divide-y-0">
+            {[
+              ['Status', statusLabel],
+              ['Start time', formatDateTime(auction.startAt)],
+              ['End time', formatDateTime(auction.endAt)],
+              ['Bid count', String(bids.length)],
+              ['Auction ID', String(auction.id)],
+              ['Seller', auction.vendorId ? `Vendor ${auction.vendorId}` : 'Verified seller'],
+              ['Product', auction.productId ? `#${auction.productId}` : 'N/A'],
+              ['Auction created', formatDateTime(auction.createdAt)],
+            ].map(([label, value]) => (
+              <div key={label} className="grid min-w-0 grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-3 border-b border-[var(--border-color)] py-2.5 text-sm sm:gap-4">
+                <dt className="break-words text-[var(--text-muted)] [overflow-wrap:anywhere]">{label}</dt>
+                <dd className="break-words text-[var(--text-secondary)] [overflow-wrap:anywhere]">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+        {auction.productId && productDetails?.specifications?.length ? (
+          <section aria-labelledby="auction-specifications-heading" className="py-5">
+            <h2 id="auction-specifications-heading" className="text-lg font-semibold text-[var(--text-primary)]">Specifications</h2>
+            <div className="mt-3"><ProductSpecification specs={productDetails.specifications} /></div>
+          </section>
+        ) : null}
+      </div>
+    </main>
   );
 }

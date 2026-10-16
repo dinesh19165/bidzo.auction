@@ -7,16 +7,14 @@ export function CountdownTimer({ value }: { value: string }) {
 
 export function BidHistory({ bids }: { bids: Array<{ bidder: string; amount: string }> }) {
   return (
-    <div className="space-y-3">
+    <div className="divide-y divide-[var(--border-color)]">
       {bids.map((bid, index) => (
-        <div key={`${bid.bidder}-${bid.amount}`} className={`rounded-2xl border p-3 text-sm ${index === 0 ? 'border-blue-400/30 bg-blue-500/10' : 'border-white/10 bg-white/5'} `}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-white">{bid.bidder.charAt(0)}</div>
-              <span className="text-slate-200">{bid.bidder}</span>
-            </div>
-            <span className="font-semibold text-white">{bid.amount}</span>
+        <div key={`${bid.bidder}-${bid.amount}`} className={`flex items-center justify-between gap-3 py-3 text-sm ${index === 0 ? 'text-blue-700' : 'text-[var(--text-secondary)]'}`}>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--surface-muted)] text-xs font-semibold text-[var(--text-secondary)]">{bid.bidder.charAt(0)}</span>
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">{bid.bidder}</span>
           </div>
+          <span className="shrink-0 font-semibold text-[var(--text-primary)]">{bid.amount}</span>
         </div>
       ))}
     </div>
