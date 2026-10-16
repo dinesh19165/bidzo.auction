@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Heart, Share2, ShoppingCart, Star } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
@@ -29,6 +29,10 @@ export function ProductDetailPage() {
   const { getItem, isPending, toggle } = useWishlist();
   const { addItem } = useCartContext();
   const [addingToCart, setAddingToCart] = useState(false);
+  const [buyNowLoading, setBuyNowLoading] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const addToCartPending = useRef(false);
+  const buyNowPending = useRef(false);
 
   useEffect(() => {
     const idNum = Number(id);
@@ -46,6 +50,7 @@ export function ProductDetailPage() {
         const offer = (await getActiveProductOffers()).get(String(details.id));
         const enrichedDetails = offer ? { ...details, offerPrice: String(offer.discountedPrice), originalPrice: String(offer.price), discountType: offer.discountType, discountValue: String(offer.discountValue), offerEndsAt: offer.offerEndsAt, offerActive: true } : details;
         setProduct(enrichedDetails);
+        setQuantity(1);
         setMain(enrichedDetails.gallery?.[0] || enrichedDetails.image);
         const [list, reviewData] = await Promise.all([
           getProducts(),
@@ -126,26 +131,56 @@ export function ProductDetailPage() {
   };
 
   const handleBuyNow = () => {
-    if (!product) return;
-    const priceNum = Number(product.price.replace(/[^0-9.-]/g, '')) || 0;
-    initializeBuyNowFlow(product.id, product.title, priceNum, product.image, product.categoryId);
-    navigate('/customer/buynow-confirm');
-  };
-
-  const handleAddToCart = async () => {
-    if (!product || !product.isDirectBuy || addingToCart) return;
+    if (!product || buyNowPending.current) return;
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      showToast('Invalid quantity', 'Enter a quantity greater than zero.', 'warning');
+      return;
+    }
+    if (product.availableQuantity != null && quantity > product.availableQuantity) {
+      showToast('Insufficient stock', 'The selected quantity exceeds available stock.', 'warning');
+      return;
+    }
     if (!user || (user.type !== 'customer' && user.role !== 'CUSTOMER')) {
       navigate('/login');
       return;
     }
 
+    const offerEndTime = product.offerEndsAt ? new Date(product.offerEndsAt).getTime() : null;
+    const basePrice = Number(String(product.price).replace(/[^0-9.-]/g, ''));
+    const offerPrice = product.offerPrice == null ? null : Number(String(product.offerPrice).replace(/[^0-9.-]/g, ''));
+    const activeOfferPrice = product.offerActive !== false
+      && offerPrice !== null
+      && Number.isFinite(offerPrice)
+      && offerPrice < basePrice
+      && (offerEndTime === null || !Number.isFinite(offerEndTime) || offerEndTime > Date.now());
+    const unitPrice = activeOfferPrice ? offerPrice : basePrice;
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      showToast('Unable to buy this product', 'The product price is unavailable. Please try again.', 'warning');
+      return;
+    }
+
+    buyNowPending.current = true;
+    setBuyNowLoading(true);
+    initializeBuyNowFlow(product.id, product.title, unitPrice * quantity, product.image, product.categoryId, quantity);
+    navigate('/customer/buynow-confirm');
+  };
+
+  const handleAddToCart = async () => {
+    if (!product || !product.isDirectBuy || addToCartPending.current) return;
+    if (!user || (user.type !== 'customer' && user.role !== 'CUSTOMER')) {
+      navigate('/login');
+      return;
+    }
+
+    addToCartPending.current = true;
     setAddingToCart(true);
     try {
-      await addItem(product.id);
+      await addItem(product.id, quantity);
       showToast('Added to cart', `${product.title} is ready for checkout.`, 'success');
     } catch (reason) {
       showToast('Unable to add to cart', reason instanceof Error ? reason.message : 'Please try again.', 'warning');
     } finally {
+      addToCartPending.current = false;
       setAddingToCart(false);
     }
   };
@@ -183,6 +218,7 @@ export function ProductDetailPage() {
     ? reviewRatings.reduce((total, rating) => total + rating, 0) / reviewRatings.length
     : null;
   const available = product.availableQuantity == null || product.availableQuantity > 0;
+  const quantityExceedsStock = product.availableQuantity != null && quantity > product.availableQuantity;
 
   return (
     <main className="mx-auto w-full max-w-[1440px] min-w-0 px-4 py-5 sm:px-6 lg:px-8">
@@ -234,11 +270,31 @@ export function ProductDetailPage() {
             <OfferPrice price={product.price} offerPrice={product.offerPrice} originalPrice={product.originalPrice} discountType={product.discountType} discountValue={product.discountValue} offerEndsAt={product.offerEndsAt} offerActive={product.offerActive} detail />
             <StockBadge availableQuantity={product.availableQuantity} className="sm:ml-auto" />
           </div>
+          {product.isDirectBuy ? (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <label htmlFor="product-quantity" className="text-sm font-medium text-[var(--text-secondary)]">Quantity</label>
+              <input
+                id="product-quantity"
+                type="number"
+                min={1}
+                max={product.availableQuantity ?? undefined}
+                step={1}
+                value={quantity}
+                onChange={(event) => {
+                  const nextQuantity = Number(event.target.value);
+                  setQuantity(Number.isInteger(nextQuantity) && nextQuantity >= 1 ? nextQuantity : 1);
+                }}
+                className="h-10 w-20 rounded-lg border border-[var(--border-color)] bg-[var(--surface)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-blue-500"
+              />
+              {product.availableQuantity != null ? <span className="text-xs text-[var(--text-muted)]">{product.availableQuantity} available</span> : null}
+              {quantityExceedsStock ? <p className="w-full text-sm text-rose-600">Selected quantity exceeds available stock.</p> : null}
+            </div>
+          ) : null}
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={handleBuyNow} disabled={!available} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
-              {available ? 'Buy now' : 'Out of stock'}
+            <button type="button" onClick={handleBuyNow} disabled={!product.isDirectBuy || !available || quantityExceedsStock || buyNowLoading} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
+              {buyNowLoading ? 'Preparing checkout...' : available ? 'Buy now' : 'Out of stock'}
             </button>
-            {product.isDirectBuy ? <button type="button" onClick={() => void handleAddToCart()} disabled={!available || addingToCart} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-blue-500 px-4 py-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-50">
+            {product.isDirectBuy ? <button type="button" onClick={() => void handleAddToCart()} disabled={!available || quantityExceedsStock || addingToCart} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-blue-500 px-4 py-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-50">
               <ShoppingCart aria-hidden="true" className="h-4 w-4" />
               {addingToCart ? 'Adding...' : 'Add to cart'}
             </button> : null}

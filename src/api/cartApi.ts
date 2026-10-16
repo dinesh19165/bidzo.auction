@@ -8,6 +8,7 @@ export interface CartItemResponse {
   availableQuantity?: number | null;
   productName: string;
   productImageUrl?: string | null;
+  seller?: string;
   unitPrice: number;
   quantity: number;
   subtotal: number;
@@ -21,18 +22,34 @@ export interface CartResponse {
 
 function normalizeItem(item: any): CartItemResponse {
   const rawAvailableQuantity = item.availableQuantity ?? item.product?.availableQuantity ?? item.product?.quantity ?? item.product?.stock;
+  const rawCategoryId = item.categoryId ?? item.product?.categoryId ?? item.product?.category?.id;
+  const unitPrice = Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0);
+  const quantity = Number(item.quantity ?? 0);
+  const rawSeller = item.sellerName ?? item.seller?.name ?? item.seller ?? item.product?.sellerName ?? item.product?.seller?.name ?? item.product?.seller;
   return {
     ...item,
     id: Number(item.id ?? item.itemId),
-    productId: Number(item.productId),
-    categoryId: item.categoryId == null ? null : Number(item.categoryId),
+    productId: Number(item.productId ?? item.product?.id),
+    categoryId: rawCategoryId == null ? null : Number(rawCategoryId),
     availableQuantity: rawAvailableQuantity == null ? null : Number(rawAvailableQuantity),
-    productName: item.productName ?? item.name ?? 'Product',
-    productImageUrl: item.productImageUrl || item.imageUrl || '/logo.png',
-    unitPrice: Number(item.unitPrice ?? item.price ?? 0),
-    quantity: Number(item.quantity ?? 0),
-    subtotal: Number(item.subtotal ?? (Number(item.unitPrice ?? item.price ?? 0) * Number(item.quantity ?? 0))),
+    productName: item.productName ?? item.name ?? item.product?.name ?? item.product?.title ?? 'Product',
+    productImageUrl: item.productImageUrl || item.imageUrl || item.product?.imageUrl || item.product?.image || '/logo.png',
+    seller: typeof rawSeller === 'string' ? rawSeller : undefined,
+    unitPrice,
+    quantity,
+    subtotal: Number(item.subtotal ?? unitPrice * quantity),
   };
+}
+
+export function getNextCartQuantity(existingItem: CartItemResponse | undefined, requestedQuantity: number): number {
+  if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
+    throw new Error('Enter a valid quantity.');
+  }
+  const nextQuantity = (existingItem?.quantity ?? 0) + requestedQuantity;
+  if (existingItem?.availableQuantity != null && nextQuantity > existingItem.availableQuantity) {
+    throw new Error('Requested quantity exceeds available stock.');
+  }
+  return nextQuantity;
 }
 
 function normalizeCart(data: any): CartResponse {
@@ -51,6 +68,17 @@ export async function addCartItem(productId: number, quantity: number = 1): Prom
   const response = await fetchJson<ApiResponse<any>>('/api/cart/items', { method: 'POST', body: JSON.stringify({ productId, quantity }) });
   if (response?.success === false) throw new Error(response?.message || 'Failed to add item to cart');
   return getCart();
+}
+
+export async function addOrUpdateCartItem(productId: number, quantity = 1): Promise<CartResponse> {
+  if (!Number.isInteger(productId) || productId <= 0) throw new Error('A valid product is required.');
+  getNextCartQuantity(undefined, quantity);
+  const currentCart = await getCart();
+  const existingItem = currentCart.items.find((item) => item.productId === productId);
+  const nextQuantity = getNextCartQuantity(existingItem, quantity);
+  return existingItem
+    ? updateCartItem(existingItem.id, nextQuantity)
+    : addCartItem(productId, quantity);
 }
 
 export async function updateCartItem(itemId: number, quantity: number): Promise<CartResponse> {

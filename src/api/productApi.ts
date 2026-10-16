@@ -300,9 +300,10 @@ export async function getProductById(id: number): Promise<ProductListItem> {
   }
 }
 
-export async function createBuyNowOrder(productId: number, addressId: number, walletAmountToUse?: number, redeemLoyaltyPoints?: number, offerId?: number | string, couponCode?: string, orderAmount?: number): Promise<BuyNowOrderResponse> {
+export async function createBuyNowOrder(productId: number, addressId: number, walletAmountToUse?: number, redeemLoyaltyPoints?: number, offerId?: number | string, couponCode?: string, orderAmount?: number, quantity = 1): Promise<BuyNowOrderResponse> {
+  if (!Number.isInteger(quantity) || quantity <= 0) throw new Error('Enter a valid purchase quantity.');
   const body: BuyNowOrderRequest = {
-    quantity: 1,
+    quantity,
     addressId,
     ...(redeemLoyaltyPoints !== undefined && redeemLoyaltyPoints > 0 ? { redeemLoyaltyPoints } : {}),
   };

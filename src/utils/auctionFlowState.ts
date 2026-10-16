@@ -282,6 +282,7 @@ export function markRegistrationPaid() {
 
 export type BuyNowFlowState = {
   productId: number;
+  quantity?: number;
   flowStage: 'CONFIRM' | 'PAYMENT' | 'ORDER_SUCCESS' | 'INVOICE';
   productTitle: string;
   productPrice: number;
@@ -295,6 +296,7 @@ export type BuyNowFlowState = {
   walletAmount?: number;
   finalPayable?: number;
   remainingAmount?: number;
+  paymentRequired?: boolean;
   orderId?: number;
   addressId?: number;
   deliveryAddress?: string;
@@ -322,9 +324,10 @@ export function writeBuyNowFlowState(state: BuyNowFlowState) {
   window.localStorage.setItem(BUYNOW_FLOW_STORAGE_KEY, JSON.stringify(state));
 }
 
-export function initializeBuyNowFlow(productId: number, productTitle: string, productPrice: number, productImageUrl?: string, categoryId?: number | null): BuyNowFlowState {
+export function initializeBuyNowFlow(productId: number, productTitle: string, productPrice: number, productImageUrl?: string, categoryId?: number | null, quantity = 1): BuyNowFlowState {
   const state: BuyNowFlowState = {
     productId,
+    quantity,
     flowStage: 'CONFIRM',
     productTitle,
     productPrice,

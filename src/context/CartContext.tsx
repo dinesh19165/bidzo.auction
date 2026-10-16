@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { addCartItem, getCart, removeCartItem, updateCartItem, type CartItemResponse, type CartResponse } from '../api/cartApi';
+import { addOrUpdateCartItem, getCart, removeCartItem, updateCartItem, type CartItemResponse, type CartResponse } from '../api/cartApi';
 import { useAuth } from './AuthContext';
 
 interface CartContextValue {
@@ -21,6 +21,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const cartMutationQueue = useRef(Promise.resolve());
 
   const refresh = async () => {
     setError(null);
@@ -44,7 +45,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.type]);
 
-  const addItem = async (productId: number, quantity = 1) => setCart(await addCartItem(productId, quantity));
+  const addItem = async (productId: number, quantity = 1) => {
+    const addOrUpdate = async () => {
+      const updatedCart = await addOrUpdateCartItem(productId, quantity);
+      setCart(updatedCart);
+    };
+
+    const operation = cartMutationQueue.current.then(addOrUpdate, addOrUpdate);
+    cartMutationQueue.current = operation.then(() => undefined, () => undefined);
+    return operation;
+  };
   const updateItem = async (itemId: number, quantity: number) => setCart(await updateCartItem(itemId, quantity));
   const removeItem = async (itemId: number) => setCart(await removeCartItem(itemId));
 

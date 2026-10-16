@@ -8,7 +8,8 @@ import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentA
 import { createProductImage, createBuyNowOrder, getProductById, type ProductListItem } from '../../api/productApi';
 import { getLoyaltyBalance, getLoyaltyRedeemQuote, type LoyaltyBalanceResponse, type LoyaltyRedeemQuoteResponse } from '../../api/loyaltyApi';
 import { getRewardsSummary } from '../../api/rewardsApi';
-import { cancelOrder, getOrderById } from '../../api/orderApi';
+import { cancelOrder, getOrderById, isConfirmedOrderStatus, isPaidStatus } from '../../api/orderApi';
+import { getPaymentsForOrder } from '../../api/paymentApi';
 import { readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 import { loadRazorpay, type RazorpayInstance, type RazorpayOptions, type RazorpayPaymentResponse } from '../../utils/razorpay';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
@@ -40,6 +41,7 @@ export function BuyNowConfirmPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const flowState = readBuyNowFlowState();
+  const orderCreationPending = useRef(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +121,7 @@ export function BuyNowConfirmPage() {
   }
 
   const handleConfirmAndPay = async () => {
+    if (orderCreationPending.current || loading) return;
     // Validate terms
     if (!termsAccepted) {
       setError('Please accept the terms and conditions to proceed');
@@ -128,30 +131,40 @@ export function BuyNowConfirmPage() {
       setError('Please select a delivery address before continuing to payment.');
       return;
     }
+    const quantity = flowState.quantity ?? 1;
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setError('The purchase quantity is invalid. Please return to the product and try again.');
+      return;
+    }
 
+    orderCreationPending.current = true;
     setLoading(true);
     setError(null);
+    let orderCreated = false;
 
     try {
-      // Create order via buy-now endpoint
+      const latestProduct = await getProductById(flowState.productId);
+      if (latestProduct.availableQuantity != null && quantity > latestProduct.availableQuantity) {
+        throw new Error('The selected quantity is no longer available. Please update it and try again.');
+      }
       const requestedWalletAmount = useWallet && walletUsage.trim() ? Math.min(Math.max(0, Number(walletUsage)), walletMaximum) : undefined;
-      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id, requestedWalletAmount, loyaltyQuote?.acceptedPoints, appliedOffer?.offerId ?? undefined, appliedOffer?.sourceCode, subtotal);
+      const orderData = await createBuyNowOrder(flowState.productId, selectedAddress.id, requestedWalletAmount, loyaltyQuote?.acceptedPoints, appliedOffer?.offerId ?? undefined, appliedOffer?.sourceCode, undefined, quantity);
       if (!orderData) {
         setError('No order data returned from server');
-        setLoading(false);
+        orderCreationPending.current = false;
         return;
       }
+      orderCreated = true;
 
       if (!orderData.id) {
         console.error('Order data received but missing id:', orderData);
         setError('Failed to retrieve order ID from response');
-        setLoading(false);
         return;
       }
 
       if (orderData.paymentRequired === false || orderData.finalPayable === 0) {
         markBuyNowOrderConfirmed(orderData.id, orderData.deliveryAddress);
-        writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress, orderSubtotal: orderData.subtotal, orderTotal: orderData.totalAmount, offerDiscount: orderData.offerDiscount, loyaltyDiscount: orderData.loyaltyDiscount, loyaltyPointsRedeemed: orderData.loyaltyPointsRedeemed, walletAmount: orderData.walletAmount, finalPayable: orderData.finalPayable, remainingAmount: orderData.remainingAmount });
+        writeBuyNowFlowState({ ...readBuyNowFlowState(), addressId: selectedAddress.id, deliveryAddress: orderData.deliveryAddress, orderSubtotal: orderData.subtotal, orderTotal: orderData.totalAmount, offerDiscount: orderData.offerDiscount, loyaltyDiscount: orderData.loyaltyDiscount, loyaltyPointsRedeemed: orderData.loyaltyPointsRedeemed, walletAmount: orderData.walletAmount, finalPayable: orderData.finalPayable, remainingAmount: orderData.remainingAmount, paymentRequired: orderData.paymentRequired });
         navigate('/customer/buynow-success');
         return;
       }
@@ -168,6 +181,7 @@ export function BuyNowConfirmPage() {
         walletAmount: orderData.walletAmount,
         finalPayable: orderData.finalPayable,
         remainingAmount: orderData.remainingAmount,
+        paymentRequired: orderData.paymentRequired,
       };
       startBuyNowPayment(navigationState);
       
@@ -176,6 +190,8 @@ export function BuyNowConfirmPage() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create order. Please try again.';
       setError(errorMessage);
       console.error('Failed to create buy-now order:', err);
+      orderCreationPending.current = orderCreated;
+    } finally {
       setLoading(false);
     }
   };
@@ -244,7 +260,7 @@ export function BuyNowConfirmPage() {
                   <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-950/50">
                     <img src={flowState.productImageUrl || '/logo.png'} alt={flowState.productTitle} className="h-full w-full object-contain p-2" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/logo.png'; }} />
                   </div>
-                  <div className="min-w-0 flex-1"><h3 className="break-words text-base font-semibold leading-snug text-white sm:text-lg">{flowState.productTitle}</h3><div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"><span className="text-slate-400">Quantity: 1</span><span className="font-bold text-white">₹{flowState.productPrice.toLocaleString('en-IN')}</span></div></div>
+                  <div className="min-w-0 flex-1"><h3 className="break-words text-base font-semibold leading-snug text-white sm:text-lg">{flowState.productTitle}</h3><div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"><span className="text-slate-400">Quantity: {flowState.quantity ?? 1}</span><span className="font-bold text-white">Subtotal: ₹{flowState.productPrice.toLocaleString('en-IN')}</span></div></div>
                 </div>
               </section>
 
@@ -328,6 +344,7 @@ export function BuyNowPaymentPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flowState = readBuyNowFlowState();
@@ -337,6 +354,7 @@ export function BuyNowPaymentPage() {
   const serverOfferDiscount = flowState.offerDiscount ?? 0;
   const serverWalletAmount = flowState.walletAmount ?? 0;
   const rzpRef = useRef<RazorpayInstance | null>(null);
+  const paymentPending = useRef(false);
 
   console.log('[BUY NOW PAYMENT STATE]', flowState);
 
@@ -345,9 +363,11 @@ export function BuyNowPaymentPage() {
   }
 
   const handlePayment = async () => {
-    if (!user || !flowState.orderId) return;
+    if (!user || !flowState.orderId || paymentPending.current) return;
 
+    paymentPending.current = true;
     setLoading(true);
+    setError(null);
     try {
       // Create Razorpay payment session
       const paymentSession = await createRazorpayPayment(flowState.orderId);
@@ -386,22 +406,29 @@ export function BuyNowPaymentPage() {
           } catch (err) {
             setError('Payment verification failed. Please contact support.');
             console.error('Verification error:', err);
+            paymentPending.current = false;
+            setCheckoutOpen(false);
           }
         },
         modal: {
           ondismiss: () => {
             setError('Payment cancelled');
+            paymentPending.current = false;
+            setCheckoutOpen(false);
           },
         },
       };
 
       const razorpay = new window.Razorpay(options);
       rzpRef.current = razorpay;
+      setCheckoutOpen(true);
       razorpay.open();
       setLoading(false);
     } catch (err) {
       setError(err instanceof Error && err.message === 'Razorpay Checkout could not be loaded.' ? err.message : 'Failed to initiate payment. Please try again.');
       console.error('Payment error:', err);
+      paymentPending.current = false;
+      setCheckoutOpen(false);
       setLoading(false);
     }
   };
@@ -437,6 +464,10 @@ export function BuyNowPaymentPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">{flowState.productTitle}</span>
                   <span className="text-white">₹{serverOrderSubtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Quantity</span>
+                  <span className="text-white">{flowState.quantity ?? 1}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">Loyalty discount</span>
@@ -482,7 +513,7 @@ export function BuyNowPaymentPage() {
               </button>
               <button
                 onClick={handlePayment}
-                disabled={loading}
+                disabled={loading || checkoutOpen}
                 className="min-h-[46px] flex-1 rounded-full bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
               >
                 {loading ? (
@@ -536,16 +567,17 @@ export function BuyNowOrderSuccessPage() {
             <div className="min-w-0">
               <p className="text-sm text-slate-400">Product</p>
               <p className="mt-1 break-words text-lg font-semibold text-white">{flowState.productTitle}</p>
+              <p className="mt-1 text-sm text-slate-400">Quantity: {flowState.quantity ?? 1}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-sm text-slate-400">Amount Paid</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-400">₹{flowState.productPrice.toLocaleString()}</p>
+              <p className="text-sm text-slate-400">Order total</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-400">₹{(flowState.orderTotal ?? flowState.productPrice).toLocaleString()}</p>
             </div>
           </div>
 
           <div className="mx-auto mt-5 space-y-2 text-left text-sm text-slate-300 sm:w-fit sm:text-center">
-            <p><span className="mr-2 text-emerald-300">✓</span>Payment received and confirmed</p>
-            <p><span className="mr-2 text-emerald-300">✓</span>Invoice has been sent to your email</p>
+            <p><span className="mr-2 text-emerald-300">✓</span>{flowState.paymentRequired === false || flowState.finalPayable === 0 ? 'No additional payment was required' : 'Payment received and confirmed'}</p>
+            <p><span className="mr-2 text-emerald-300">✓</span>Invoice is available to download</p>
             <p><span className="mr-2 text-emerald-300">✓</span>Order is being processed for shipment</p>
           </div>
 
@@ -588,6 +620,7 @@ export function BuyNowInvoicePage() {
   const flowState = readBuyNowFlowState();
   const [invoice, setInvoice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInvoice = async () => {
@@ -595,16 +628,21 @@ export function BuyNowInvoicePage() {
       try {
         // Fetch invoice data for the order
         const orderData = await getOrderById(flowState.orderId);
+        const paymentConfirmed = (flowState.paymentRequired === false || flowState.finalPayable === 0) && isConfirmedOrderStatus(orderData.orderStatus)
+          ? true
+          : (await getPaymentsForOrder(flowState.orderId)).some((payment) => isPaidStatus(payment.status));
+        if (!paymentConfirmed) throw new Error('Payment has not been confirmed for this order yet.');
         setInvoice({
           ...orderData,
-          orderId: flowState.orderId,
-          productTitle: flowState.productTitle,
-          productPrice: flowState.productPrice,
-          orderDate: new Date().toLocaleDateString(),
-          status: 'CONFIRMED',
+          orderId: orderData.id,
+          productTitle: orderData.items?.map((item) => item.productName || item.name).filter(Boolean).join(', ') || flowState.productTitle,
+          productPrice: orderData.totalAmount,
+          quantity: orderData.items?.reduce((sum, item) => sum + Number(item.quantity || 0), 0) || flowState.quantity || 1,
+          orderDate: orderData.orderDate || orderData.createdAt || new Date().toLocaleDateString(),
+          status: orderData.orderStatus,
         });
       } catch (error) {
-        console.error('Failed to fetch invoice:', error);
+        setInvoiceError(error instanceof Error ? error.message : 'Unable to verify this order for invoicing.');
       } finally {
         setLoading(false);
       }
@@ -623,7 +661,13 @@ export function BuyNowInvoicePage() {
   }
 
   if (!invoice) {
-    return <Navigate to="/marketplace" replace />;
+    return (
+      <SectionShell title="Order invoice" subtitle="Unable to prepare invoice">
+        <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-200">
+          {invoiceError || 'Order details are unavailable.'}
+        </p>
+      </SectionShell>
+    );
   }
 
   const handlePrint = () => {
@@ -657,7 +701,7 @@ export function BuyNowInvoicePage() {
             </div>
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400">Status</p>
-              <p className="mt-1 font-semibold text-emerald-400">PAID</p>
+              <p className="mt-1 font-semibold text-emerald-400">{invoice.status}</p>
             </div>
           </div>
 
@@ -667,16 +711,18 @@ export function BuyNowInvoicePage() {
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="pb-3 text-left text-xs uppercase text-slate-400">Description</th>
+                  <th className="pb-3 text-center text-xs uppercase text-slate-400">Qty</th>
                   <th className="pb-3 text-right text-xs uppercase text-slate-400">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-white/10">
                   <td className="py-3 text-white">{invoice.productTitle}</td>
+                  <td className="py-3 text-center text-white">{invoice.quantity}</td>
                   <td className="py-3 text-right text-white">₹{invoice.productPrice.toLocaleString()}</td>
                 </tr>
                 <tr>
-                  <td className="py-3 font-semibold text-white">Total</td>
+                  <td colSpan={2} className="py-3 font-semibold text-white">Total</td>
                   <td className="py-3 text-right font-semibold text-emerald-400">₹{invoice.productPrice.toLocaleString()}</td>
                 </tr>
               </tbody>

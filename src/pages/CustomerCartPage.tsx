@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
@@ -19,8 +19,10 @@ export function CustomerCartPage() {
   const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
   const [pendingItemId, setPendingItemId] = useState<number | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [appliedOffer, setAppliedOffer] = useState<AppliedOffer | null>(null);
+  const checkoutPending = useRef(false);
 
   const handleQuantity = async (itemId: number, quantity: number) => {
     if (quantity < 1) return;
@@ -44,12 +46,14 @@ export function CustomerCartPage() {
   };
 
   const handleCheckout = async () => {
+    if (checkoutPending.current) return;
     if (!selectedAddress) {
       setCheckoutError('Please select a delivery address before continuing.');
       return;
     }
     if (cart.items.length === 0 || checkoutLoading) return;
 
+    checkoutPending.current = true;
     setCheckoutLoading(true);
     setCheckoutError(null);
     try {
@@ -81,12 +85,23 @@ export function CustomerCartPage() {
             navigate(`/customer/orders/${orderId}`);
           } catch (reason) {
             setCheckoutError(reason instanceof Error ? reason.message : 'Payment verification failed.');
+            checkoutPending.current = false;
+            setPaymentOpen(false);
           }
         },
-        modal: { ondismiss: () => setCheckoutError('Payment was cancelled.') },
+        modal: {
+          ondismiss: () => {
+            setCheckoutError('Payment was cancelled.');
+            checkoutPending.current = false;
+            setPaymentOpen(false);
+          },
+        },
       });
+      setPaymentOpen(true);
     } catch (reason) {
       setCheckoutError(reason instanceof Error ? reason.message : 'Unable to start checkout.');
+      checkoutPending.current = false;
+      setPaymentOpen(false);
     } finally {
       setCheckoutLoading(false);
     }
@@ -114,7 +129,7 @@ export function CustomerCartPage() {
             <div className="mt-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id} onSelect={setSelectedAddress} /></div>
             <div className="mt-4"><OfferCheckoutSection orderAmount={cart.total} productIds={cart.items.map((item) => item.productId)} categoryIds={cart.items.flatMap((item) => item.categoryId == null ? [] : [item.categoryId])} onApplied={setAppliedOffer} onRemoved={() => setAppliedOffer(null)} /></div>
             {checkoutError ? <p className="mt-4 text-sm text-rose-200">{checkoutError}</p> : null}
-            <button type="button" disabled={checkoutLoading} onClick={handleCheckout} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">{checkoutLoading ? 'Preparing payment...' : 'Checkout with Razorpay'}<ArrowRight className="h-4 w-4" /></button>
+            <button type="button" disabled={checkoutLoading || paymentOpen} onClick={handleCheckout} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">{checkoutLoading ? 'Preparing payment...' : paymentOpen ? 'Payment window open' : 'Checkout with Razorpay'}<ArrowRight className="h-4 w-4" /></button>
           </aside>
         </div>
       )}
