@@ -50,6 +50,7 @@ export interface ProductApiResponse {
   videoPublicId?: string | null;
   images?: Array<{ url?: string | null; imageUrl?: string | null; isPrimary?: boolean }> | string[] | null;
   specifications?: ProductSpecificationResponse[];
+  qna?: Array<{ question: string; answer: string }>;
 }
 
 export interface ProductListItem {
@@ -73,6 +74,7 @@ export interface ProductListItem {
   categoryObject?: { id?: number | string | null; name?: string | null } | null;
   availableQuantity?: number | null;
   sellingType?: string;
+  vendorId?: number | null;
   isAuction: boolean;
   isDirectBuy: boolean;
   gallery?: string[];
@@ -194,6 +196,7 @@ function mapProduct(response: ProductApiResponse, imageOverride?: string): Produ
     category: categoryName || (categoryId != null ? String(categoryId) : ''),
     condition: response.condition ?? '',
     seller: response.seller ?? '',
+    vendorId: response.vendorId ?? null,
     rating: undefined,
     verified: undefined,
     image: imageOverride || findPrimaryProductImage(response),
@@ -218,6 +221,15 @@ function mapProduct(response: ProductApiResponse, imageOverride?: string): Produ
     isAuction,
     isDirectBuy,
     specifications: mapProductSpecifications(response.specifications),
+    qna: Array.isArray(response.qna)
+      ? response.qna.filter((item): item is { question: string; answer: string } => Boolean(
+        item
+        && typeof item.question === 'string'
+        && typeof item.answer === 'string'
+        && item.question.trim()
+        && item.answer.trim()
+      ))
+      : [],
   };
 }
 
