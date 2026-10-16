@@ -1393,19 +1393,22 @@ html.theme-light .featured-products-section article.group:hover {
 @media (max-width: 767px) {
   .home-hero-actions {
     align-items: center;
-    gap: 0.5rem;
-    transform: translateY(4px);
+    justify-content: center;
+    gap: 0.625rem;
+    transform: translateY(18px);
   }
 
   .home-hero-actions > a {
     display: flex;
-    width: min(80%, 260px);
-    max-width: 100%;
-    min-height: 44px;
+    width: min(78%, 260px);
+    max-width: 260px;
+    min-height: 42px;
     align-items: center;
     justify-content: center;
     padding: 0.5rem 0.75rem;
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
   }
 }
 
