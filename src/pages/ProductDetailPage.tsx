@@ -242,7 +242,7 @@ export function ProductDetailPage() {
           </div>
           {product.description ? <p className="mt-4 whitespace-pre-line break-words text-sm leading-6 text-[var(--text-secondary)] [overflow-wrap:anywhere]">{product.description}</p> : null}
           <div className="mt-auto grid gap-3 pt-6 sm:grid-cols-2">
-            <button type="button" onClick={handleBuyNow} disabled={!available} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" onClick={handleBuyNow} disabled={!available} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
               {available ? 'Buy now' : 'Out of stock'}
             </button>
             {product.isDirectBuy ? <button type="button" onClick={() => void handleAddToCart()} disabled={!available || addingToCart} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-blue-500 px-4 py-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-50">
