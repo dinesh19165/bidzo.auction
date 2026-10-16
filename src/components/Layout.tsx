@@ -764,7 +764,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        <nav className={`category-navigation border-t px-3 transition duration-300 sm:px-6 lg:px-8 ${isHeaderScrolled ? 'py-1' : 'py-2'} ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Product categories">
+        <nav className={`category-navigation border-t px-3 transition duration-300 sm:px-6 lg:px-8 ${isHomePage ? 'hidden lg:block' : ''} ${isHeaderScrolled ? 'py-1' : 'py-2'} ${theme === 'dark' ? 'border-white/10 bg-slate-950/40' : 'border-slate-200 bg-white'}`} aria-label="Product categories">
           <div className="mx-auto flex min-w-0 flex-wrap items-center justify-center gap-2">
             {mainCategories.map((category) => <button key={category.id} type="button" data-main-category-toggle onClick={() => selectMainCategory(category.id)} aria-current={String(category.id) === String(selectedMainCategoryId) ? 'true' : undefined} className="category-navigation-item inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition hover:bg-blue-500/10 sm:text-sm">
               <span className={`category-navigation-icon flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden transition-all duration-300 ${isHeaderScrolled ? 'max-w-0 opacity-0' : 'max-w-7 opacity-100'}`}><CategoryIcon iconUrl={category.iconUrl} className="h-6 w-6" /></span><span className="max-w-[9rem] truncate">{category.name}</span>
