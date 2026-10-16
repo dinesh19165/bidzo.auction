@@ -186,9 +186,9 @@ export function ProductDetailPage() {
 
   return (
     <main className="mx-auto w-full max-w-[1440px] min-w-0 px-4 py-5 sm:px-6 lg:px-8">
-      <div className="grid min-w-0 gap-5 md:gap-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10">
+      <div className="grid min-w-0 items-start gap-5 md:gap-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10">
         <section aria-label="Product images" className="grid min-w-0 content-start gap-3 lg:grid-cols-[4.5rem_minmax(0,1fr)]">
-          <div className="order-2 flex max-w-full gap-2 overflow-x-auto lg:order-1 lg:max-h-[32rem] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden">
+          <div className="order-2 flex max-w-full gap-2 overflow-x-auto lg:order-1 lg:flex-col lg:overflow-x-hidden">
             {gallery.map((image, index) => (
               <button key={image} type="button" onClick={() => setMain(image)} aria-label={`Show product image ${index + 1}`} aria-pressed={main === image} className={`h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition sm:h-20 sm:w-20 lg:h-[4.5rem] lg:w-[4.5rem] ${main === image ? 'border-blue-500' : 'border-[var(--border-color)]'}`}>
                 <img src={image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
@@ -217,7 +217,7 @@ export function ProductDetailPage() {
           </div>
         </section>
 
-        <section aria-label="Product information" className="flex min-w-0 flex-col">
+        <section aria-label="Product information" className="min-w-0 self-start">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <h1 className="min-w-0 break-words text-2xl font-semibold leading-snug text-[var(--text-primary)] sm:text-3xl [overflow-wrap:anywhere]">{product.title}</h1>
             {averageRating !== null ? <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-sm font-semibold text-emerald-600"><Star aria-hidden="true" className="h-4 w-4 fill-current" />{averageRating.toFixed(1)}</span> : null}
@@ -243,6 +243,30 @@ export function ProductDetailPage() {
               {addingToCart ? 'Adding...' : 'Add to cart'}
             </button> : null}
           </div>
+          <section id="product-reviews" aria-labelledby="product-reviews-heading" className="mt-6 border-t border-[var(--border-color)] pt-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="product-reviews-heading" className="text-lg font-semibold text-[var(--text-primary)]">Reviews</h2>
+              {averageRating !== null ? <span className="inline-flex items-center gap-1 text-sm font-medium text-[var(--text-secondary)]"><Star aria-hidden="true" className="h-4 w-4 fill-current text-amber-500" />{averageRating.toFixed(1)} / 5 · {reviews.length}</span> : null}
+            </div>
+            {reviews.length === 0 ? <p className="mt-2 text-sm text-[var(--text-muted)]">No reviews yet.</p> : (
+              <div className="mt-3 divide-y divide-[var(--border-color)]">
+                {reviews.map((review, index) => {
+                  const reviewer = review.customerName || review.customer?.name || [review.customer?.firstName, review.customer?.lastName].filter(Boolean).join(' ');
+                  return (
+                    <article key={review.id ?? `${review.productId}-${review.createdAt}-${index}`} className="py-3 text-sm text-[var(--text-secondary)]">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                        {reviewer ? <p className="font-medium text-[var(--text-primary)]">{reviewer}</p> : null}
+                        {review.rating !== undefined ? <p className="inline-flex items-center gap-1 text-amber-600"><Star aria-hidden="true" className="h-4 w-4 fill-current" />{review.rating}</p> : null}
+                        {review.createdAt ? <time className="text-xs text-[var(--text-muted)]">{new Date(review.createdAt).toLocaleDateString()}</time> : null}
+                      </div>
+                      {review.title ? <p className="mt-2 font-medium text-[var(--text-primary)]">{review.title}</p> : null}
+                      {review.content ? <p className="mt-1 whitespace-pre-line break-words [overflow-wrap:anywhere]">{review.content}</p> : null}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </section>
       </div>
 
@@ -274,31 +298,6 @@ export function ProductDetailPage() {
             </dl>
           </section>
         ) : null}
-
-        <section id="product-reviews" aria-labelledby="product-reviews-heading" className="py-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="product-reviews-heading" className="text-lg font-semibold text-[var(--text-primary)]">Reviews</h2>
-            {averageRating !== null ? <span className="inline-flex items-center gap-1 text-sm font-medium text-[var(--text-secondary)]"><Star aria-hidden="true" className="h-4 w-4 fill-current text-amber-500" />{averageRating.toFixed(1)} / 5 · {reviews.length}</span> : null}
-          </div>
-          {reviews.length === 0 ? <p className="mt-2 text-sm text-[var(--text-muted)]">No reviews yet.</p> : (
-            <div className="mt-3 divide-y divide-[var(--border-color)]">
-              {reviews.map((review, index) => {
-                const reviewer = review.customerName || review.customer?.name || [review.customer?.firstName, review.customer?.lastName].filter(Boolean).join(' ');
-                return (
-                  <article key={review.id ?? `${review.productId}-${review.createdAt}-${index}`} className="py-3 text-sm text-[var(--text-secondary)]">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                      {reviewer ? <p className="font-medium text-[var(--text-primary)]">{reviewer}</p> : null}
-                      {review.rating !== undefined ? <p className="inline-flex items-center gap-1 text-amber-600"><Star aria-hidden="true" className="h-4 w-4 fill-current" />{review.rating}</p> : null}
-                      {review.createdAt ? <time className="text-xs text-[var(--text-muted)]">{new Date(review.createdAt).toLocaleDateString()}</time> : null}
-                    </div>
-                    {review.title ? <p className="mt-2 font-medium text-[var(--text-primary)]">{review.title}</p> : null}
-                    {review.content ? <p className="mt-1 whitespace-pre-line break-words [overflow-wrap:anywhere]">{review.content}</p> : null}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
 
       </div>
 
