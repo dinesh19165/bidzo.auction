@@ -9,7 +9,7 @@ import { EmptyState, ErrorState, SkeletonCard, SkeletonTable } from '../../compo
 import VendorSidebar from '../../components/layout/VendorSidebar';
 import { getCustomerProfile, saveCustomerProfile } from '../../api/customerApi';
 import { getAuctionPaymentState, getOrderById, getOrders, isConfirmedOrderStatus, isPaidStatus } from '../../api/orderApi';
-import { getAuctionById, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus, updateAuction } from '../../api/auctionApi';
+import { getAuctionById, getAuctionImages, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus, getProductImages, updateAuction } from '../../api/auctionApi';
 import { getAuctionBids, placeBid } from '../../api/bidApi';
 import { buildAddressPayload, getAddresses, getAddressById, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
 import { useAuth } from '../../context/AuthContext';
@@ -437,14 +437,101 @@ export function CustomerOrdersPage() {
 
 export function CustomerAuctionsPage() {
   const [bids, setBids] = useState<BidResponse[]>([]);
+  const [auctionDetails, setAuctionDetails] = useState<Record<number, { title: string; image: string | null; error?: string; imageError?: string }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { getMyBids().then(setBids).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load auctions.')).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAuctions = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const customerBids = await getMyBids();
+        const auctionIds = [...new Set(customerBids.map((bid) => bid.auctionId))];
+        const details = await Promise.all(auctionIds.map(async (auctionId) => {
+          try {
+            const auction = await getAuctionById(auctionId);
+            const [auctionImagesResult, productImagesResult] = await Promise.allSettled([
+              getAuctionImages(auctionId),
+              auction.productId ? getProductImages(auction.productId) : Promise.resolve([]),
+            ]);
+            const auctionImages = auctionImagesResult.status === 'fulfilled' ? auctionImagesResult.value : [];
+            const productImages = productImagesResult.status === 'fulfilled' ? productImagesResult.value : [];
+            const imageError = [auctionImagesResult, productImagesResult]
+              .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+              .map((result) => result.reason instanceof Error ? result.reason.message : 'Unable to load auction images.')
+              .join(' ');
+            const embeddedImages = Array.isArray(auction.images) ? auction.images : [];
+            const primaryEmbeddedImage = embeddedImages.find((image) => image.isPrimary && (image.url || image.imageUrl));
+            const firstEmbeddedImage = embeddedImages.find((image) => image.url || image.imageUrl);
+            const image = auctionImages.find((entry) => entry.url)?.url
+              || primaryEmbeddedImage?.url
+              || primaryEmbeddedImage?.imageUrl
+              || firstEmbeddedImage?.url
+              || firstEmbeddedImage?.imageUrl
+              || auction.imageUrl
+              || auction.image
+              || productImages[0]?.url
+              || null;
+
+            return [auctionId, { title: auction.title || `Auction #${auctionId}`, image, imageError: image ? undefined : imageError || undefined }] as const;
+          } catch (reason) {
+            return [auctionId, {
+              title: `Auction #${auctionId}`,
+              image: null,
+              error: reason instanceof Error ? reason.message : 'Unable to load auction details.',
+            }] as const;
+          }
+        }));
+
+        if (!cancelled) {
+          setBids(customerBids);
+          setAuctionDetails(Object.fromEntries(details));
+        }
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Unable to load auctions.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void loadAuctions();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <SectionShell title="My auctions" subtitle="Items you listed or are watching as a buyer">
-      {loading ? <p className="text-slate-400">Loading auctions...</p> : error ? <ErrorState title="Unable to load auctions" description={error} /> : bids.length === 0 ? <EmptyState title="No auctions found" description="Your auction activity will appear here." /> : <div className="space-y-3">{bids.map((bid) => <Link key={bid.id} to={`/customer/auctions/${bid.auctionId}`} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-300 transition hover:border-blue-400/40 hover:bg-slate-900/90"><div className="flex items-center justify-between"><p className="font-semibold text-white">Auction #{bid.auctionId}</p><p className="text-white">{bid.amount}</p></div><p className="mt-2">{bid.status}</p></Link>)}</div>}
+      {loading ? <p className="text-slate-400">Loading auctions...</p> : error ? <ErrorState title="Unable to load auctions" description={error} /> : bids.length === 0 ? <EmptyState title="No auctions found" description="Your auction activity will appear here." /> : (
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {bids.map((bid) => {
+            const auction = auctionDetails[bid.auctionId];
+            const title = auction?.title || `Auction #${bid.auctionId}`;
+
+            return (
+              <Link key={bid.id} to={`/customer/auctions/${bid.auctionId}`} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70 text-sm text-slate-300 shadow-sm transition hover:border-blue-400/40 hover:bg-slate-900/90">
+                <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-800">
+                  {auction?.image ? <img src={auction.image} alt={title} loading="lazy" className="h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs text-slate-500"><span>No image available</span>{auction?.imageError ? <span className="break-words text-amber-300 [overflow-wrap:anywhere]">{auction.imageError}</span> : null}</div>}
+                  <span className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded-full bg-slate-950/80 px-3 py-1 text-xs font-semibold text-white">{bid.status}</span>
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col p-4">
+                  <p className="text-xs font-medium text-slate-400">Auction #{bid.auctionId} · Bid #{bid.id}</p>
+                  <h2 className="mt-1 break-words text-base font-semibold text-white [overflow-wrap:anywhere]">{title}</h2>
+                  {auction?.error ? <p className="mt-1 break-words text-xs text-amber-300 [overflow-wrap:anywhere]">Auction details unavailable: {auction.error}</p> : null}
+                  <div className="mt-4 flex min-w-0 items-center justify-between gap-3 rounded-xl bg-white/5 px-3 py-3">
+                    <span className="shrink-0 text-sm text-slate-400">Your bid</span>
+                    <span className="min-w-0 break-words text-right text-base font-semibold text-white [overflow-wrap:anywhere]">{bid.amount}</span>
+                  </div>
+                  <span className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-blue-500">
+                    View auction <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </SectionShell>
   );
 }
