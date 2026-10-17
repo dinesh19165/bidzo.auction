@@ -55,6 +55,8 @@ const translations: Record<LanguageKey, Record<string, string>> = {
     currentBid: 'Current bid',
     reservePrice: 'Reserve price',
     buyNow: 'Buy now',
+    watch: 'Watch',
+    watching: 'Watching',
     viewDetails: 'View details',
     filters: 'Filters',
     reset: 'Reset',
