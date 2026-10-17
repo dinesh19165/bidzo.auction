@@ -426,34 +426,6 @@ interface AuctionCardProps {
 
 export function AuctionCard({ id, title, image, status, currentBid, endsIn, seller='Bidzo Seller', verified=true, watchers=0, participants=0, condition='Excellent', rating }: AuctionCardProps) {
   const { translate, formatCurrency } = useLocaleContext();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { isWishlisted, isPending, toggle } = useWishlist();
-  const auctionId = Number(id);
-  const wishlistParams = Number.isFinite(auctionId) ? { itemType: 'AUCTION' as const, auctionId } : null;
-  const watching = wishlistParams ? isWishlisted(wishlistParams) : false;
-  const watchPending = wishlistParams ? isPending(wishlistParams) : false;
-
-  const toggleWatch = async () => {
-    if (!wishlistParams || watchPending) return;
-    if (!user || (user.type !== 'customer' && user.role !== 'CUSTOMER')) {
-      showToast('Sign in to watch auctions', 'Log in as a customer to save auctions to your watchlist.', 'info');
-      navigate('/login');
-      return;
-    }
-
-    try {
-      await toggle(wishlistParams);
-      showToast(
-        watching ? 'Removed from watchlist' : 'Added to watchlist',
-        watching ? 'This auction is no longer in your watchlist.' : 'This auction is saved to your watchlist.',
-        watching ? 'info' : 'success',
-      );
-    } catch (error) {
-      showToast('Unable to update watchlist', error instanceof Error ? error.message : 'Please try again.', 'warning');
-    }
-  };
-
   return (
     <motion.article whileHover={{ y: -8, scale: 1.01, boxShadow: '0 32px 80px -24px rgba(59,130,246,0.35)' }} transition={{ duration: 0.24 }} className="group w-full max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-xl shadow-slate-950/30 transition duration-300 hover:border-blue-400/40">
       <div className="relative overflow-hidden">
@@ -492,21 +464,11 @@ export function AuctionCard({ id, title, image, status, currentBid, endsIn, sell
           ) : null}
         </div>
         <p className="mt-4 text-sm text-slate-400">{translate('currentBid')} {formatCurrency(currentBid)}</p>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-5">
           <Link to={`/auctions/${id}`} className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-250 hover:-translate-y-0.5 hover:bg-blue-500">
             {translate('viewDetails')}
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
-          <button
-            type="button"
-            onClick={() => void toggleWatch()}
-            disabled={!wishlistParams || watchPending}
-            aria-pressed={watching}
-            aria-busy={watchPending}
-            className={`min-h-[48px] rounded-full border px-4 py-2 text-sm transition-all duration-250 hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60 ${watching ? 'border-blue-400/40 bg-blue-500/15 text-blue-200 hover:bg-blue-500/20' : 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10'}`}
-          >
-            {translate(watching ? 'watching' : 'watch')}
-          </button>
         </div>
       </div>
     </motion.article>
