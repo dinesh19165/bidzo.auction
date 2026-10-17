@@ -11,9 +11,32 @@ import { initializeBuyNowFlow } from '../utils/auctionFlowState';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useCartContext } from '../context/CartContext';
+import { useLocaleContext } from '../context/LocaleContext';
 import { StockBadge } from '../components/common/StockBadge';
 import { OfferPrice } from '../components/common/OfferPrice';
 import { getActiveProductOffers } from '../services/productOfferService';
+
+function parseProductPrice(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const amount = Number(String(value).replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function getEffectiveProductPrice(product: ProductListItem): number | null {
+  const basePrice = parseProductPrice(product.price);
+  const offerPrice = parseProductPrice(product.offerPrice);
+  const originalPrice = parseProductPrice(product.originalPrice) ?? basePrice;
+  const offerEndTime = product.offerEndsAt ? new Date(product.offerEndsAt).getTime() : null;
+  const offerExpired = offerEndTime !== null && Number.isFinite(offerEndTime) && offerEndTime <= Date.now();
+
+  return product.offerActive !== false
+    && offerPrice !== null
+    && originalPrice !== null
+    && offerPrice < originalPrice
+    && !offerExpired
+    ? offerPrice
+    : basePrice;
+}
 
 export function ProductDetailPage() {
   const { id } = useParams();
@@ -28,11 +51,30 @@ export function ProductDetailPage() {
   const { user } = useAuth();
   const { getItem, isPending, toggle } = useWishlist();
   const { addItem } = useCartContext();
+  const { formatCurrency } = useLocaleContext();
   const [addingToCart, setAddingToCart] = useState(false);
   const [buyNowLoading, setBuyNowLoading] = useState(false);
-  const [quantity, setQuantity] = useState(1);
+  const [quantityInput, setQuantityInput] = useState('1');
   const addToCartPending = useRef(false);
   const buyNowPending = useRef(false);
+  const maxQuantity = product?.availableQuantity == null || !Number.isFinite(product.availableQuantity)
+    ? Number.MAX_SAFE_INTEGER
+    : Math.max(1, Math.floor(product.availableQuantity));
+  const enteredQuantity = Number(quantityInput);
+  const quantity = Number.isInteger(enteredQuantity) && enteredQuantity >= 1
+    ? Math.min(enteredQuantity, maxQuantity)
+    : 1;
+
+  const updateQuantity = (value: string) => {
+    if (value === '') {
+      setQuantityInput('');
+      return;
+    }
+    if (!/^\d+$/.test(value)) return;
+    setQuantityInput(String(Math.min(Math.max(Number(value), 1), maxQuantity)));
+  };
+
+  const normalizeQuantity = () => setQuantityInput(String(quantity));
 
   useEffect(() => {
     const idNum = Number(id);
@@ -50,7 +92,7 @@ export function ProductDetailPage() {
         const offer = (await getActiveProductOffers()).get(String(details.id));
         const enrichedDetails = offer ? { ...details, offerPrice: String(offer.discountedPrice), originalPrice: String(offer.price), discountType: offer.discountType, discountValue: String(offer.discountValue), offerEndsAt: offer.offerEndsAt, offerActive: true } : details;
         setProduct(enrichedDetails);
-        setQuantity(1);
+        setQuantityInput('1');
         setMain(enrichedDetails.gallery?.[0] || enrichedDetails.image);
         const [list, reviewData] = await Promise.all([
           getProducts(),
@@ -132,7 +174,7 @@ export function ProductDetailPage() {
 
   const handleBuyNow = () => {
     if (!product || buyNowPending.current) return;
-    if (!Number.isInteger(quantity) || quantity <= 0) {
+    if (!Number.isInteger(quantity) || quantity < 1) {
       showToast('Invalid quantity', 'Enter a quantity greater than zero.', 'warning');
       return;
     }
@@ -145,16 +187,8 @@ export function ProductDetailPage() {
       return;
     }
 
-    const offerEndTime = product.offerEndsAt ? new Date(product.offerEndsAt).getTime() : null;
-    const basePrice = Number(String(product.price).replace(/[^0-9.-]/g, ''));
-    const offerPrice = product.offerPrice == null ? null : Number(String(product.offerPrice).replace(/[^0-9.-]/g, ''));
-    const activeOfferPrice = product.offerActive !== false
-      && offerPrice !== null
-      && Number.isFinite(offerPrice)
-      && offerPrice < basePrice
-      && (offerEndTime === null || !Number.isFinite(offerEndTime) || offerEndTime > Date.now());
-    const unitPrice = activeOfferPrice ? offerPrice : basePrice;
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+    const unitPrice = getEffectiveProductPrice(product);
+    if (unitPrice === null || unitPrice < 0) {
       showToast('Unable to buy this product', 'The product price is unavailable. Please try again.', 'warning');
       return;
     }
@@ -219,6 +253,7 @@ export function ProductDetailPage() {
     : null;
   const available = product.availableQuantity == null || product.availableQuantity > 0;
   const quantityExceedsStock = product.availableQuantity != null && quantity > product.availableQuantity;
+  const unitPrice = getEffectiveProductPrice(product);
 
   return (
     <main className="mx-auto w-full max-w-[1440px] min-w-0 px-4 py-5 sm:px-6 lg:px-8">
@@ -273,20 +308,40 @@ export function ProductDetailPage() {
           {product.isDirectBuy ? (
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <label htmlFor="product-quantity" className="text-sm font-medium text-[var(--text-secondary)]">Quantity</label>
+              <button
+                type="button"
+                onClick={() => setQuantityInput(String(Math.max(1, quantity - 1)))}
+                disabled={!available || quantity <= 1}
+                aria-label="Decrease quantity"
+                className="inline-flex h-10 w-10 touch-manipulation items-center justify-center rounded-lg border border-[var(--border-color)] bg-[var(--surface)] text-lg text-[var(--text-primary)] transition hover:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                −
+              </button>
               <input
                 id="product-quantity"
-                type="number"
-                min={1}
-                max={product.availableQuantity ?? undefined}
-                step={1}
-                value={quantity}
-                onChange={(event) => {
-                  const nextQuantity = Number(event.target.value);
-                  setQuantity(Number.isInteger(nextQuantity) && nextQuantity >= 1 ? nextQuantity : 1);
-                }}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                role="spinbutton"
+                aria-valuemin={1}
+                aria-valuemax={product.availableQuantity ?? undefined}
+                aria-valuenow={quantity}
+                value={quantityInput}
+                onChange={(event) => updateQuantity(event.target.value)}
+                onBlur={normalizeQuantity}
                 className="h-10 w-20 rounded-lg border border-[var(--border-color)] bg-[var(--surface)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-blue-500"
               />
+              <button
+                type="button"
+                onClick={() => setQuantityInput(String(Math.min(maxQuantity, quantity + 1)))}
+                disabled={!available || quantity >= maxQuantity}
+                aria-label="Increase quantity"
+                className="inline-flex h-10 w-10 touch-manipulation items-center justify-center rounded-lg border border-[var(--border-color)] bg-[var(--surface)] text-lg text-[var(--text-primary)] transition hover:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                +
+              </button>
               {product.availableQuantity != null ? <span className="text-xs text-[var(--text-muted)]">{product.availableQuantity} available</span> : null}
+              {unitPrice !== null ? <span className="w-full text-sm font-medium text-[var(--text-secondary)]">Total: {formatCurrency(unitPrice * quantity)}</span> : null}
               {quantityExceedsStock ? <p className="w-full text-sm text-rose-600">Selected quantity exceeds available stock.</p> : null}
             </div>
           ) : null}
