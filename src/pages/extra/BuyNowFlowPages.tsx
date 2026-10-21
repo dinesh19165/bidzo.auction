@@ -13,6 +13,7 @@ import { getPaymentsForOrder } from '../../api/paymentApi';
 import { readBuyNowFlowState, writeBuyNowFlowState, initializeBuyNowFlow, startBuyNowPayment, markBuyNowOrderConfirmed, markBuyNowInvoiceReady, clearBuyNowFlowState } from '../../utils/auctionFlowState';
 import { loadRazorpay, type RazorpayInstance, type RazorpayOptions, type RazorpayPaymentResponse } from '../../utils/razorpay';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
+import DeliveryAvailabilityCheck from '../../components/delivery/DeliveryAvailabilityCheck';
 import { OfferCheckoutSection, type AppliedOffer } from '../../components/checkout/OfferCheckoutSection';
 import type { AddressResponse } from '../../api/addressApi';
 
@@ -46,6 +47,7 @@ export function BuyNowConfirmPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
+  const [deliveryAvailable, setDeliveryAvailable] = useState<boolean | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [useWallet, setUseWallet] = useState(false);
@@ -129,6 +131,12 @@ export function BuyNowConfirmPage() {
     }
     if (!selectedAddress) {
       setError('Please select a delivery address before continuing to payment.');
+      return;
+    }
+    if (deliveryAvailable !== true) {
+      setError(deliveryAvailable === false
+        ? 'Sorry, delivery is not available to this PIN code.'
+        : 'Unable to check delivery availability. Please try again.');
       return;
     }
     const quantity = flowState.quantity ?? 1;
@@ -251,7 +259,15 @@ export function BuyNowConfirmPage() {
             <div className="min-w-0 space-y-3">
               <section className="border-b border-white/10 px-1 py-2.5 sm:px-2 sm:py-3">
                 <div className="mb-1.5 flex items-center gap-2"><MapPin className="h-4 w-4 text-sky-300" /><h3 className="text-sm font-bold text-white">Delivery address</h3></div>
-                <DeliveryAddressSelector compact selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={(address) => { setSelectedAddress(address); setError(null); }} />
+                <DeliveryAddressSelector compact selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={(address) => { setSelectedAddress(address); setDeliveryAvailable(null); setError(null); }} />
+                {selectedAddress ? (
+                  <DeliveryAvailabilityCheck
+                    key={`${flowState.productId}:${selectedAddress.id}:${selectedAddress.postalCode}`}
+                    productId={flowState.productId}
+                    pincode={selectedAddress.postalCode}
+                    onAvailabilityChange={setDeliveryAvailable}
+                  />
+                ) : null}
               </section>
 
               <section className="border-b border-white/10 px-1 py-2.5 sm:px-2 sm:py-3">
@@ -318,7 +334,7 @@ export function BuyNowConfirmPage() {
               </button>
               <button
                 onClick={handleConfirmAndPay}
-                disabled={loading || !termsAccepted}
+                disabled={loading || !termsAccepted || !selectedAddress || deliveryAvailable !== true}
                 className="inline-flex min-h-[46px] items-center justify-center whitespace-nowrap rounded-full bg-blue-600 px-5 py-2 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-48"
               >
                 {loading ? (

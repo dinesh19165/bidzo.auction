@@ -13,6 +13,8 @@ import { ResponsiveContainer, BarChart, Bar, LineChart, Line, CartesianGrid, XAx
 import { Link } from 'react-router-dom';
 import Logo from '../../components/Logo';
 import { getPortalHome, isAdminUser, useAuth } from '../../context/AuthContext';
+import { getAdminDeliveryRadius, updateAdminDeliveryRadius } from '../../api/deliveryApi';
+import { validateDeliveryRadius } from '../../utils/deliveryValidation';
 import { approveVendor, getPendingVendorApprovals, rejectVendor, requestVendorChanges, type ApprovalRequest } from '../../api/approvalApi';
 import { approveVendorDocument } from '../../api/vendorApi';
 import { approveAdminWithdrawal, getAdminWalletSummary, getAdminWalletTransactions, getPendingAdminWithdrawals, rejectAdminWithdrawal, type AdminWalletSummary, type AdminWalletTransaction, type AdminWithdrawal } from '../../api/adminWalletApi';
@@ -2422,6 +2424,85 @@ export function SettingsPlatformChargesPage() {
   );
 }
 
+function DeliveryRadiusSettingsCard() {
+  const [radiusKm, setRadiusKm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getAdminDeliveryRadius()
+      .then((setting) => {
+        if (active) setRadiusKm(String(setting.radiusKm));
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Unable to load delivery radius.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const saveRadius = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const inputError = validateDeliveryRadius(radiusKm);
+    setValidationError(inputError);
+    if (inputError) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const saved = await updateAdminDeliveryRadius({ radiusKm: Number(radiusKm) });
+      setRadiusKm(String(saved.radiusKm));
+      setSuccess('Delivery radius updated successfully.');
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update delivery radius.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="mt-5 p-6">
+      <h2 className="text-lg font-semibold text-white">Delivery radius</h2>
+      <p className="mt-1 text-sm text-slate-400">Set the maximum delivery distance in kilometres.</p>
+      {error ? <p role="alert" className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p> : null}
+      {success ? <p role="status" className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{success}</p> : null}
+      {loading ? <p className="mt-4 text-sm text-slate-400">Loading delivery radius...</p> : (
+        <form onSubmit={(event) => void saveRadius(event)} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label htmlFor="admin-delivery-radius" className="grid min-w-0 flex-1 gap-1 text-sm font-medium text-slate-200">
+            Radius (km)
+            <input
+              id="admin-delivery-radius"
+              type="text"
+              inputMode="decimal"
+              value={radiusKm}
+              onChange={(event) => {
+                setRadiusKm(event.target.value);
+                setValidationError(null);
+                setSuccess(null);
+              }}
+              aria-invalid={Boolean(validationError)}
+              aria-describedby={validationError ? 'admin-delivery-radius-error' : undefined}
+              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-white outline-none focus:border-blue-400"
+              disabled={saving}
+            />
+          </label>
+          <PrimaryButton type="submit" disabled={saving || loading}>
+            {saving ? 'Saving...' : 'Save radius'}
+          </PrimaryButton>
+          {validationError ? <p id="admin-delivery-radius-error" role="alert" className="basis-full text-sm text-rose-300">{validationError}</p> : null}
+        </form>
+      )}
+    </Card>
+  );
+}
+
 export function SettingsShippingRulesPage() {
   const [form, setForm] = useState({
     threshold: '',
@@ -2502,6 +2583,7 @@ export function SettingsShippingRulesPage() {
           </div>
         )}
       </Card>
+      <DeliveryRadiusSettingsCard />
     </AdminShell>
   );
 }
