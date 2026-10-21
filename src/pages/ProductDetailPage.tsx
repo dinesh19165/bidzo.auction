@@ -15,6 +15,7 @@ import { useLocaleContext } from '../context/LocaleContext';
 import { StockBadge } from '../components/common/StockBadge';
 import { OfferPrice } from '../components/common/OfferPrice';
 import { getActiveProductOffers } from '../services/productOfferService';
+import DeliveryAvailabilityCheck from '../components/delivery/DeliveryAvailabilityCheck';
 
 function parseProductPrice(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || String(value).trim() === '') return null;
@@ -345,6 +346,7 @@ export function ProductDetailPage() {
               {quantityExceedsStock ? <p className="w-full text-sm text-rose-600">Selected quantity exceeds available stock.</p> : null}
             </div>
           ) : null}
+          <DeliveryAvailabilityCheck />
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={handleBuyNow} disabled={!product.isDirectBuy || !available || quantityExceedsStock || buyNowLoading} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
               {buyNowLoading ? 'Preparing checkout...' : available ? 'Buy now' : 'Out of stock'}

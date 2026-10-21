@@ -18,7 +18,9 @@ import { BidHistory, WinnerBanner } from '../components/auction/AuctionComponent
 import { showToast } from '../components/ui/toast';
 import { getProductById } from '../api/productApi';
 import DeliveryAddressSelector from '../components/checkout/DeliveryAddressSelector';
+import DeliveryAvailabilityCheck from '../components/delivery/DeliveryAvailabilityCheck';
 import { getAddresses, type AddressResponse } from '../api/addressApi';
+import { validateIndianPincode } from '../utils/indianPincode';
 
 function formatDateTime(value?: string) {
   if (!value) return 'N/A';
@@ -95,6 +97,7 @@ export function AuctionDetailPage() {
   const [paymentStatusLoading, setPaymentStatusLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
+  const [deliveryAvailable, setDeliveryAvailable] = useState<boolean | null>(null);
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -672,6 +675,17 @@ export function AuctionDetailPage() {
 
   const handlePayNow = async () => {
     if (!auction || paymentCompleted) return;
+    if (selectedAddress) {
+      const pincodeError = validateIndianPincode(selectedAddress.postalCode);
+      if (pincodeError) {
+        setPaymentError(pincodeError);
+        return;
+      }
+    }
+    if (deliveryAvailable === false) {
+      setPaymentError('Delivery is not available to the selected PIN code.');
+      return;
+    }
     setPaymentStatusLoading(true);
     try {
       const currentState = await getAuctionPaymentState(auctionId, readStoredAuctionOrderId(auctionId));
@@ -828,24 +842,35 @@ export function AuctionDetailPage() {
                           {confirmedOrderId ? <button type="button" onClick={() => navigate(`/customer/orders/${confirmedOrderId}`)} className="text-sm font-semibold text-blue-600 hover:underline">View Order</button> : null}
                         </div>
                       ) : (
-                        showAddressSelector ? <div className="mt-4">
-                          <DeliveryAddressSelector
-                            selectedAddressId={selectedAddress?.id || readAuctionFlowState().addressId}
-                            onSelect={(address) => {
-                              setSelectedAddress(address);
-                              writeAuctionFlowState({ ...readAuctionFlowState(), addressId: address.id });
-                              setShowAddressSelector(false);
-                              handlePayNow();
-                            }}
-                          />
-                        </div> : <button
-                          type="button"
-                          onClick={handlePayNow}
-                          disabled={paymentLoading || paymentStatusLoading}
-                          className="mt-3 min-h-12 w-full rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {paymentLoading ? 'Preparing payment…' : 'Pay Now'}
-                        </button>
+                        <div className="mt-4">
+                          {showAddressSelector ? (
+                            <DeliveryAddressSelector
+                              selectedAddressId={selectedAddress?.id || readAuctionFlowState().addressId}
+                              onSelect={(address) => {
+                                setSelectedAddress(address);
+                                setDeliveryAvailable(null);
+                                setPaymentError(null);
+                                writeAuctionFlowState({ ...readAuctionFlowState(), addressId: address.id });
+                              }}
+                              onAvailabilityChange={setDeliveryAvailable}
+                            />
+                          ) : selectedAddress ? (
+                            <DeliveryAvailabilityCheck
+                              key={selectedAddress.id}
+                              initialPincode={selectedAddress.postalCode}
+                              readOnly
+                              onAvailabilityChange={setDeliveryAvailable}
+                            />
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={handlePayNow}
+                            disabled={paymentLoading || paymentStatusLoading}
+                            className="mt-3 min-h-12 w-full rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {paymentLoading ? 'Preparing payment…' : 'Pay Now'}
+                          </button>
+                        </div>
                       )}
                       {paymentError ? <p className="mt-3 text-sm text-rose-600">{paymentError}</p> : null}
                       {!paymentCompleted && isPaymentReady ? <p className="mt-3 text-sm text-[var(--text-muted)]">Razorpay checkout is ready. Complete payment in the popup.</p> : null}

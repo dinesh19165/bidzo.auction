@@ -11,6 +11,7 @@ import { loadRazorpay, openRazorpayCheckout, type RazorpayPaymentResponse } from
 import { useAuth } from '../context/AuthContext';
 import { OfferCheckoutSection, type AppliedOffer } from '../components/checkout/OfferCheckoutSection';
 import { StockBadge } from '../components/common/StockBadge';
+import { validateIndianPincode } from '../utils/indianPincode';
 
 export function CustomerCartPage() {
   const { cart, isLoading, error, updateItem, removeItem, refresh } = useCartContext();
@@ -21,6 +22,7 @@ export function CustomerCartPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [deliveryAvailable, setDeliveryAvailable] = useState<boolean | null>(null);
   const [appliedOffer, setAppliedOffer] = useState<AppliedOffer | null>(null);
   const checkoutPending = useRef(false);
 
@@ -49,6 +51,15 @@ export function CustomerCartPage() {
     if (checkoutPending.current) return;
     if (!selectedAddress) {
       setCheckoutError('Please select a delivery address before continuing.');
+      return;
+    }
+    const pincodeError = validateIndianPincode(selectedAddress.postalCode);
+    if (pincodeError) {
+      setCheckoutError(pincodeError);
+      return;
+    }
+    if (deliveryAvailable === false) {
+      setCheckoutError('Delivery is not available to the selected PIN code.');
       return;
     }
     if (cart.items.length === 0 || checkoutLoading) return;
@@ -126,7 +137,7 @@ export function CustomerCartPage() {
           </div>
           <aside className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
             <h2 className="text-lg font-semibold text-white">Cart summary</h2><div className="mt-4 flex justify-between text-sm text-slate-300"><span>Total</span><span className="text-xl font-semibold text-white">₹{(appliedOffer?.finalAmount ?? cart.total).toLocaleString()}</span></div>{appliedOffer ? <div className="mt-2 flex justify-between text-sm text-emerald-300"><span>Offer discount</span><span>-₹{Number(appliedOffer.discountAmount || 0).toLocaleString('en-IN')}</span></div> : null}
-            <div className="mt-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id} onSelect={setSelectedAddress} /></div>
+            <div className="mt-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id} onSelect={(address) => { setSelectedAddress(address); setDeliveryAvailable(null); setCheckoutError(null); }} onAvailabilityChange={setDeliveryAvailable} /></div>
             <div className="mt-4"><OfferCheckoutSection orderAmount={cart.total} productIds={cart.items.map((item) => item.productId)} categoryIds={cart.items.flatMap((item) => item.categoryId == null ? [] : [item.categoryId])} onApplied={setAppliedOffer} onRemoved={() => setAppliedOffer(null)} /></div>
             {checkoutError ? <p className="mt-4 text-sm text-rose-200">{checkoutError}</p> : null}
             <button type="button" disabled={checkoutLoading || paymentOpen} onClick={handleCheckout} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">{checkoutLoading ? 'Preparing payment...' : paymentOpen ? 'Payment window open' : 'Checkout with Razorpay'}<ArrowRight className="h-4 w-4" /></button>

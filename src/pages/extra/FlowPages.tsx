@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { createAuctionOrder, getAuctionPaymentState, getOrderById, isPaidStatus } from '../../api/orderApi';
 import { createReview, getReviewEligibility } from '../../api/reviewApi';
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
+import { validateIndianPincode } from '../../utils/indianPincode';
 import type { AddressResponse } from '../../api/addressApi';
 import { createRazorpayPayment, getPaymentsForOrder, verifyRazorpayPayment } from '../../api/paymentApi';
 import { createVendorProduct, getVendorProducts, updateVendorProduct, deleteProductImage, setProductPrimaryImage, type SellingType } from '../../api/vendorProductApi';
@@ -1386,6 +1387,8 @@ export function CustomerAddressPage() {
     const saved = readAuctionFlowState();
     return saved.addressId ? ({ id: saved.addressId } as AddressResponse) : null;
   });
+  const [deliveryAvailable, setDeliveryAvailable] = useState<boolean | null>(null);
+  const [addressError, setAddressError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useAuctionFlowBackGuard(true);
@@ -1405,9 +1408,10 @@ export function CustomerAddressPage() {
   return (
     <SectionShell title="Address" subtitle="Choose where your order should be delivered">
       <FlowBreadcrumbs steps={[{ label: 'Checkout', to: '/customer/checkout' }, { label: 'Address', to: '/customer/address' }, { label: 'Shipping', to: '/customer/shipping' }]} />
-      <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={setSelectedAddress} /></div>
+      <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={(address) => { setSelectedAddress(address); setDeliveryAvailable(null); setAddressError(null); }} onAvailabilityChange={setDeliveryAvailable} /></div>
       {!selectedAddress ? <p className="mt-4 text-sm text-amber-300">Please select a delivery address before continuing to payment.</p> : null}
-      <button type="button" disabled={!selectedAddress} onClick={() => { const next = writeAuctionFlowState({ ...readAuctionFlowState(), addressId: selectedAddress!.id }); navigate('/customer/shipping'); }} className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">Continue to shipping <ArrowRight className="h-4 w-4" /></button>
+      {addressError ? <p role="alert" className="mt-3 text-sm text-rose-300">{addressError}</p> : null}
+      <button type="button" disabled={!selectedAddress} onClick={() => { if (!selectedAddress) return; const pincodeError = validateIndianPincode(selectedAddress.postalCode); if (pincodeError) { setAddressError(pincodeError); return; } if (deliveryAvailable === false) { setAddressError('Delivery is not available to the selected PIN code.'); return; } writeAuctionFlowState({ ...readAuctionFlowState(), addressId: selectedAddress.id }); navigate('/customer/shipping'); }} className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">Continue to shipping <ArrowRight className="h-4 w-4" /></button>
     </SectionShell>
   );
 }
