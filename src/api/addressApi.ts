@@ -1,6 +1,5 @@
 import { fetchJson } from './apiClient';
 import type { ApiResponse } from '../types';
-import { validateIndianPincode } from '../utils/indianPincode';
 
 export interface AddressResponse {
   id: number;
@@ -52,8 +51,7 @@ export function buildAddressPayload(form: Pick<AddressRequest, 'fullName' | 'pho
   if (!payload.addressLine1) return 'Address line 1 is required.';
   if (!payload.city) return 'City is required.';
   if (!payload.state) return 'State is required.';
-  const pincodeError = validateIndianPincode(payload.postalCode);
-  if (pincodeError) return pincodeError;
+  if (!/^[0-9]{6}$/.test(payload.postalCode)) return 'Postal code must be exactly 6 digits.';
   if (!payload.country) return 'Country is required.';
 
   return payload;

@@ -15,7 +15,6 @@ import { loadRazorpay, type RazorpayInstance, type RazorpayOptions, type Razorpa
 import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSelector';
 import { OfferCheckoutSection, type AppliedOffer } from '../../components/checkout/OfferCheckoutSection';
 import type { AddressResponse } from '../../api/addressApi';
-import { validateIndianPincode } from '../../utils/indianPincode';
 
 function FlowTransitionScreen({ heading, message, detail }: { heading: string; message: string; detail?: string }) {
   return (
@@ -47,7 +46,6 @@ export function BuyNowConfirmPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<AddressResponse | null>(null);
-  const [deliveryAvailable, setDeliveryAvailable] = useState<boolean | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [useWallet, setUseWallet] = useState(false);
@@ -131,15 +129,6 @@ export function BuyNowConfirmPage() {
     }
     if (!selectedAddress) {
       setError('Please select a delivery address before continuing to payment.');
-      return;
-    }
-    const pincodeError = validateIndianPincode(selectedAddress.postalCode);
-    if (pincodeError) {
-      setError(pincodeError);
-      return;
-    }
-    if (deliveryAvailable === false) {
-      setError('Delivery is not available to the selected PIN code.');
       return;
     }
     const quantity = flowState.quantity ?? 1;
@@ -262,7 +251,7 @@ export function BuyNowConfirmPage() {
             <div className="min-w-0 space-y-3">
               <section className="border-b border-white/10 px-1 py-2.5 sm:px-2 sm:py-3">
                 <div className="mb-1.5 flex items-center gap-2"><MapPin className="h-4 w-4 text-sky-300" /><h3 className="text-sm font-bold text-white">Delivery address</h3></div>
-                <DeliveryAddressSelector compact selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={(address) => { setSelectedAddress(address); setDeliveryAvailable(null); setError(null); }} onAvailabilityChange={setDeliveryAvailable} />
+                <DeliveryAddressSelector compact selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={(address) => { setSelectedAddress(address); setError(null); }} />
               </section>
 
               <section className="border-b border-white/10 px-1 py-2.5 sm:px-2 sm:py-3">

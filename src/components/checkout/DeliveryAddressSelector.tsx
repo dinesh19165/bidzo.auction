@@ -1,17 +1,15 @@
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { buildAddressPayload, createAddress, getAddresses, type AddressRequest, type AddressResponse } from '../../api/addressApi';
-import DeliveryAvailabilityCheck from '../delivery/DeliveryAvailabilityCheck';
 import { useThemeContext } from '../../context/ThemeContext';
 
 type Props = {
   selectedAddressId?: number;
   onSelect: (address: AddressResponse) => void;
   compact?: boolean;
-  onAvailabilityChange?: (available: boolean | null) => void;
 };
 
-export default function DeliveryAddressSelector({ selectedAddressId, onSelect, compact = false, onAvailabilityChange }: Props) {
+export default function DeliveryAddressSelector({ selectedAddressId, onSelect, compact = false }: Props) {
   const { theme } = useThemeContext();
   const [addresses, setAddresses] = useState<AddressResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +18,6 @@ export default function DeliveryAddressSelector({ selectedAddressId, onSelect, c
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<AddressRequest>({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', isDefault: true });
   const [showSavedAddresses, setShowSavedAddresses] = useState(!compact);
-  const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
 
   const loadAddresses = async () => {
     setLoading(true);
@@ -35,9 +32,6 @@ export default function DeliveryAddressSelector({ selectedAddressId, onSelect, c
   };
 
   useEffect(() => { loadAddresses(); }, []);
-  useEffect(() => {
-    if (selectedAddress) onSelect(selectedAddress);
-  }, [addresses, selectedAddressId]);
 
   const addAddress = async () => {
     const payloadResult = buildAddressPayload(form);
@@ -89,19 +83,9 @@ export default function DeliveryAddressSelector({ selectedAddressId, onSelect, c
         </div>
       )}
       {compact && selectedAddressId && showSavedAddresses ? <button type="button" onClick={() => setShowSavedAddresses(false)} className="rounded-full border border-white/10 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/5">Use selected address</button> : null}
-      {selectedAddress ? <DeliveryAvailabilityCheck key={selectedAddress.id} initialPincode={selectedAddress.postalCode} readOnly onAvailabilityChange={onAvailabilityChange} /> : null}
       <button type="button" onClick={() => setShowForm((current) => !current)} className="px-0 py-1 text-sm font-medium text-blue-300 hover:text-blue-200">{showForm ? 'Cancel' : 'Add New Address'}</button>
       {showForm ? <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4 md:grid-cols-2">
-        {([
-          ['fullName', 'Full name'],
-          ['phone', 'Phone number'],
-          ['addressLine1', 'Address line 1'],
-          ['addressLine2', 'Address line 2 (optional)'],
-          ['city', 'City'],
-          ['state', 'State'],
-          ['postalCode', 'PIN code'],
-          ['country', 'Country'],
-        ] as const).map(([field, label]) => <label key={field} className="grid gap-1 text-sm text-slate-300">{label}<input value={form[field] || ''} onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))} autoComplete={field === 'postalCode' ? 'postal-code' : undefined} inputMode={field === 'postalCode' || field === 'phone' ? 'numeric' : undefined} className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-blue-400" /></label>)}
+        {(['fullName', 'phone', 'addressLine1', 'addressLine2', 'city', 'state', 'postalCode', 'country'] as const).map((field) => <input key={field} value={form[field] || ''} onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))} placeholder={field} className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none" />)}
         <button type="button" onClick={addAddress} disabled={creating} className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{creating ? 'Adding...' : 'Save Address'}</button>
       </div> : null}
     </div>

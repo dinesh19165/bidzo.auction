@@ -441,7 +441,7 @@ Common request headers, response parsing, auth and error semantics are documente
 | Product and seller details | `ProductDetailPage`, `CustomerProductPage`, `SellerProfilePage`, customer seller flows | `productApi`, `sellerApi`, review/wishlist helpers; route IDs select records, image paths may be made absolute. |
 | Auctions and bids | Auction list/detail/live/winner/bid flows, vendor auction editor | `auctionApi`, `bidApi`, `vendorAuctionApi`; listing/detail/registration/bid history/bid mutation are separate; some flow state is localStorage. `addMockBid()` is local state, not a backend bid. |
 | Cart, checkout, payment | Cart, address/shipping/payment, Buy Now and auction payment screens | `cartApi`, `orderApi`, `paymentApi`, `auctionApi`, `invoiceApi`, Razorpay utility; client initiates and verifies flow but server must be authoritative for amount/status. |
-| Orders and delivery | Customer/vendor/admin order screens, tracking and delivery routes | `orderApi`, `vendorOrderApi`, `invoiceApi`; delivery serviceability has an explicit frontend adapter seam but no backend contract yet. `deliveryApi` remains TODO-only. |
+| Orders and delivery | Customer/vendor/admin order screens, tracking and delivery routes | `orderApi`, `vendorOrderApi`, `invoiceApi`; `deliveryApi` is TODO-only. Confirm callers before classifying tracking/status as live. |
 | Wallet and withdrawals | Customer/vendor/admin wallet and withdrawal flows | `walletApi`, `customerWalletApi`, `adminWalletApi`, `withdrawalApi`, `paymentApi`; services overlap and require server-side ownership/role checks. |
 | Notifications, messages, support | Header action, notifications, chat, support routes | `notificationApi`, `messageApi`, `supportApi`, contexts; unread/read state is context-managed, while page-level integration varies. |
 | Offers, rewards and reviews | Customer/vendor/admin offers and customer reward/review flows | `offerApi`, `rewardsApi`, `loyaltyApi`, `reviewApi`, `settingsApi`; discount, balance and eligibility decisions must be server-authoritative. |
@@ -472,7 +472,6 @@ Appendix B includes parameterized path expressions. Dynamic cases include record
 ### Placeholder API modules
 
 - `src/api/deliveryApi.ts`: `getDeliveries` and `updateDeliveryStatus` are empty TODO functions.
-- `src/api/deliveryAvailabilityApi.ts`: UI adapter seam with an explicit unconfigured default; no availability endpoint/request/response contract is asserted. See [the delivery availability integration note](./DELIVERY_AVAILABILITY_FRONTEND.md).
 - `src/api/organizationApi.ts` and `src/api/reportApi.ts`: TODO functions; no request is issued.
 - `src/api/vendorApi.ts`: profile/KYC/document operations have request implementations, while `getVendors` and `getVendorById` remain TODO.
 - A service module or route existing does not prove its screen uses it; consult Appendix B's caller column.
