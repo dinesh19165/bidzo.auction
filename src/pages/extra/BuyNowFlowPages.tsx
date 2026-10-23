@@ -16,6 +16,7 @@ import DeliveryAddressSelector from '../../components/checkout/DeliveryAddressSe
 import DeliveryAvailabilityCheck from '../../components/delivery/DeliveryAvailabilityCheck';
 import { OfferCheckoutSection, type AppliedOffer } from '../../components/checkout/OfferCheckoutSection';
 import type { AddressResponse } from '../../api/addressApi';
+import { hasVerifiedCoordinates } from '../../components/checkout/DeliveryLocationPicker';
 
 function FlowTransitionScreen({ heading, message, detail }: { heading: string; message: string; detail?: string }) {
   return (
@@ -131,6 +132,10 @@ export function BuyNowConfirmPage() {
     }
     if (!selectedAddress) {
       setError('Please select a delivery address before continuing to payment.');
+      return;
+    }
+    if (!hasVerifiedCoordinates(selectedAddress.latitude, selectedAddress.longitude)) {
+      setError('This saved address has no confirmed delivery location. Update it in your address book before continuing.');
       return;
     }
     if (deliveryAvailable !== true) {
@@ -261,7 +266,9 @@ export function BuyNowConfirmPage() {
                 <div className="mb-1.5 flex items-center gap-2"><MapPin className="h-4 w-4 text-sky-300" /><h3 className="text-sm font-bold text-white">Delivery address</h3></div>
                 <DeliveryAddressSelector compact selectedAddressId={selectedAddress?.id ?? flowState.addressId} onSelect={(address) => { setSelectedAddress(address); setDeliveryAvailable(null); setError(null); }} />
                 {selectedAddress ? (
-                  <DeliveryAvailabilityCheck
+                  !hasVerifiedCoordinates(selectedAddress.latitude, selectedAddress.longitude)
+                    ? <p role="alert" className="mt-2 text-xs text-amber-200">This saved address needs a confirmed location. Update it in your address book before continuing.</p>
+                    : <DeliveryAvailabilityCheck
                     key={`${flowState.productId}:${selectedAddress.id}:${selectedAddress.postalCode}`}
                     productId={flowState.productId}
                     pincode={selectedAddress.postalCode}
@@ -334,7 +341,7 @@ export function BuyNowConfirmPage() {
               </button>
               <button
                 onClick={handleConfirmAndPay}
-                disabled={loading || !termsAccepted || !selectedAddress || deliveryAvailable !== true}
+                disabled={loading || !termsAccepted || !selectedAddress || !hasVerifiedCoordinates(selectedAddress.latitude, selectedAddress.longitude) || deliveryAvailable !== true}
                 className="inline-flex min-h-[46px] items-center justify-center whitespace-nowrap rounded-full bg-blue-600 px-5 py-2 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-48"
               >
                 {loading ? (

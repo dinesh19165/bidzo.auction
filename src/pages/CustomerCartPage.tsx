@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { SectionShell } from '../components/SectionShell';
 import { useCartContext } from '../context/CartContext';
@@ -14,6 +14,7 @@ import { StockBadge } from '../components/common/StockBadge';
 import { ApiError } from '../api/apiClient';
 import { checkDeliveryAvailability, type DeliveryCheckResult } from '../api/deliveryApi';
 import { validateDeliveryPincode } from '../utils/deliveryValidation';
+import { hasVerifiedCoordinates } from '../components/checkout/DeliveryLocationPicker';
 
 type ProductDeliveryStatus =
   | { status: 'checking' }
@@ -43,6 +44,7 @@ export function CustomerCartPage() {
   const deliveryCheckKey = `${selectedAddress?.id ?? ''}:${selectedAddress?.postalCode ?? ''}:${distinctProductIds.join(',')}`;
   const currentDeliveryResults = deliveryValidation?.key === deliveryCheckKey ? deliveryValidation.results : {};
   const deliveryReady = Boolean(selectedAddress)
+    && hasVerifiedCoordinates(selectedAddress?.latitude, selectedAddress?.longitude)
     && distinctProductIds.length > 0
     && distinctProductIds.every((productId) => currentDeliveryResults[productId]?.status === 'available');
   const deliveryChecking = distinctProductIds.some((productId) => currentDeliveryResults[productId]?.status === 'checking');
@@ -119,6 +121,10 @@ export function CustomerCartPage() {
       setCheckoutError('Please select a delivery address before continuing.');
       return;
     }
+    if (!hasVerifiedCoordinates(selectedAddress.latitude, selectedAddress.longitude)) {
+      setCheckoutError('This saved address has no confirmed delivery location. Update it in your address book before checkout.');
+      return;
+    }
     if (!deliveryReady) {
       setCheckoutError('Confirm delivery availability for every cart product before checkout.');
       return;
@@ -184,8 +190,8 @@ export function CustomerCartPage() {
       {isLoading ? <p className="py-12 text-center text-slate-400">Loading your cart...</p> : error ? <p className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-5 text-rose-200">{error}</p> : cart.items.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-8 text-center text-slate-400"><ShoppingBag className="mx-auto mb-3 h-10 w-10 text-slate-600" /><p>Your cart is empty</p></div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <div className="space-y-4">
+        <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,400px)]">
+          <div className="min-w-0 space-y-4">
             {cart.items.map((item) => (
               <div key={item.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
                 <img src={item.productImageUrl || '/logo.png'} alt={item.productName} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/logo.png'; }} className="h-24 w-24 rounded-2xl object-cover" />
@@ -196,11 +202,12 @@ export function CustomerCartPage() {
               </div>
             ))}
           </div>
-          <aside className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
-            <h2 className="text-lg font-semibold text-white">Cart summary</h2><div className="mt-4 flex justify-between text-sm text-slate-300"><span>Total</span><span className="text-xl font-semibold text-white">₹{(appliedOffer?.finalAmount ?? cart.total).toLocaleString()}</span></div>{appliedOffer ? <div className="mt-2 flex justify-between text-sm text-emerald-300"><span>Offer discount</span><span>-₹{Number(appliedOffer.discountAmount || 0).toLocaleString('en-IN')}</span></div> : null}
-            <div className="mt-4"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id} onSelect={(address) => { setSelectedAddress(address); setDeliveryValidation(null); setCheckoutError(null); }} /></div>
+          <aside className="w-full min-w-0 rounded-2xl border border-white/10 bg-slate-900/70 p-3 sm:p-5">
+            <h2 className="text-lg font-semibold text-white">Cart summary</h2><div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm text-slate-300"><span>Total</span><span className="max-w-full break-words text-right text-xl font-semibold text-white">₹{(appliedOffer?.finalAmount ?? cart.total).toLocaleString()}</span></div>{appliedOffer ? <div className="mt-2 flex min-w-0 flex-wrap justify-between gap-2 text-sm text-emerald-300"><span>Offer discount</span><span className="break-words">-₹{Number(appliedOffer.discountAmount || 0).toLocaleString('en-IN')}</span></div> : null}
+            <div className="mt-4 w-full min-w-0"><DeliveryAddressSelector selectedAddressId={selectedAddress?.id} onSelect={(address) => { setSelectedAddress(address); setDeliveryValidation(null); setCheckoutError(null); }} /></div>
+            {selectedAddress && !hasVerifiedCoordinates(selectedAddress.latitude, selectedAddress.longitude) ? <p role="alert" className="mt-3 text-sm text-amber-200">This address needs a confirmed delivery location. <Link to="/customer/addresses" className="font-semibold underline">Update it in your address book</Link>.</p> : null}
             {selectedAddress ? (
-              <section className="mt-4 space-y-2" aria-labelledby="cart-delivery-check-heading" aria-live="polite">
+              <section className="mt-4 min-w-0 space-y-2" aria-labelledby="cart-delivery-check-heading" aria-live="polite">
                 <h3 id="cart-delivery-check-heading" className="text-sm font-semibold text-white">Delivery availability</h3>
                 {cart.items.map((item) => {
                   const productDeliveryStatus = currentDeliveryResults[item.productId];
@@ -216,9 +223,9 @@ export function CustomerCartPage() {
                           ? 'Unable to check delivery availability. Please try again.'
                           : 'Checking delivery availability...';
                   return (
-                    <div key={item.id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
-                      <p className="font-medium text-slate-200">{item.productName}</p>
-                      <p className={`mt-1 ${status === 'available' ? 'text-emerald-300' : status === 'checking' ? 'text-slate-400' : 'text-rose-300'}`}>{message}</p>
+                    <div key={item.id} className="min-w-0 rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
+                      <p className="break-words font-medium text-slate-200">{item.productName}</p>
+                      <p className={`mt-1 break-words ${status === 'available' ? 'text-emerald-300' : status === 'checking' ? 'text-slate-400' : 'text-rose-300'}`}>{message}</p>
                       {result ? (
                         <p className="mt-1 text-xs text-slate-400">
                           {typeof result.distanceKm === 'number' ? `Distance: ${result.distanceKm} km` : null}
@@ -231,8 +238,8 @@ export function CustomerCartPage() {
                 })}
               </section>
             ) : null}
-            <div className="mt-4"><OfferCheckoutSection orderAmount={cart.total} productIds={cart.items.map((item) => item.productId)} categoryIds={cart.items.flatMap((item) => item.categoryId == null ? [] : [item.categoryId])} onApplied={setAppliedOffer} onRemoved={() => setAppliedOffer(null)} /></div>
-            {checkoutError ? <p className="mt-4 text-sm text-rose-200">{checkoutError}</p> : null}
+            <div className="mt-4 w-full min-w-0"><OfferCheckoutSection orderAmount={cart.total} productIds={cart.items.map((item) => item.productId)} categoryIds={cart.items.flatMap((item) => item.categoryId == null ? [] : [item.categoryId])} onApplied={setAppliedOffer} onRemoved={() => setAppliedOffer(null)} /></div>
+            {checkoutError ? <p role="alert" className="mt-4 break-words text-sm text-rose-200">{checkoutError}</p> : null}
             <button type="button" disabled={checkoutLoading || paymentOpen || !deliveryReady} onClick={handleCheckout} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">{checkoutLoading ? 'Preparing payment...' : paymentOpen ? 'Payment window open' : deliveryChecking ? 'Checking delivery...' : 'Checkout with Razorpay'}<ArrowRight className="h-4 w-4" /></button>
           </aside>
         </div>

@@ -13,6 +13,8 @@ export interface AddressResponse {
   state: string;
   postalCode: string;
   country: string;
+  latitude?: number | null;
+  longitude?: number | null;
   isDefault: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -28,10 +30,12 @@ export interface AddressRequest {
   state: string;
   postalCode: string;
   country: string;
+  latitude?: number | null;
+  longitude?: number | null;
   isDefault: boolean;
 }
 
-export function buildAddressPayload(form: Pick<AddressRequest, 'fullName' | 'phone' | 'addressLine1' | 'addressLine2' | 'city' | 'state' | 'postalCode' | 'country'>): AddressRequest | string {
+export function buildAddressPayload(form: Pick<AddressRequest, 'fullName' | 'phone' | 'addressLine1' | 'addressLine2' | 'city' | 'state' | 'postalCode' | 'country' | 'latitude' | 'longitude'>): AddressRequest | string {
   const payload: AddressRequest = {
     label: 'Home',
     fullName: form.fullName.trim(),
@@ -42,6 +46,8 @@ export function buildAddressPayload(form: Pick<AddressRequest, 'fullName' | 'pho
     state: form.state.trim(),
     postalCode: form.postalCode.trim(),
     country: form.country.trim(),
+    latitude: form.latitude ?? null,
+    longitude: form.longitude ?? null,
     isDefault: true,
   };
 
@@ -53,6 +59,10 @@ export function buildAddressPayload(form: Pick<AddressRequest, 'fullName' | 'pho
   if (!payload.state) return 'State is required.';
   if (!/^[0-9]{6}$/.test(payload.postalCode)) return 'Postal code must be exactly 6 digits.';
   if (!payload.country) return 'Country is required.';
+  if (payload.latitude == null || payload.longitude == null) return 'Choose and confirm a delivery location before saving this address.';
+  if ((payload.latitude == null) !== (payload.longitude == null)) return 'Select a location again so both coordinates can be saved.';
+  if (payload.latitude != null && (!Number.isFinite(payload.latitude) || payload.latitude < -90 || payload.latitude > 90)) return 'Latitude must be between -90 and 90.';
+  if (payload.longitude != null && (!Number.isFinite(payload.longitude) || payload.longitude < -180 || payload.longitude > 180)) return 'Longitude must be between -180 and 180.';
 
   return payload;
 }

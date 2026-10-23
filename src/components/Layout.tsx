@@ -677,6 +677,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const mobileNavItemClass = (active: boolean) => `flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[9px] font-medium sm:text-[10px] ${active ? 'text-blue-600' : 'mobile-nav-item'}`;
   const auctionsNavActive = location.pathname.startsWith('/auctions') || location.pathname.startsWith('/auction/');
 
+  if (location.pathname.startsWith('/delivery-share/')) {
+    return <main className="min-h-screen bg-slate-950">{children}</main>;
+  }
+
   return (
     <div className="app-shell min-h-screen overflow-x-clip transition-colors duration-300" onClickCapture={(event) => {
       if (!isHomePage || !(event.target instanceof Element)) return;

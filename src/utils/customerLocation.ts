@@ -7,6 +7,9 @@ export interface CustomerLocation {
   latitude: number;
   longitude: number;
   displayName: string;
+  addressLine1: string;
+  addressLine2: string;
+  country: string;
 }
 
 const STORAGE_KEY = 'bidzo_customer_location';
@@ -18,6 +21,9 @@ function normalizeLocation(address: Record<string, string | undefined>, latitude
   const city = address.city || address.town || address.village || address.municipality || address.county || '';
   const state = address.state || address.state_district || '';
   const pincode = address.postcode || '';
+  const road = address.road || address.pedestrian || address.residential || address.footway || address.path || '';
+  const houseNumber = address.house_number || '';
+  const locality = address.suburb || address.neighbourhood || address.quarter || address.hamlet || '';
   return {
     city,
     state,
@@ -25,10 +31,13 @@ function normalizeLocation(address: Record<string, string | undefined>, latitude
     latitude,
     longitude,
     displayName: displayName || [city, state, pincode].filter(Boolean).join(', '),
+    addressLine1: [houseNumber, road].filter(Boolean).join(' ') || road || address.building || address.amenity || houseNumber,
+    addressLine2: locality,
+    country: address.country || '',
   };
 }
 
-async function geocodeRequest(url: string): Promise<any> {
+async function geocodeRequest(url: string): Promise<unknown> {
   const response = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error('Unable to search locations right now.');
   return response.json();
@@ -36,20 +45,22 @@ async function geocodeRequest(url: string): Promise<any> {
 
 export async function reverseGeocode(latitude: number, longitude: number): Promise<CustomerLocation> {
   const params = new URLSearchParams({ format: 'jsonv2', lat: String(latitude), lon: String(longitude), addressdetails: '1' });
-  const result = await geocodeRequest(`${NOMINATIM_URL}/reverse?${params.toString()}`);
-  if (!result?.address) throw new Error('We could not identify that location. Please search manually.');
+  const result = await geocodeRequest(`${NOMINATIM_URL}/reverse?${params.toString()}`) as { address?: Record<string, string | undefined>; display_name?: string };
+  if (!result?.address) throw new Error('We could not identify that location. Please retry or enter the address manually.');
   return normalizeLocation(result.address, latitude, longitude, result.display_name);
 }
 
 export async function searchCustomerLocations(query: string): Promise<CustomerLocation[]> {
   const params = new URLSearchParams({ format: 'jsonv2', q: query, countrycodes: 'in', addressdetails: '1', limit: '5' });
   const results = await geocodeRequest(`${NOMINATIM_URL}/search?${params.toString()}`);
-  return (Array.isArray(results) ? results : []).map((result) => normalizeLocation(
+  return (Array.isArray(results) ? results : []).map((item) => {
+    const result = item as { address?: Record<string, string | undefined>; lat?: string; lon?: string; display_name?: string };
+    return normalizeLocation(
     result.address || {},
     Number(result.lat),
     Number(result.lon),
     result.display_name,
-  )).filter((location) => location.city || location.state || location.pincode);
+  ); }).filter((location) => location.city || location.state || location.pincode);
 }
 
 export function getStoredCustomerLocation(): CustomerLocation | null {

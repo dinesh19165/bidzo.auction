@@ -27,6 +27,7 @@ import { AdminRewardsSettingsPage } from './pages/AdminRewardsSettingsPage';
 import { VendorDashboardPage } from './pages/VendorDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DeliveryPage } from './pages/DeliveryPage';
+import { DeliverySharePage } from './pages/DeliverySharePage';
 import { WalletPage } from './pages/WalletPage';
 import { ChatPage } from './pages/ChatPage';
 import { NotificationsPage } from './pages/NotificationsPage';
@@ -238,6 +239,7 @@ function App() {
                   <AppRouteGuard>
                   <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/delivery-share/:token" element={<DeliverySharePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/faq" element={<FAQPage />} />

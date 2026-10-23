@@ -71,11 +71,12 @@ Directory responsibilities: `src/pages/` route-level screens; `src/components/` 
 
 The table below is extracted from every `<Route>` declaration in `src/App.tsx`. Duplicate declarations are retained. A route proves frontend routing only; it does not prove API integration.
 
-**285 route declarations.**
+**286 route declarations.**
 
 | Path | Element | Source |
 |---|---|---|
 | `/` | `HomePage` | [App.tsx:240](../src/App.tsx#L240) |
+| `/delivery-share/:token` | `DeliverySharePage` | [App.tsx:242](../src/App.tsx#L242) |
 | `/about` | `AboutPage` | [App.tsx:241](../src/App.tsx#L241) |
 | `/contact` | `ContactPage` | [App.tsx:242](../src/App.tsx#L242) |
 | `/faq` | `FAQPage` | [App.tsx:243](../src/App.tsx#L243) |
@@ -425,7 +426,7 @@ There are no Axios interceptors, cookie credentials setting, centralized retries
 
 ## 7. Source-confirmed backend request inventory
 
-Appendix B is generated from calls to shared HTTP helpers in API services plus the footer settings read. It records **source call sites**, not unique URLs or verified backend routes. The inventory has **252 helper invocations**: 244 `fetchJson`, 6 `uploadFormData`, 1 `fetchJsonWithToken`, and 1 `fetchBlob`. Four low-level `fetch` expressions inside `apiClient.ts` are transport implementations, not additional endpoint calls.
+Appendix B is generated from calls to shared HTTP helpers in API services plus the footer settings read. It records **source call sites**, not unique URLs or verified backend routes. The inventory has **258 helper invocations**: 250 `fetchJson`, 6 `uploadFormData`, 1 `fetchJsonWithToken`, and 1 `fetchBlob`. Four low-level `fetch` expressions inside `apiClient.ts` are transport implementations, not additional endpoint calls.
 
 For every call, the generated row includes HTTP method, URL/path expression, service function/source line, statically detected caller function/file, request body expression, response type annotation and auth handling. Dynamic query/path expressions are retained. A source DTO/type is a frontend expectation, not a backend-confirmed schema.
 
@@ -441,7 +442,7 @@ Common request headers, response parsing, auth and error semantics are documente
 | Product and seller details | `ProductDetailPage`, `CustomerProductPage`, `SellerProfilePage`, customer seller flows | `productApi`, `sellerApi`, review/wishlist helpers; route IDs select records, image paths may be made absolute. |
 | Auctions and bids | Auction list/detail/live/winner/bid flows, vendor auction editor | `auctionApi`, `bidApi`, `vendorAuctionApi`; listing/detail/registration/bid history/bid mutation are separate; some flow state is localStorage. `addMockBid()` is local state, not a backend bid. |
 | Cart, checkout, payment | Cart, address/shipping/payment, Buy Now and auction payment screens | `cartApi`, `orderApi`, `paymentApi`, `auctionApi`, `invoiceApi`, Razorpay utility; client initiates and verifies flow but server must be authoritative for amount/status. |
-| Orders and delivery | Customer/vendor/admin order screens, tracking and delivery routes | `orderApi`, `vendorOrderApi`, `invoiceApi`; `deliveryApi` is TODO-only. Confirm callers before classifying tracking/status as live. |
+| Orders and delivery | Customer/vendor/admin order screens, tracking and delivery routes | `orderApi`, `vendorOrderApi`, `deliveryShareApi`, `invoiceApi`; `deliveryApi` remains TODO-only. |
 | Wallet and withdrawals | Customer/vendor/admin wallet and withdrawal flows | `walletApi`, `customerWalletApi`, `adminWalletApi`, `withdrawalApi`, `paymentApi`; services overlap and require server-side ownership/role checks. |
 | Notifications, messages, support | Header action, notifications, chat, support routes | `notificationApi`, `messageApi`, `supportApi`, contexts; unread/read state is context-managed, while page-level integration varies. |
 | Offers, rewards and reviews | Customer/vendor/admin offers and customer reward/review flows | `offerApi`, `rewardsApi`, `loyaltyApi`, `reviewApi`, `settingsApi`; discount, balance and eligibility decisions must be server-authoritative. |
@@ -460,6 +461,7 @@ Appendix B includes parameterized path expressions. Dynamic cases include record
 
 - `src/services/cloudinaryUpload.ts`: multipart POST to a Cloudinary URL assembled from public cloud/preset settings.
 - `src/utils/customerLocation.ts`: location search/reverse-geocode fetch to Nominatim; browser connectivity, rate limits, attribution and terms are external.
+- `src/components/checkout/DeliveryLocationPicker.tsx`: browser geolocation, OpenStreetMap raster tiles, and the existing Nominatim search/reverse-geocoding utility power the delivery-location picker. No Geoapify key/integration is configured in the frontend environment files; the picker uses no paid mapping API.
 - `src/utils/razorpay.ts`: loads Razorpay Checkout script; payment/order calls use Bidzo service adapters where wired.
 - `src/pages/extra/FlowPages.tsx`: QR image from `api.qrserver.com`, with a receipt URL encoded in the request.
 
@@ -475,6 +477,15 @@ Appendix B includes parameterized path expressions. Dynamic cases include record
 - `src/api/organizationApi.ts` and `src/api/reportApi.ts`: TODO functions; no request is issued.
 - `src/api/vendorApi.ts`: profile/KYC/document operations have request implementations, while `getVendors` and `getVendorById` remain TODO.
 - A service module or route existing does not prove its screen uses it; consult Appendix B's caller column.
+
+### Delivery coordinates and sharing (frontend integration)
+
+- Address create/update requests include `latitude` and `longitude`, which are required by the customer address form. The location picker requires explicit confirmation of a searched, browser-derived, or manually map-selected point and never infers coordinates from a postal code. Reverse-geocoded street, locality, city, state, PIN code, and country fields remain editable; customer name and phone are never geocoded.
+- Checkout continues to submit the saved `addressId` through the existing cart/auction/payment flow. Order details use the embedded order address snapshot rather than looking up a mutable saved customer address.
+- Vendor order requests use `GET /api/vendor/orders?page={page}&size=20`, `GET /api/vendor/orders/{orderId}`, and `PUT /api/vendor/orders/{orderId}/scheduled-delivery-date` with `{ "scheduledDeliveryDate": "YYYY-MM-DD" }`. The UI uses active statuses already present in the frontend (`CONFIRMED`, `PACKING`, `SHIPPED`, `OUT_FOR_DELIVERY`) for scheduling/share controls; backend authorization and eligibility remain authoritative.
+- Delivery links use `POST /api/vendor/delivery-shares` for `SINGLE`, `DAY`, and `WEEK` scopes. A single-order request sends `expiresInHours: 48`; the UI displays `shareUrl`, `expiresAt`, `destinationCount`, and `id`/`shareId` when returned, and revokes via `POST /api/vendor/delivery-shares/{shareId}/revoke`.
+- `/delivery-share/:token` loads only the scoped public response from `GET /api/public/delivery-shares/{token}` without authentication. It renders an address-field allowlist and directions only when coordinates exist. HTTP `410` is shown as expired; `404` is shown as no longer available (revoked or invalid).
+- No vendor share-list endpoint or backend DTO source is present in this frontend repository. Response fields beyond the explicitly supplied `shareUrl` and example requests need confirmation against the backend; the frontend does not construct token URLs or persist/log tokens.
 
 ## 9. Integration risks and mismatches
 
@@ -500,10 +511,10 @@ Appendix B includes parameterized path expressions. Dynamic cases include record
 | Build | `npm run build` (`tsc && vite build`) |
 | Preview | `npm run preview` (Vite preview; `/api` proxy in config targets localhost:8080) |
 | Exposed test script | `npm run test:offer-date` (`tsx --test tests/offerDate.test.ts`) |
-| Other test files | `tests/androidApkUrl.test.ts`, `tests/passwordResetFlow.test.ts`; no dedicated package script is declared for these in the inspected manifest. |
+| Other test files | `tests/androidApkUrl.test.ts`, `tests/buyNowQuantity.test.ts`, `tests/cartQuantity.test.ts`, `tests/deliveryApi.test.ts`, `tests/deliveryValidation.test.ts`, `tests/homeProducts.test.ts`, `tests/passwordResetFlow.test.ts`; no dedicated package script is declared for these in the inspected manifest. |
 | Node | Node v24.21.0 was present during inspection. `package.json` does not declare an `engines` range; minimum supported Node version is unspecified. |
 
-The source inventory was produced with a TypeScript AST scan: 285 route declarations and 252 shared HTTP-helper invocations. `npm run build` passed. The exposed `npm run test:offer-date` passed (2 tests), and the two additional discovered test files passed when invoked directly with `tsx` (5 tests). Vite emitted existing warnings about ineffective dynamic imports in `bidApi.ts`, `adminApi.ts`, and `walletApi.ts`, and a minified JavaScript chunk exceeding 500 kB. Remote services and backend endpoints were not validated.
+The source inventory was produced with a TypeScript AST scan: 286 route declarations and 258 shared HTTP-helper invocations. For the delivery-coordinate/share integration, `npm run build` passed and the existing Buy Now and homepage tests passed (5 tests total). Vite emitted existing warnings about ineffective dynamic imports in `bidApi.ts`, `adminApi.ts`, and `walletApi.ts`, and a minified JavaScript chunk exceeding 500 kB. Remote services and backend endpoints were not validated.
 
 ## 11. Recommended integration and testing sequence
 
@@ -521,7 +532,7 @@ The source inventory was produced with a TypeScript AST scan: 285 route declarat
 
 **File-level inventories**
 
-### src/pages (47)
+### src/pages (48)
 
 - `src/pages/AboutPage.tsx`
 - `src/pages/AdminDashboardPage.tsx`
@@ -539,6 +550,7 @@ The source inventory was produced with a TypeScript AST scan: 285 route declarat
 - `src/pages/CustomerRewardsPage.tsx`
 - `src/pages/CustomerWalletPage.tsx`
 - `src/pages/DeliveryPage.tsx`
+- `src/pages/DeliverySharePage.tsx`
 - `src/pages/FAQPage.tsx`
 - `src/pages/FranchiseAdminPages.tsx`
 - `src/pages/HelpCenterPage.tsx`
@@ -571,7 +583,7 @@ The source inventory was produced with a TypeScript AST scan: 285 route declarat
 - `src/pages/extra/OrganizationExtras.tsx`
 - `src/pages/extra/WalletExtras.tsx`
 
-### src/components (43)
+### src/components (44)
 
 - `src/components/AuctionForm.tsx`
 - `src/components/EmptyState.tsx`
@@ -589,6 +601,7 @@ The source inventory was produced with a TypeScript AST scan: 285 route declarat
 - `src/components/categories/CategoryIcon.tsx`
 - `src/components/chat/ChatComponents.tsx`
 - `src/components/checkout/DeliveryAddressSelector.tsx`
+- `src/components/checkout/DeliveryLocationPicker.tsx`
 - `src/components/checkout/OfferCheckoutSection.tsx`
 - `src/components/common/Buttons.tsx`
 - `src/components/common/Card.tsx`
@@ -651,7 +664,7 @@ The source inventory was produced with a TypeScript AST scan: 285 route declarat
 - `src/services/cloudinaryUpload.ts`
 - `src/services/productOfferService.ts`
 
-### src/api (50)
+### src/api (51)
 
 | Module | Observed purpose |
 |---|---|
@@ -673,6 +686,7 @@ The source inventory was produced with a TypeScript AST scan: 285 route declarat
 | `customerApi.ts` | Customer profile/dashboard |
 | `customerWalletApi.ts` | Customer wallet |
 | `deliveryApi.ts` | TODO placeholder |
+| `deliveryShareApi.ts` | Vendor delivery-share creation/revocation and public share lookup |
 | `franchiseApi.ts` | Franchise operations |
 | `homeApi.ts` | Homepage data/deals |
 | `invoiceApi.ts` | Invoice retrieval/download |
@@ -974,6 +988,12 @@ The source inventory was produced with a TypeScript AST scan: 285 route declarat
 | 250 | `PUT` | ``/api/admin/withdrawals/${id}/approve`` | `approveWithdrawal` at [src/api/withdrawalApi.ts:99](../src/api/withdrawalApi.ts#L99) | No static caller found | `none` | `WithdrawalRecord \| ApiResponse<WithdrawalRecord>` | Optional auth from local storage |
 | 251 | `PUT` | ``/api/admin/withdrawals/${id}/reject`` | `rejectWithdrawal` at [src/api/withdrawalApi.ts:104](../src/api/withdrawalApi.ts#L104) | No static caller found | `none` | `WithdrawalRecord \| ApiResponse<WithdrawalRecord>` | Optional auth from local storage |
 | 252 | `GET` | `'/api/admin/settings/getgeneral'` | `Footer` at [src/components/Footer.tsx:23](../src/components/Footer.tsx#L23) | No static caller found | `none` | `GeneralSettings \| GeneralSettingsResponse` | Unauthenticated |
+| 253 | `GET` | ``/api/vendor/orders?page=${page}&size=${size}`` | `getVendorOrders` at [src/api/vendorOrderApi.ts:48](../src/api/vendorOrderApi.ts#L48) | src/pages/extra/CustomerVendorExtras.tsx :: loadOrders | `none` | `VendorOrdersPageResult` | Authenticated client |
+| 254 | `GET` | ``/api/vendor/orders/${encodeURIComponent(String(orderId))}`` | `getVendorOrder` at [src/api/vendorOrderApi.ts:64](../src/api/vendorOrderApi.ts#L64) | src/pages/extra/CustomerVendorExtras.tsx :: loadOrderDetail | `none` | `VendorOrderApiResponse` | Authenticated client |
+| 255 | `PUT` | ``/api/vendor/orders/${encodeURIComponent(String(orderId))}/scheduled-delivery-date`` | `updateScheduledDeliveryDate` at [src/api/vendorOrderApi.ts:69](../src/api/vendorOrderApi.ts#L69) | src/pages/extra/CustomerVendorExtras.tsx :: scheduleSelectedOrder | `JSON.stringify({ scheduledDeliveryDate })` | `void` | Authenticated client |
+| 256 | `POST` | `'/api/vendor/delivery-shares'` | `createDeliveryShare` at [src/api/deliveryShareApi.ts:53](../src/api/deliveryShareApi.ts#L53) | src/pages/extra/CustomerVendorExtras.tsx :: createShare | `JSON.stringify(request)` | `DeliveryShareResponse` | Authenticated client |
+| 257 | `POST` | ``/api/vendor/delivery-shares/${encodeURIComponent(String(shareId))}/revoke`` | `revokeDeliveryShare` at [src/api/deliveryShareApi.ts:65](../src/api/deliveryShareApi.ts#L65) | src/pages/extra/CustomerVendorExtras.tsx :: revokeShare | `none` | `void` | Authenticated client |
+| 258 | `GET` | ``/api/public/delivery-shares/${encodeURIComponent(token)}`` | `getPublicDeliveryShare` at [src/api/deliveryShareApi.ts:72](../src/api/deliveryShareApi.ts#L72) | src/pages/DeliverySharePage.tsx :: DeliverySharePage | `none` | `PublicDeliveryShareResponse` | Unauthenticated |
 
 
 ### Resolved endpoint path arguments passed through service builders

@@ -11,16 +11,19 @@ import { getCustomerProfile, saveCustomerProfile } from '../../api/customerApi';
 import { getAuctionPaymentState, getOrderById, getOrders, isConfirmedOrderStatus, isPaidStatus } from '../../api/orderApi';
 import { getAuctionById, getAuctionImages, getAuctionRegistrationStatus, getAuctionWinner, getEffectiveAuctionStatus, getProductImages, updateAuction } from '../../api/auctionApi';
 import { getAuctionBids, placeBid } from '../../api/bidApi';
-import { buildAddressPayload, getAddresses, getAddressById, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
+import { buildAddressPayload, getAddresses, createAddress, updateAddress, deleteAddress, type AddressResponse, type AddressRequest } from '../../api/addressApi';
 import { useAuth } from '../../context/AuthContext';
 import type { OrderResponseDto } from '../../types';
 import { getMyBids, type BidResponse } from '../../api/bidApi';
 import { deleteVendorProduct, getVendorProducts, getProductImage, formatCurrency as formatProductCurrency, mapSellingTypeLabel, updateVendorProduct, type VendorProductApiResponse } from '../../api/vendorProductApi';
 import { showToast } from '../../components/ui/toast';
 import { getVendorAuctions, type VendorAuctionApiResponse } from '../../api/vendorAuctionApi';
-import { getVendorOrders, type VendorOrderApiResponse } from '../../api/vendorOrderApi';
+import { getVendorOrder, getVendorOrders, updateScheduledDeliveryDate, type VendorOrderApiResponse, type VendorOrdersPageResult } from '../../api/vendorOrderApi';
+import { createDeliveryShare, revokeDeliveryShare, type DeliveryShareRequest, type DeliveryShareResponse } from '../../api/deliveryShareApi';
+import { DirectionsLink, hasVerifiedCoordinates } from '../../components/checkout/DeliveryLocationPicker';
 import { formatOrderNumber, getOrderCustomer, getOrderProductName, getOrderStatus, getOrderTotal, getOrderType, getOrderVendor } from '../../utils/orderDisplay';
 import DeliveryAddressViewer from '../../components/orders/DeliveryAddressViewer';
+import DeliveryLocationPicker from '../../components/checkout/DeliveryLocationPicker';
 import { getVendorRevenue } from '../../api/vendorRevenueApi';
 import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
 import { updateVendorProfile, getVendorProfile, getVendorBankRecord, saveVendorBankRecord, type VendorProfileResponse, type VendorBankRecord } from '../../api/vendorApi';
@@ -71,7 +74,7 @@ export function CustomerProfilePage() {
   const [profile, setProfile] = useState<null | { id: number; firstName: string; lastName: string; phone: string; addressId: number | null; userId: number }>(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', addressId: null as number | null });
   const [addressList, setAddressList] = useState<AddressResponse[]>([]);
-  const [addressForm, setAddressForm] = useState<AddressRequest>({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', isDefault: true });
+  const [addressForm, setAddressForm] = useState<AddressRequest>({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', latitude: null, longitude: null, isDefault: true });
   const [loading, setLoading] = useState(true);
   const [addressLoading, setAddressLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -154,11 +157,10 @@ export function CustomerProfilePage() {
     setCreatingAddress(true);
     setError(null);
     try {
-      console.debug('ADD ADDRESS PAYLOAD', payloadResult);
       const created = await createAddress(payloadResult);
       setAddressList(await getAddresses());
       setForm((prev) => ({ ...prev, addressId: created.id }));
-      setAddressForm({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', isDefault: true });
+      setAddressForm({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', latitude: null, longitude: null, isDefault: true });
       setMessage('Address added successfully.');
     } catch (err: any) {
       setError(err?.message || 'Unable to create your address.');
@@ -249,6 +251,7 @@ export function CustomerProfilePage() {
                     </label>
                   ))}
                 </div>
+                <DeliveryLocationPicker latitude={addressForm.latitude} longitude={addressForm.longitude} selectedAddress={[addressForm.addressLine1, addressForm.addressLine2, addressForm.city, addressForm.state, addressForm.postalCode, addressForm.country].filter(Boolean).join(', ')} onChange={(selection) => setAddressForm((current) => ({ ...current, latitude: selection.latitude, longitude: selection.longitude, ...(selection.address ?? {}) }))} />
                 <button type="button" onClick={createProfileAddress} disabled={creatingAddress || addressLoading} className="rounded-full border border-blue-400/30 px-4 py-2 text-sm font-medium text-blue-200 transition hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60">
                   {creatingAddress ? 'Adding address...' : 'Add address'}
                 </button>
@@ -1242,7 +1245,7 @@ export function CustomerAddressesPage() {
   const [addressList, setAddressList] = useState<AddressResponse[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<AddressRequest>({ label: 'Home', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '', isDefault: true });
+  const [form, setForm] = useState<AddressRequest>({ label: 'Home', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '', latitude: null, longitude: null, isDefault: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1276,7 +1279,6 @@ export function CustomerAddressesPage() {
     setMessage(null);
 
     try {
-      console.debug('ADD ADDRESS PAYLOAD', payloadResult);
       if (editingId) {
         const updated = await updateAddress(editingId, payloadResult);
         setAddressList((prev) => prev.map((a) => (a.id === editingId ? updated : a)));
@@ -1305,6 +1307,8 @@ export function CustomerAddressesPage() {
       state: addr.state,
       postalCode: addr.postalCode,
       country: addr.country,
+      latitude: addr.latitude ?? null,
+      longitude: addr.longitude ?? null,
       isDefault: addr.isDefault,
     });
     setEditingId(addr.id);
@@ -1324,7 +1328,7 @@ export function CustomerAddressesPage() {
   };
 
   const resetForm = () => {
-    setForm({ label: 'Home', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '', isDefault: true });
+    setForm({ label: 'Home', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '', latitude: null, longitude: null, isDefault: true });
     setEditingId(null);
     setShowForm(false);
   };
@@ -1430,6 +1434,7 @@ export function CustomerAddressesPage() {
                 />
               </label>
             </div>
+            <DeliveryLocationPicker latitude={form.latitude} longitude={form.longitude} selectedAddress={[form.addressLine1, form.addressLine2, form.city, form.state, form.postalCode, form.country].filter(Boolean).join(', ')} onChange={(selection) => setForm((current) => ({ ...current, latitude: selection.latitude, longitude: selection.longitude, ...(selection.address ?? {}) }))} />
             <div className="flex gap-2">
               <button
                 onClick={handleSave}
@@ -1969,7 +1974,6 @@ export function CustomerOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [order, setOrder] = useState<OrderResponseDto | null>(null);
-  const [resolvedAddress, setResolvedAddress] = useState<AddressResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reviewStates, setReviewStates] = useState<Record<string, { eligible?: boolean; reviewed?: boolean; loading?: boolean }>>({});
@@ -1984,22 +1988,6 @@ export function CustomerOrderDetailPage() {
       try {
         const orderData = await getOrderById(Number(id));
         setOrder(orderData);
-        const embeddedAddress = orderData.deliveryAddress;
-        if (embeddedAddress && typeof embeddedAddress === 'object') {
-          const addressId = orderData.addressId ?? Number(embeddedAddress.id);
-          const hasAddressDetails = Boolean(embeddedAddress.fullName && embeddedAddress.addressLine1 && embeddedAddress.city && embeddedAddress.state && embeddedAddress.postalCode && embeddedAddress.country);
-          if (hasAddressDetails) {
-            setResolvedAddress(null);
-          } else if (Number.isFinite(addressId)) {
-            try {
-              setResolvedAddress(await getAddressById(addressId));
-            } catch {
-              setResolvedAddress(null);
-            }
-          }
-        } else {
-          setResolvedAddress(null);
-        }
       } catch (err: any) {
         setError(err?.message || 'Unable to load order details.');
       } finally {
@@ -2061,7 +2049,7 @@ export function CustomerOrderDetailPage() {
   if (loading) return <SectionShell title="Order details" subtitle="Loading order"><SkeletonCard /></SectionShell>;
   if (error || !order) return <SectionShell title="Order details" subtitle="Order unavailable"><ErrorState title="Unable to load order details" description={error || 'Order not found.'} /></SectionShell>;
 
-  const address = resolvedAddress ?? order.deliveryAddress;
+  const address = order.deliveryAddress;
   const addressValue = (keys: string[]) => {
     if (!address || typeof address !== 'object') return '';
     const addressRecord = address as Record<string, unknown>;
@@ -2161,6 +2149,12 @@ export function CustomerOrderDetailPage() {
                   <p className="text-slate-400">Delivery Address</p>
                   {address ? typeof address === 'string' ? <p className="mt-1 break-words whitespace-pre-wrap leading-6 text-white">{address}</p> : addressLines.length > 0 ? <div className="mt-1 space-y-1 leading-6 text-white">{addressLines.map((line, index) => <p key={`${line}-${index}`} className="break-words">{line}</p>)}</div> : <p className="mt-1 text-white">Address not available</p> : <p className="mt-1 text-white">Address not available</p>}
                 </div>
+                {address && typeof address === 'object' ? <>
+                  <p className="break-words text-slate-300">Latitude: {addressValue(['latitude']) || 'Not available'} · Longitude: {addressValue(['longitude']) || 'Not available'}</p>
+                  {Number.isFinite(Number(addressValue(['latitude']))) && Number.isFinite(Number(addressValue(['longitude']))) && addressValue(['latitude']) && addressValue(['longitude'])
+                    ? <DirectionsLink latitude={Number(addressValue(['latitude']))} longitude={Number(addressValue(['longitude']))} className="inline-flex min-h-11 items-center font-medium text-blue-300 underline" />
+                    : <p className="text-xs text-amber-200">Verified map directions are unavailable because this order snapshot has no coordinates.</p>}
+                </> : null}
                 {order.trackingNumber ? <div>
                   <p className="text-slate-400">Tracking Number</p>
                   <p className="mt-1 text-white font-mono">{order.trackingNumber}</p>
@@ -3339,9 +3333,26 @@ export function VendorOrdersPage() {
   const [orders, setOrders] = useState<VendorOrderApiResponse[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState<VendorOrdersPageResult>({ orders: [], page: 0, size: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<VendorOrderApiResponse | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [shareMode, setShareMode] = useState<'SINGLE' | 'DAY' | 'WEEK'>('SINGLE');
+  const [shareDate, setShareDate] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState('');
+  const [share, setShare] = useState<DeliveryShareResponse | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState('');
+  const [revokeLoading, setRevokeLoading] = useState(false);
+
+  const isDeliveryEligible = (order: VendorOrderApiResponse) => ['CONFIRMED', 'PACKING', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(String(order.orderStatus ?? order.status ?? '').toUpperCase());
+  const addressRecord = (value: VendorOrderApiResponse['deliveryAddress']) => value && typeof value === 'object' ? value : null;
+  const orderDate = (value?: string | null) => value?.slice(0, 10) ?? '';
 
   useEffect(() => {
     let active = true;
@@ -3350,9 +3361,10 @@ export function VendorOrdersPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getVendorOrders();
+        const data = await getVendorOrders(page, 20);
         if (active) {
-          setOrders(data);
+          setPageInfo(data);
+          setOrders(data.orders);
         }
       } catch (err) {
         if (active) {
@@ -3369,47 +3381,114 @@ export function VendorOrdersPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [page]);
 
   const filteredOrders = useMemo(() => {
     const query = search.toLowerCase().trim();
     return orders.filter((order) => {
-      const customerName = (order.customerName || order.customer || 'Customer').toLowerCase();
       const orderId = String(order.orderNumber || order.id).toLowerCase();
       const status = String(order.orderStatus || order.status || 'pending').toLowerCase();
-      const matchesSearch = orderId.includes(query) || customerName.includes(query);
+      const matchesSearch = orderId.includes(query);
       const matchesStatus = statusFilter === 'All' || status === statusFilter.toLowerCase();
       return matchesSearch && matchesStatus;
     });
   }, [orders, search, statusFilter]);
 
-  const pageSize = 5;
-  const pageCount = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
-  const pageOrders = filteredOrders.slice((page - 1) * pageSize, page * pageSize);
-
-  const statusColors: Record<string, string> = {
-    delivered: 'bg-emerald-500/10 text-emerald-200',
-    shipped: 'bg-blue-500/10 text-blue-200',
-    processing: 'bg-amber-500/10 text-amber-200',
-    pending: 'bg-slate-500/10 text-slate-200',
-    cancelled: 'bg-rose-500/10 text-rose-200',
+  const loadOrderDetail = async (order: VendorOrderApiResponse) => {
+    if (selectedOrder?.id === order.id) {
+      setSelectedOrder(null);
+      return;
+    }
+    setDetailLoading(true);
+    setFeedback('');
+    setError(null);
+    try {
+      const detail = await getVendorOrder(order.id);
+      setSelectedOrder(detail);
+      setDeliveryDate(orderDate(detail.scheduledDeliveryDate ?? order.scheduledDeliveryDate ?? detail.expectedDeliveryDate ?? order.expectedDeliveryDate));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to load delivery details.');
+      setSelectedOrder(null);
+    } finally {
+      setDetailLoading(false);
+    }
   };
-  const nextStatus = (order: VendorOrderApiResponse) => {
-    const current = getOrderStatus(order).toUpperCase();
-    const statuses = ['CONFIRMED', 'PACKING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
-    const index = statuses.indexOf(current);
-    return index >= 0 && index < statuses.length - 1 ? statuses[index + 1] : 'N/A';
+
+  const scheduleSelectedOrder = async () => {
+    if (!selectedOrder || !isDeliveryEligible(selectedOrder)) {
+      setError('This order is not in an eligible status for delivery scheduling.');
+      return;
+    }
+    if (!deliveryDate) {
+      setError('Choose a delivery date before saving.');
+      return;
+    }
+    setScheduleLoading(true);
+    setError(null);
+    setFeedback('');
+    try {
+      await updateScheduledDeliveryDate(selectedOrder.id, deliveryDate);
+      setSelectedOrder({ ...selectedOrder, scheduledDeliveryDate: deliveryDate });
+      setOrders((current) => current.map((order) => order.id === selectedOrder.id
+        ? { ...order, scheduledDeliveryDate: deliveryDate }
+        : order));
+      setFeedback('Scheduled delivery date saved.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to save the scheduled delivery date.');
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const createShare = async (request: DeliveryShareRequest) => {
+    setShareLoading(true);
+    setShareError('');
+    setShare(null);
+    setCopyFeedback('');
+    try {
+      setShare(await createDeliveryShare(request));
+    } catch (reason) {
+      setShareError(reason instanceof Error ? reason.message : 'Unable to create a delivery link.');
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const copyShareLink = async () => {
+    if (!share) return;
+    try {
+      await navigator.clipboard.writeText(share.shareUrl);
+      setCopyFeedback('Delivery link copied.');
+    } catch {
+      setCopyFeedback('Could not copy automatically. Select and copy the link above.');
+    }
+  };
+
+  const revokeShare = async () => {
+    const shareId = share?.id ?? share?.shareId;
+    if (shareId == null || !window.confirm('Revoke this delivery link? Anyone using it will no longer be able to view the destinations.')) return;
+    setRevokeLoading(true);
+    setShareError('');
+    try {
+      await revokeDeliveryShare(shareId);
+      setShare(null);
+      setFeedback('Delivery link revoked.');
+    } catch (reason) {
+      setShareError(reason instanceof Error ? reason.message : 'Unable to revoke this delivery link.');
+    } finally {
+      setRevokeLoading(false);
+    }
   };
 
   return (
-    <SectionShell title="Orders" subtitle="Your active and completed customer orders" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Orders' }]}>
+    <SectionShell title="Orders" subtitle="Manage eligible delivery schedules and share authorized destinations" breadcrumbs={[{ label: 'Vendor', to: '/dashboards/vendor' }, { label: 'Orders' }]}>
       <div className="lg:flex lg:gap-6">
         <VendorSidebar />
         <main className="flex-1">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search order or customer" className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2 text-sm text-white" />
-              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white">
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order number" className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2 text-sm text-white" />
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white">
                 <option>All</option>
                 <option>Processing</option>
                 <option>Shipped</option>
@@ -3419,58 +3498,73 @@ export function VendorOrdersPage() {
             </div>
           </div>
 
-          <Card>
-            {loading ? (
-              <SkeletonTable />
-            ) : error ? (
-              <ErrorState title="Orders error" description={error} />
-            ) : filteredOrders.length === 0 ? (
-              <EmptyState title="No matching orders" description="There are no vendor orders for the current backend response." />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1100px] table-auto text-sm">
-                  <thead>
-                    <tr className="text-left text-slate-400">
-                      <th className="px-3 py-3">Product Name</th>
-                      <th className="px-3 py-3">Order Number</th>
-                      <th className="px-3 py-3">Order Type</th>
-                      <th className="px-3 py-3">Vendor</th>
-                      <th className="px-3 py-3">Customer</th>
-                      <th className="px-3 py-3">Order Status</th>
-                      <th className="px-3 py-3">Total Amount</th>
-                      <th className="px-3 py-3">Delivery Address</th>
-                      <th className="px-3 py-3">Next Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-slate-300">
-                    {pageOrders.map((order) => (
-                      <tr key={order.id} className="border-t border-white/6 hover:bg-white/5">
-                        <td className="px-3 py-3 text-white">{getOrderProductName(order)}</td>
-                        <td className="px-3 py-3 font-medium text-white">{formatOrderNumber(order)}</td>
-                        <td className="px-3 py-3">{getOrderType(order)}</td>
-                        <td className="px-3 py-3">{getOrderVendor(order)}</td>
-                        <td className="px-3 py-3">{getOrderCustomer(order)}</td>
-                        <td className="px-3 py-3"><Badge className={statusColors[getOrderStatus(order).toLowerCase()] ?? 'bg-slate-500/10 text-slate-200'}>{getOrderStatus(order)}</Badge></td>
-                        <td className="px-3 py-3">{getOrderTotal(order)}</td>
-                        <td className="px-3 py-3"><DeliveryAddressViewer address={order.deliveryAddress} /></td>
-                        <td className="px-3 py-3">{nextStatus(order)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          {feedback ? <div role="status" className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{feedback}</div> : null}
+          {error ? <div role="alert" className="mb-4"><ErrorState title="Delivery action failed" description={error} /></div> : null}
+          <div className="space-y-4">
+            {loading ? <SkeletonTable /> : filteredOrders.length === 0
+              ? <EmptyState title={orders.length === 0 ? 'No vendor orders' : 'No matching orders'} description={orders.length === 0 ? 'Orders assigned to your vendor account will appear here.' : 'Try another order number or status filter.'} />
+              : filteredOrders.map((order) => {
+                const expanded = selectedOrder?.id === order.id;
+                const detail = expanded ? selectedOrder : order;
+                const address = addressRecord(detail.deliveryAddress);
+                const scheduledDate = detail.scheduledDeliveryDate ?? detail.expectedDeliveryDate;
+                const eligible = isDeliveryEligible(detail);
+                const hasCoordinates = hasVerifiedCoordinates(address?.latitude, address?.longitude);
+                return <Card key={order.id} className="p-4 sm:p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-white">{formatOrderNumber(order)}</p>
+                      <p className="mt-1 text-sm text-slate-300">{getOrderProductName(order)}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2"><Badge className={eligible ? 'bg-emerald-500/10 text-emerald-200' : 'bg-slate-500/10 text-slate-300'}>{getOrderStatus(order)}</Badge><span className="text-xs text-slate-400">{eligible ? 'Delivery eligible' : 'Not eligible for delivery scheduling'}</span></div>
+                    </div>
+                    <button type="button" disabled={detailLoading} onClick={() => { void loadOrderDetail(order); }} className="min-h-11 shrink-0 rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/5 disabled:opacity-50">{detailLoading && expanded ? 'Loading...' : expanded ? 'Hide delivery details' : 'Delivery details'}</button>
+                  </div>
+                  {scheduledDate ? <p className="mt-3 text-sm text-slate-300">Scheduled delivery: <span className="font-medium text-white">{scheduledDate}</span></p> : <p className="mt-3 text-sm text-amber-200">Delivery not scheduled</p>}
+                  {expanded ? <div className="mt-4 space-y-4 border-t border-white/10 pt-4">
+                    <section className="space-y-2">
+                      <h3 className="text-sm font-semibold text-white">Delivery address</h3>
+                      {typeof detail.deliveryAddress === 'string' ? <p className="whitespace-pre-wrap text-sm text-slate-300">{detail.deliveryAddress}</p>
+                        : address ? <div className="space-y-1 text-sm text-slate-300">
+                          <p>{[address.addressLine1, address.addressLine2].filter(Boolean).join(', ') || 'Street address unavailable'}</p>
+                          <p>{[address.city, address.state, address.postalCode].filter(Boolean).join(', ') || 'City, state, and postal code unavailable'}</p>
+                          {address.country ? <p>{address.country}</p> : null}
+                          {hasCoordinates ? <p className="break-all text-xs text-slate-400">Latitude {address.latitude}, longitude {address.longitude}</p> : <p className="text-xs text-amber-200">Coordinates unavailable; verified map directions cannot be shown.</p>}
+                          {hasCoordinates ? <DirectionsLink latitude={address.latitude} longitude={address.longitude} className="inline-flex min-h-11 items-center font-medium text-blue-300 underline" /> : null}
+                        </div> : <p className="text-sm text-amber-200">Delivery address unavailable.</p>}
+                    </section>
+                    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                      <label className="block text-sm font-medium text-slate-200" htmlFor={`delivery-date-${order.id}`}>{scheduledDate ? 'Update delivery date' : 'Schedule delivery date'}</label>
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                        <input id={`delivery-date-${order.id}`} type="date" value={deliveryDate} onChange={(event) => setDeliveryDate(event.target.value)} disabled={!eligible} className="min-h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm text-white disabled:opacity-50" />
+                        <button type="button" onClick={() => { void scheduleSelectedOrder(); }} disabled={!eligible || scheduleLoading || !deliveryDate} className="min-h-11 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{scheduleLoading ? 'Saving...' : scheduledDate ? 'Update schedule' : 'Schedule delivery'}</button>
+                      </div>
+                      {!eligible ? <p className="mt-2 text-xs text-slate-400">The current order status is not eligible for scheduling.</p> : null}
+                    </section>
+                    <button type="button" onClick={() => { void createShare({ scope: 'SINGLE', orderId: detail.id, expiresInHours: 48 }); }} disabled={!eligible || shareLoading} className="min-h-11 rounded-full border border-emerald-400/30 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50">{shareLoading ? 'Creating link...' : 'Share Delivery'}</button>
+                  </div> : null}
+                </Card>;
+              })}
+          </div>
+          {!loading && !error && orders.length > 0 ? <div className="mt-4 flex items-center justify-between text-sm text-slate-400"><span>Page {pageInfo.page + 1} of {Math.max(1, pageInfo.totalPages)} · {pageInfo.size} per page</span><div className="flex gap-2"><button type="button" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page <= 0} className="min-h-10 rounded-full border border-white/10 px-3 disabled:opacity-40">Previous</button><button type="button" onClick={() => setPage((current) => current + 1)} disabled={page + 1 >= pageInfo.totalPages} className="min-h-10 rounded-full border border-white/10 px-3 disabled:opacity-40">Next</button></div></div> : null}
 
-            {!loading && !error && filteredOrders.length > 0 && (
-              <div className="mt-4 flex items-center justify-between text-sm text-slate-400">
-                <span>Showing {pageOrders.length} of {filteredOrders.length} orders</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={page === 1} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Prev</button>
-                  <span>{page} / {pageCount}</span>
-                  <button onClick={() => setPage((prev) => Math.min(pageCount, prev + 1))} disabled={page === pageCount} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Next</button>
-                </div>
-              </div>
-            )}
+          <Card className="mt-6 space-y-4 p-4 sm:p-5">
+            <div><h2 className="text-lg font-semibold text-white">Share scheduled deliveries</h2><p className="mt-1 text-sm text-slate-400">The backend limits destinations to eligible orders scheduled for the selected date or week.</p></div>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Delivery share scope">
+              {(['SINGLE', 'DAY', 'WEEK'] as const).map((mode) => <button key={mode} type="button" aria-pressed={shareMode === mode} onClick={() => { setShareMode(mode); setShare(null); setShareError(''); }} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${shareMode === mode ? 'border-blue-400 bg-blue-500/15 text-blue-100' : 'border-white/10 text-slate-300 hover:bg-white/5'}`}>{mode === 'SINGLE' ? 'Single order' : mode === 'DAY' ? 'Selected day' : 'Selected week'}</button>)}
+            </div>
+            {shareMode === 'SINGLE' ? <p className="text-sm text-slate-300">Open an eligible order above and choose <span className="font-medium text-white">Share Delivery</span>.</p> : <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label className="block text-sm text-slate-300">{shareMode === 'DAY' ? 'Delivery date' : 'Choose a date in the delivery week'}<input aria-label={shareMode === 'DAY' ? 'Delivery date' : 'Date in delivery week'} type="date" value={shareDate} onChange={(event) => setShareDate(event.target.value)} className="mt-1 block min-h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm text-white" /></label>
+              <button type="button" disabled={!shareDate || shareLoading} onClick={() => { void createShare(shareMode === 'DAY' ? { scope: 'DAY', date: shareDate } : { scope: 'WEEK', weekOf: shareDate }); }} className="min-h-11 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50">{shareLoading ? 'Creating link...' : 'Create delivery link'}</button>
+            </div>}
+            {shareError ? <p role="alert" className="text-sm text-rose-200">{shareError}</p> : null}
+            {share ? <div className="space-y-3 rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4">
+              <h3 className="font-semibold text-white">Delivery link created</h3>
+              <label className="block text-xs font-medium text-slate-400">Generated link<input readOnly aria-label="Generated delivery link" value={share.shareUrl} className="mt-1 min-h-11 w-full rounded-lg border border-white/10 bg-slate-950 px-3 text-sm text-white" /></label>
+              <div className="grid gap-2 text-sm text-slate-300 sm:grid-cols-2"><p>Expires: {share.expiresAt ? new Date(share.expiresAt).toLocaleString() : 'Not provided'}</p><p>Destinations: {share.destinationCount ?? 'Not provided'}</p></div>
+              <div className="flex flex-wrap gap-2"><button type="button" onClick={() => { void copyShareLink(); }} className="min-h-11 rounded-full bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-500">Copy link</button>{(share.id ?? share.shareId) != null ? <button type="button" disabled={revokeLoading} onClick={() => { void revokeShare(); }} className="min-h-11 rounded-full border border-rose-400/30 px-4 text-sm font-semibold text-rose-200 hover:bg-rose-500/10 disabled:opacity-50">{revokeLoading ? 'Revoking...' : 'Revoke link'}</button> : <p className="self-center text-xs text-amber-200">This response did not include a share ID, so revocation is unavailable.</p>}</div>
+              {copyFeedback ? <p role="status" className="text-sm text-emerald-200">{copyFeedback}</p> : null}
+            </div> : null}
+            <p className="text-xs leading-5 text-slate-500">Previously created delivery links cannot be listed here because no vendor share-list endpoint is exposed by the available API contract. Newly created links can be revoked while shown above.</p>
           </Card>
         </main>
       </div>
