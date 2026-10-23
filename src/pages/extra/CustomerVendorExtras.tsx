@@ -18,7 +18,8 @@ import { getMyBids, type BidResponse } from '../../api/bidApi';
 import { deleteVendorProduct, getVendorProducts, getProductImage, formatCurrency as formatProductCurrency, mapSellingTypeLabel, updateVendorProduct, type VendorProductApiResponse } from '../../api/vendorProductApi';
 import { showToast } from '../../components/ui/toast';
 import { getVendorAuctions, type VendorAuctionApiResponse } from '../../api/vendorAuctionApi';
-import { getVendorOrder, getVendorOrders, updateScheduledDeliveryDate, type VendorOrderApiResponse, type VendorOrdersPageResult } from '../../api/vendorOrderApi';
+import { getVendorOrder, getVendorOrders, updateScheduledDeliveryDate, updateVendorOrderStatus, type OrderStatus, type VendorOrderApiResponse, type VendorOrdersPageResult } from '../../api/vendorOrderApi';
+import { ApiError } from '../../api/apiClient';
 import { createDeliveryShare, revokeDeliveryShare, type DeliveryShareRequest, type DeliveryShareResponse } from '../../api/deliveryShareApi';
 import { DirectionsLink, hasVerifiedCoordinates } from '../../components/checkout/DeliveryLocationPicker';
 import { formatOrderNumber, getOrderCustomer, getOrderProductName, getOrderStatus, getOrderTotal, getOrderType, getOrderVendor } from '../../utils/orderDisplay';
@@ -3349,8 +3350,16 @@ export function VendorOrdersPage() {
   const [share, setShare] = useState<DeliveryShareResponse | null>(null);
   const [copyFeedback, setCopyFeedback] = useState('');
   const [revokeLoading, setRevokeLoading] = useState(false);
+  const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<number | null>(null);
+  const [statusError, setStatusError] = useState('');
 
   const isDeliveryEligible = (order: VendorOrderApiResponse) => ['CONFIRMED', 'PACKING', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(String(order.orderStatus ?? order.status ?? '').toUpperCase());
+  const nextVendorOrderStatus = (order: VendorOrderApiResponse): Extract<OrderStatus, 'PACKING' | 'SHIPPED'> | null => {
+    const status = String(order.orderStatus ?? order.status ?? '').toUpperCase();
+    if (status === 'CONFIRMED') return 'PACKING';
+    if (status === 'PACKING') return 'SHIPPED';
+    return null;
+  };
   const addressRecord = (value: VendorOrderApiResponse['deliveryAddress']) => value && typeof value === 'object' ? value : null;
   const orderDate = (value?: string | null) => value?.slice(0, 10) ?? '';
 
@@ -3440,6 +3449,47 @@ export function VendorOrdersPage() {
     }
   };
 
+  const updateOrderStatus = async (order: VendorOrderApiResponse) => {
+    const nextStatus = nextVendorOrderStatus(order);
+    if (!nextStatus) return;
+    setStatusUpdatingOrderId(order.id);
+    setStatusError('');
+    setFeedback('');
+    try {
+      await updateVendorOrderStatus(order.id, nextStatus);
+      setOrders((current) => current.map((item) => item.id === order.id
+        ? { ...item, orderStatus: nextStatus, status: nextStatus }
+        : item));
+      setSelectedOrder((current) => current?.id === order.id
+        ? { ...current, orderStatus: nextStatus, status: nextStatus }
+        : current);
+      setFeedback(`Order status updated to ${nextStatus.replaceAll('_', ' ')}.`);
+      try {
+        const data = await getVendorOrders(page, 20);
+        setPageInfo(data);
+        setOrders(data.orders);
+        if (selectedOrder?.id === order.id) {
+          setSelectedOrder(await getVendorOrder(order.id));
+        }
+      } catch (refreshError) {
+        const message = refreshError instanceof Error ? refreshError.message : 'Unable to reload the updated order.';
+        setStatusError(`The status was updated, but the latest order data could not be refreshed. ${message}`);
+      }
+    } catch (reason) {
+      if (reason instanceof ApiError && (reason.status === 400 || reason.status === 409)) {
+        setStatusError('This order status transition is no longer valid. Refresh the order and try again.');
+      } else if (reason instanceof ApiError && reason.status === 401) {
+        setStatusError('Your session has expired. Sign in again to update this order.');
+      } else if (reason instanceof TypeError) {
+        setStatusError('Network error while updating the order status. Check your connection and try again.');
+      } else {
+        setStatusError(reason instanceof Error ? reason.message : 'Unable to update the order status.');
+      }
+    } finally {
+      setStatusUpdatingOrderId(null);
+    }
+  };
+
   const createShare = async (request: DeliveryShareRequest) => {
     setShareLoading(true);
     setShareError('');
@@ -3499,6 +3549,7 @@ export function VendorOrdersPage() {
           </div>
 
           {feedback ? <div role="status" className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{feedback}</div> : null}
+          {statusError ? <div role="alert" className="mb-4 rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-200">{statusError}</div> : null}
           {error ? <div role="alert" className="mb-4"><ErrorState title="Delivery action failed" description={error} /></div> : null}
           <div className="space-y-4">
             {loading ? <SkeletonTable /> : filteredOrders.length === 0
@@ -3517,7 +3568,8 @@ export function VendorOrdersPage() {
                       <p className="mt-1 text-sm text-slate-300">{getOrderProductName(order)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2"><Badge className={eligible ? 'bg-emerald-500/10 text-emerald-200' : 'bg-slate-500/10 text-slate-300'}>{getOrderStatus(order)}</Badge><span className="text-xs text-slate-400">{eligible ? 'Delivery eligible' : 'Not eligible for delivery scheduling'}</span></div>
                     </div>
-                    <button type="button" disabled={detailLoading} onClick={() => { void loadOrderDetail(order); }} className="min-h-11 shrink-0 rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/5 disabled:opacity-50">{detailLoading && expanded ? 'Loading...' : expanded ? 'Hide delivery details' : 'Delivery details'}</button>
+                    <button type="button" disabled={detailLoading || statusUpdatingOrderId !== null} onClick={() => { void loadOrderDetail(order); }} className="min-h-11 shrink-0 rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/5 disabled:opacity-50">{detailLoading && expanded ? 'Loading...' : expanded ? 'Hide delivery details' : 'Delivery details'}</button>
+                    {nextVendorOrderStatus(detail) ? <button type="button" disabled={statusUpdatingOrderId !== null} onClick={() => { void updateOrderStatus(detail); }} className="min-h-11 shrink-0 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{statusUpdatingOrderId === order.id ? 'Updating...' : `Mark ${nextVendorOrderStatus(detail)?.replaceAll('_', ' ')}`}</button> : null}
                   </div>
                   {scheduledDate ? <p className="mt-3 text-sm text-slate-300">Scheduled delivery: <span className="font-medium text-white">{scheduledDate}</span></p> : <p className="mt-3 text-sm text-amber-200">Delivery not scheduled</p>}
                   {expanded ? <div className="mt-4 space-y-4 border-t border-white/10 pt-4">

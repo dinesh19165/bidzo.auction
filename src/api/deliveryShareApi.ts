@@ -1,4 +1,6 @@
 import { fetchJson } from './apiClient';
+import type { DeliveryPersonOrderStatus, OrderStatusUpdateResponse } from './vendorOrderApi';
+import { toFrontendDeliveryShareUrl } from '../utils/deliveryShareLink';
 
 export type DeliveryShareRequest =
   | { scope: 'SINGLE'; orderId: number; expiresInHours: number }
@@ -14,6 +16,10 @@ export interface DeliveryShareResponse {
 }
 
 export interface PublicDeliveryDestination {
+  orderId: number;
+  orderNumber: string;
+  productNames: string[];
+  orderStatus: string;
   addressLine1?: string;
   addressLine2?: string;
   city?: string;
@@ -22,21 +28,14 @@ export interface PublicDeliveryDestination {
   country?: string;
   latitude?: number | null;
   longitude?: number | null;
+  locationVerificationRequired: boolean;
+  mapUrl?: string | null;
   scheduledDeliveryDate?: string | null;
 }
 
 export interface PublicDeliveryShareResponse {
-  scope?: string;
-  destinations?: PublicDeliveryDestination[];
-  addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
-  latitude?: number | null;
-  longitude?: number | null;
-  scheduledDeliveryDate?: string | null;
+  scope: string;
+  destinations: PublicDeliveryDestination[];
 }
 
 type ApiEnvelope<T> = { data?: T; success?: boolean; message?: string };
@@ -59,7 +58,10 @@ export async function createDeliveryShare(request: DeliveryShareRequest): Promis
   if (!share || typeof share.shareUrl !== 'string' || !share.shareUrl.trim()) {
     throw new Error('Delivery share response did not include a shareUrl.');
   }
-  return share;
+  if (typeof window === 'undefined') {
+    throw new Error('Unable to create a delivery link outside the browser.');
+  }
+  return { ...share, shareUrl: toFrontendDeliveryShareUrl(share.shareUrl, window.location.origin) };
 }
 
 export async function revokeDeliveryShare(shareId: number): Promise<void> {
@@ -71,5 +73,47 @@ export async function revokeDeliveryShare(shareId: number): Promise<void> {
 
 export async function getPublicDeliveryShare(token: string): Promise<PublicDeliveryShareResponse> {
   const response = await fetchJson<unknown>(`/api/public/delivery-shares/${encodeURIComponent(token)}`, {}, false);
-  return unwrap<PublicDeliveryShareResponse>(response, 'Unable to load this delivery link.');
+  const share = unwrap<unknown>(response, 'Unable to load this delivery link.');
+  if (!share || typeof share !== 'object' || typeof (share as Record<string, unknown>).scope !== 'string'
+    || !Array.isArray((share as Record<string, unknown>).destinations)) {
+    throw new Error('Delivery link response did not contain a destinations list.');
+  }
+
+  const destinations = (share as { destinations: unknown[] }).destinations;
+  destinations.forEach((destination, index) => {
+    if (!destination || typeof destination !== 'object') {
+      throw new Error(`Delivery link response contains an invalid destination at position ${index + 1}.`);
+    }
+    const item = destination as Record<string, unknown>;
+    if (typeof item.orderId !== 'number' || !Number.isFinite(item.orderId) || typeof item.orderNumber !== 'string'
+      || !item.orderNumber.trim() || typeof item.orderStatus !== 'string'
+      || !Array.isArray(item.productNames) || !item.productNames.every((name) => typeof name === 'string')) {
+      throw new Error(`Delivery link response is missing order details for destination ${index + 1}. The delivery API may need to be updated.`);
+    }
+    if (typeof item.locationVerificationRequired !== 'boolean') {
+      throw new Error(`Delivery link response is missing map verification details for destination ${index + 1}.`);
+    }
+  });
+
+  return share as PublicDeliveryShareResponse;
+}
+
+export async function updatePublicDeliveryOrderStatus(
+  token: string,
+  orderId: number,
+  status: DeliveryPersonOrderStatus,
+): Promise<OrderStatusUpdateResponse> {
+  const response = await fetchJson<unknown>(
+    `/api/public/delivery-shares/${encodeURIComponent(token)}/orders/${encodeURIComponent(String(orderId))}/status`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    },
+    false,
+  );
+  const result = unwrap<OrderStatusUpdateResponse>(response, 'Unable to update the delivery status.');
+  if (!result || !Number.isFinite(result.orderId) || !['OUT_FOR_DELIVERY', 'DELIVERED'].includes(result.orderStatus)) {
+    throw new Error('Delivery status update response was invalid.');
+  }
+  return result;
 }

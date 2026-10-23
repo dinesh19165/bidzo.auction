@@ -25,6 +25,14 @@ export interface VendorOrderApiResponse {
   [key: string]: unknown;
 }
 
+export type OrderStatus = 'CONFIRMED' | 'PACKING' | 'SHIPPED' | 'OUT_FOR_DELIVERY' | 'DELIVERED';
+export type DeliveryPersonOrderStatus = Extract<OrderStatus, 'OUT_FOR_DELIVERY' | 'DELIVERED'>;
+
+export interface OrderStatusUpdateResponse {
+  orderId: number;
+  orderStatus: OrderStatus;
+}
+
 export interface VendorOrdersPageResult {
   orders: VendorOrderApiResponse[];
   page: number;
@@ -73,5 +81,15 @@ export async function updateScheduledDeliveryDate(orderId: number, scheduledDeli
   });
   if (response && typeof response === 'object' && 'success' in response && (response as ApiEnvelope<unknown>).success === false) {
     throw new Error((response as ApiEnvelope<unknown>).message || 'Unable to update the scheduled delivery date.');
+  }
+}
+
+export async function updateVendorOrderStatus(orderId: number, status: Extract<OrderStatus, 'PACKING' | 'SHIPPED'>): Promise<void> {
+  const response = await fetchJson<unknown>(`/api/vendor/orders/${encodeURIComponent(String(orderId))}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  });
+  if (response && typeof response === 'object' && 'success' in response && (response as ApiEnvelope<unknown>).success === false) {
+    throw new Error((response as ApiEnvelope<unknown>).message || 'Unable to update the vendor order status.');
   }
 }
