@@ -66,6 +66,65 @@ test('reverse geocoding returns address fields for the exact selected coordinate
   assert.equal(place.longitude, form.longitude);
 });
 
+test('reverse geocoding uses the most specific available locality and preserves regional-language values', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    address: {
+      road: 'MDR070',
+      city: 'రామరాజులంక',
+      state: 'Andhra Pradesh',
+      postcode: '533253',
+      country: 'India',
+      suburb: 'Broader area',
+      neighbourhood: 'Local neighbourhood',
+      locality: 'Local place',
+    },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  const place = await reverseGeocode(form.latitude, form.longitude);
+
+  assert.deepEqual(
+    [place.addressLine1, place.addressLine2, place.city, place.state, place.pincode, place.country],
+    ['MDR070', 'Local neighbourhood', 'రామరాజులంక', 'Andhra Pradesh', '533253', 'India'],
+  );
+  const payload = buildAddressPayload({
+    ...form,
+    addressLine1: place.addressLine1,
+    addressLine2: place.addressLine2,
+    city: place.city,
+    state: place.state,
+    postalCode: place.pincode,
+    country: place.country,
+    latitude: place.latitude,
+    longitude: place.longitude,
+  });
+  assert.equal(typeof payload, 'object');
+  if (typeof payload === 'string') return;
+  assert.deepEqual(
+    [payload.addressLine1, payload.addressLine2, payload.city, payload.state, payload.postalCode, payload.country, payload.latitude, payload.longitude],
+    ['MDR070', 'Local neighbourhood', 'రామరాజులంక', 'Andhra Pradesh', '533253', 'India', form.latitude, form.longitude],
+  );
+});
+
+test('reverse geocoding falls back to village or hamlet for locality and reports fields absent from Nominatim', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    address: { road: 'MDR070', village: 'Village area', country: 'India' },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  const villagePlace = await reverseGeocode(form.latitude, form.longitude);
+  assert.equal(villagePlace.addressLine2, 'Village area');
+  assert.equal(villagePlace.city, 'Village area');
+  assert.deepEqual(villagePlace.missingAddressFields, ['State', 'PIN code']);
+
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    address: { hamlet: 'Hamlet area', town: 'Nearby town' },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  const hamletPlace = await reverseGeocode(form.latitude, form.longitude);
+  assert.equal(hamletPlace.addressLine2, 'Hamlet area');
+  assert.equal(hamletPlace.city, 'Nearby town');
+  assert.deepEqual(hamletPlace.missingAddressFields, ['House / street address', 'State', 'PIN code', 'Country']);
+});
+
 test('place search returns selectable coordinates and readable results', async () => {
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));

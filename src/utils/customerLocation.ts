@@ -10,6 +10,7 @@ export interface CustomerLocation {
   addressLine1: string;
   addressLine2: string;
   country: string;
+  missingAddressFields: string[];
 }
 
 const STORAGE_KEY = 'bidzo_customer_location';
@@ -17,13 +18,26 @@ const RECENT_STORAGE_KEY = 'bidzo_recent_customer_locations';
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
 export const CUSTOMER_LOCATION_CHANGED_EVENT = 'bidzo:customer-location-changed';
 
+function firstAddressValue(...values: Array<string | undefined>): string {
+  return values.find((value) => value?.trim()) || '';
+}
+
 function normalizeLocation(address: Record<string, string | undefined>, latitude: number, longitude: number, displayName?: string): CustomerLocation {
-  const city = address.city || address.town || address.village || address.municipality || address.county || '';
-  const state = address.state || address.state_district || '';
-  const pincode = address.postcode || '';
-  const road = address.road || address.pedestrian || address.residential || address.footway || address.path || '';
-  const houseNumber = address.house_number || '';
-  const locality = address.suburb || address.neighbourhood || address.quarter || address.hamlet || '';
+  const city = firstAddressValue(address.city, address.town, address.village, address.municipality, address.hamlet, address.county);
+  const state = firstAddressValue(address.state, address.state_district);
+  const pincode = firstAddressValue(address.postcode);
+  const road = firstAddressValue(address.road, address.pedestrian, address.residential, address.footway, address.path);
+  const houseNumber = firstAddressValue(address.house_number);
+  const locality = firstAddressValue(address.neighbourhood, address.locality, address.suburb, address.quarter, address.village, address.hamlet);
+  const addressLine1 = [houseNumber, road].filter(Boolean).join(' ') || firstAddressValue(address.building, address.amenity, houseNumber);
+  const missingAddressFields = [
+    !addressLine1 && 'House / street address',
+    !locality && 'Locality / area',
+    !city && 'City',
+    !state && 'State',
+    !pincode && 'PIN code',
+    !address.country?.trim() && 'Country',
+  ].filter((field): field is string => Boolean(field));
   return {
     city,
     state,
@@ -31,9 +45,10 @@ function normalizeLocation(address: Record<string, string | undefined>, latitude
     latitude,
     longitude,
     displayName: displayName || [city, state, pincode].filter(Boolean).join(', '),
-    addressLine1: [houseNumber, road].filter(Boolean).join(' ') || road || address.building || address.amenity || houseNumber,
+    addressLine1,
     addressLine2: locality,
-    country: address.country || '',
+    country: firstAddressValue(address.country),
+    missingAddressFields,
   };
 }
 

@@ -70,6 +70,7 @@ export default function DeliveryLocationPicker({ latitude, longitude, selectedAd
   const [geocoding, setGeocoding] = useState(false);
   const [locationError, setLocationError] = useState('');
   const [addressLookupStatus, setAddressLookupStatus] = useState<'looked-up' | 'manual' | null>(null);
+  const [missingAddressFields, setMissingAddressFields] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CustomerLocation[]>([]);
   const [mapCenter, setMapCenter] = useState<Coordinates | null>(() => hasVerifiedCoordinates(latitude, longitude)
@@ -217,14 +218,15 @@ export default function DeliveryLocationPicker({ latitude, longitude, selectedAd
         latitude: candidate.latitude,
         longitude: candidate.longitude,
         address: {
-          addressLine1: place.addressLine1,
-          addressLine2: place.addressLine2,
-          city: place.city,
-          state: place.state,
-          postalCode: place.pincode,
-          country: place.country,
+          ...(place.addressLine1.trim() ? { addressLine1: place.addressLine1 } : {}),
+          ...(place.addressLine2.trim() ? { addressLine2: place.addressLine2 } : {}),
+          ...(place.city.trim() ? { city: place.city } : {}),
+          ...(place.state.trim() ? { state: place.state } : {}),
+          ...(place.pincode.trim() ? { postalCode: place.pincode } : {}),
+          ...(place.country.trim() ? { country: place.country } : {}),
         },
       });
+      setMissingAddressFields(place.missingAddressFields);
       setAddressLookupStatus('looked-up');
       setOpen(false);
       setCandidate(null);
@@ -240,8 +242,8 @@ export default function DeliveryLocationPicker({ latitude, longitude, selectedAd
     onChange({
       latitude: candidate.latitude,
       longitude: candidate.longitude,
-      address: { addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '' },
     });
+    setMissingAddressFields([]);
     setAddressLookupStatus('manual');
     setLocationError('');
     setOpen(false);
@@ -263,6 +265,7 @@ export default function DeliveryLocationPicker({ latitude, longitude, selectedAd
           {selected ? <>
             {selectedAddress ? <p className="mt-2 break-words text-sm leading-5 text-slate-200">{selectedAddress}</p> : null}
             <p className="mt-1 break-words text-xs text-slate-400">Latitude {latitude.toFixed(6)}, longitude {longitude?.toFixed(6)}</p>
+            {addressLookupStatus === 'looked-up' && missingAddressFields.length > 0 ? <p role="status" className="mt-2 text-xs leading-5 text-amber-200">OpenStreetMap did not return {missingAddressFields.join(', ')}. Enter these fields manually if needed.</p> : null}
           </> : null}
           </div>
         </div>
