@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { buildAddressPayload, createAddress, getAddresses, type AddressRequest, type AddressResponse } from '../../api/addressApi';
 import { useThemeContext } from '../../context/ThemeContext';
@@ -11,6 +11,18 @@ type Props = {
   compact?: boolean;
 };
 
+export function mergeCheckoutAddressAutofill(
+  current: AddressRequest,
+  address: Partial<AddressRequest>,
+  preserveManualPostalCode: boolean,
+): AddressRequest {
+  return {
+    ...current,
+    ...address,
+    ...(preserveManualPostalCode ? { postalCode: current.postalCode } : {}),
+  };
+}
+
 export default function DeliveryAddressSelector({ selectedAddressId, onSelect, compact = false }: Props) {
   const { theme } = useThemeContext();
   const [addresses, setAddresses] = useState<AddressResponse[]>([]);
@@ -18,6 +30,7 @@ export default function DeliveryAddressSelector({ selectedAddressId, onSelect, c
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const postalCodeManuallyEntered = useRef(false);
   const [form, setForm] = useState<AddressRequest>({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', latitude: null, longitude: null, isDefault: true });
   const [showSavedAddresses, setShowSavedAddresses] = useState(!compact);
 
@@ -49,6 +62,7 @@ export default function DeliveryAddressSelector({ selectedAddressId, onSelect, c
       setAddresses(refreshed);
       onSelect(created);
       setShowForm(false);
+      postalCodeManuallyEntered.current = false;
       setForm({ label: '', fullName: '', phone: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: 'India', latitude: null, longitude: null, isDefault: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create delivery address.');
@@ -95,7 +109,7 @@ export default function DeliveryAddressSelector({ selectedAddressId, onSelect, c
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
           {(['fullName', 'phone'] as const).map((field) => <label key={field} className="space-y-1 text-sm font-medium text-slate-200"><span>{field === 'fullName' ? 'Your name *' : 'Mobile number *'}</span><input autoComplete={field === 'fullName' ? 'name' : 'tel'} inputMode={field === 'phone' ? 'tel' : undefined} aria-label={field === 'fullName' ? 'Your name' : 'Mobile number'} value={form[field] || ''} onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))} placeholder={field === 'fullName' ? 'Enter your name' : '10-digit mobile number'} className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-blue-400/50" /></label>)}
         </div>
-        <DeliveryLocationPicker latitude={form.latitude} longitude={form.longitude} selectedAddress={selectedFormAddress} onChange={(selection) => setForm((current) => ({ ...current, latitude: selection.latitude, longitude: selection.longitude, ...(selection.address ?? {}) }))} />
+        <DeliveryLocationPicker latitude={form.latitude} longitude={form.longitude} selectedAddress={selectedFormAddress} onChange={(selection) => setForm((current) => ({ ...mergeCheckoutAddressAutofill(current, selection.address ?? {}, postalCodeManuallyEntered.current), latitude: selection.latitude, longitude: selection.longitude }))} />
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
           {([
             ['addressLine1', 'House / street address *', 'House number, street, building'],
@@ -104,7 +118,7 @@ export default function DeliveryAddressSelector({ selectedAddressId, onSelect, c
             ['state', 'State *', 'State'],
             ['postalCode', 'PIN code *', '6-digit PIN code'],
             ['country', 'Country *', 'Country'],
-          ] as const).map(([field, label, placeholder]) => <label key={field} className={`space-y-1 text-sm font-medium text-slate-200 ${field === 'addressLine1' ? 'sm:col-span-2' : ''}`}><span>{label}</span><input autoComplete={field === 'addressLine1' ? 'street-address' : field === 'postalCode' ? 'postal-code' : 'off'} inputMode={field === 'postalCode' ? 'numeric' : undefined} aria-label={label} value={form[field] || ''} onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))} placeholder={placeholder} className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-blue-400/50" /></label>)}
+          ] as const).map(([field, label, placeholder]) => <label key={field} className={`space-y-1 text-sm font-medium text-slate-200 ${field === 'addressLine1' ? 'sm:col-span-2' : ''}`}><span>{label}</span><input autoComplete={field === 'addressLine1' ? 'street-address' : field === 'postalCode' ? 'postal-code' : 'off'} inputMode={field === 'postalCode' ? 'numeric' : undefined} aria-label={label} value={form[field] || ''} onChange={(event) => { if (field === 'postalCode') postalCodeManuallyEntered.current = true; setForm((current) => ({ ...current, [field]: event.target.value })); }} placeholder={placeholder} className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-blue-400/50" /></label>)}
         </div>
         {!locationSelected ? <p role="status" className="text-sm text-amber-200">Choose and confirm a delivery location before saving this address or continuing checkout.</p> : null}
         <button type="button" onClick={addAddress} disabled={creating || !locationSelected} className="min-h-11 rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">{creating ? 'Adding...' : 'Save Address'}</button>

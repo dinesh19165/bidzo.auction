@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { Crosshair, MapPin, Search, X } from 'lucide-react';
-import { reverseGeocode, searchCustomerLocations, type CustomerLocation } from '../../utils/customerLocation';
+import { getVerifiedPostalCode, reverseGeocode, searchCustomerLocations, type CustomerLocation } from '../../utils/customerLocation';
 
 type AddressFields = {
   addressLine1: string;
@@ -222,7 +222,7 @@ export default function DeliveryLocationPicker({ latitude, longitude, selectedAd
           ...(place.addressLine2.trim() ? { addressLine2: place.addressLine2 } : {}),
           ...(place.city.trim() ? { city: place.city } : {}),
           ...(place.state.trim() ? { state: place.state } : {}),
-          ...(place.pincode.trim() ? { postalCode: place.pincode } : {}),
+          postalCode: getVerifiedPostalCode(place.postalCode, place.postalCodeRequiresConfirmation),
           ...(place.country.trim() ? { country: place.country } : {}),
         },
       });

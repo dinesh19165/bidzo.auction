@@ -4,6 +4,8 @@ export interface CustomerLocation {
   city: string;
   state: string;
   pincode: string;
+  postalCode: string;
+  postalCodeRequiresConfirmation?: boolean;
   latitude: number;
   longitude: number;
   displayName: string;
@@ -22,7 +24,20 @@ function firstAddressValue(...values: Array<string | undefined>): string {
   return values.find((value) => value?.trim()) || '';
 }
 
-function normalizeLocation(address: Record<string, string | undefined>, latitude: number, longitude: number, displayName?: string): CustomerLocation {
+export function getVerifiedPostalCode(postalCode: unknown, postalCodeRequiresConfirmation: unknown): string {
+  if (postalCodeRequiresConfirmation !== false || typeof postalCode !== 'string') return '';
+  const normalized = postalCode.trim();
+  return /^\d{6}$/.test(normalized) ? normalized : '';
+}
+
+function normalizeLocation(
+  address: Record<string, string | undefined>,
+  latitude: number,
+  longitude: number,
+  displayName?: string,
+  postalCode?: unknown,
+  postalCodeRequiresConfirmation?: unknown,
+): CustomerLocation {
   const city = firstAddressValue(address.city, address.town, address.village, address.municipality, address.hamlet, address.county);
   const state = firstAddressValue(address.state, address.state_district);
   const pincode = firstAddressValue(address.postcode);
@@ -42,6 +57,8 @@ function normalizeLocation(address: Record<string, string | undefined>, latitude
     city,
     state,
     pincode,
+    postalCode: getVerifiedPostalCode(postalCode, postalCodeRequiresConfirmation),
+    postalCodeRequiresConfirmation: typeof postalCodeRequiresConfirmation === 'boolean' ? postalCodeRequiresConfirmation : undefined,
     latitude,
     longitude,
     displayName: displayName || [city, state, pincode].filter(Boolean).join(', '),
@@ -60,22 +77,37 @@ async function geocodeRequest(url: string): Promise<unknown> {
 
 export async function reverseGeocode(latitude: number, longitude: number): Promise<CustomerLocation> {
   const params = new URLSearchParams({ format: 'jsonv2', lat: String(latitude), lon: String(longitude), addressdetails: '1' });
-  const result = await geocodeRequest(`${NOMINATIM_URL}/reverse?${params.toString()}`) as { address?: Record<string, string | undefined>; display_name?: string };
+  const result = await geocodeRequest(`${NOMINATIM_URL}/reverse?${params.toString()}`) as {
+    address?: Record<string, string | undefined>;
+    display_name?: string;
+    postalCode?: unknown;
+    postalCodeRequiresConfirmation?: unknown;
+  };
   if (!result?.address) throw new Error('We could not identify that location. Please retry or enter the address manually.');
-  return normalizeLocation(result.address, latitude, longitude, result.display_name);
+  return normalizeLocation(result.address, latitude, longitude, result.display_name, result.postalCode, result.postalCodeRequiresConfirmation);
 }
 
 export async function searchCustomerLocations(query: string): Promise<CustomerLocation[]> {
   const params = new URLSearchParams({ format: 'jsonv2', q: query, countrycodes: 'in', addressdetails: '1', limit: '5' });
   const results = await geocodeRequest(`${NOMINATIM_URL}/search?${params.toString()}`);
   return (Array.isArray(results) ? results : []).map((item) => {
-    const result = item as { address?: Record<string, string | undefined>; lat?: string; lon?: string; display_name?: string };
+    const result = item as {
+      address?: Record<string, string | undefined>;
+      lat?: string;
+      lon?: string;
+      display_name?: string;
+      postalCode?: unknown;
+      postalCodeRequiresConfirmation?: unknown;
+    };
     return normalizeLocation(
-    result.address || {},
-    Number(result.lat),
-    Number(result.lon),
-    result.display_name,
-  ); }).filter((location) => location.city || location.state || location.pincode);
+      result.address || {},
+      Number(result.lat),
+      Number(result.lon),
+      result.display_name,
+      result.postalCode,
+      result.postalCodeRequiresConfirmation,
+    );
+  }).filter((location) => location.city || location.state || location.pincode);
 }
 
 export function getStoredCustomerLocation(): CustomerLocation | null {

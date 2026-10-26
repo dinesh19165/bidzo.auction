@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { buildAddressPayload } from '../src/api/addressApi';
-import { reverseGeocode, searchCustomerLocations } from '../src/utils/customerLocation';
+import { reverseGeocode, searchCustomerLocations, getVerifiedPostalCode } from '../src/utils/customerLocation';
+import { mergeCheckoutAddressAutofill } from '../src/components/checkout/DeliveryAddressSelector';
 
 const originalFetch = globalThis.fetch;
 
@@ -64,6 +65,65 @@ test('reverse geocoding returns address fields for the exact selected coordinate
   );
   assert.equal(place.latitude, form.latitude);
   assert.equal(place.longitude, form.longitude);
+});
+
+test('autofills only a valid postal code explicitly marked as not requiring confirmation', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    postalCode: '411001',
+    postalCodeRequiresConfirmation: false,
+    providerPostalCode: '999999',
+    postalCodeCandidate: '888888',
+    address: { postcode: '777777', city: 'Pune', state: 'Maharashtra', country: 'India' },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  const place = await reverseGeocode(form.latitude, form.longitude);
+  assert.equal(place.postalCode, '411001');
+  assert.equal(getVerifiedPostalCode(place.postalCode, place.postalCodeRequiresConfirmation), '411001');
+  assert.equal(place.pincode, '777777');
+});
+
+test('does not autofill an unverified postal code or provider/candidate alternatives', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    postalCode: '411001',
+    postalCodeRequiresConfirmation: true,
+    providerPostalCode: '999999',
+    postalCodeCandidate: '888888',
+    address: { postcode: '777777', city: 'Pune', state: 'Maharashtra', country: 'India' },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  const place = await reverseGeocode(form.latitude, form.longitude);
+  assert.equal(place.postalCode, '');
+  assert.equal(getVerifiedPostalCode(place.postalCode, place.postalCodeRequiresConfirmation), '');
+  assert.equal(getVerifiedPostalCode('411001', undefined), '');
+  assert.equal(getVerifiedPostalCode('41100', false), '');
+});
+
+test('keeps a manually entered checkout PIN when a later location lookup autofills other fields', () => {
+  const current = {
+    label: 'Home',
+    fullName: 'Customer Name',
+    phone: '9876543210',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: 'India',
+    latitude: form.latitude,
+    longitude: form.longitude,
+    isDefault: true,
+  };
+  const unverifiedLookup = mergeCheckoutAddressAutofill(current, { postalCode: '' }, false);
+  assert.equal(unverifiedLookup.postalCode, '');
+
+  const manuallyEntered = { ...unverifiedLookup, postalCode: '411001' };
+  const laterLookup = mergeCheckoutAddressAutofill(manuallyEntered, {
+    addressLine1: '12 Market Road',
+    city: 'Pune',
+    postalCode: '999999',
+  }, true);
+  assert.equal(laterLookup.postalCode, '411001');
+  assert.equal(laterLookup.city, 'Pune');
 });
 
 test('reverse geocoding uses the most specific available locality and preserves regional-language values', async () => {
