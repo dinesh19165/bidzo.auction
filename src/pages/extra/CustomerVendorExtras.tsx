@@ -73,6 +73,33 @@ function statusTone(status: string | null | undefined) {
 
 type ScheduleUpdateFeedback = { type: 'success' | 'error'; message: string };
 
+export function DeliveryInlineFeedback({ feedback }: { feedback?: ScheduleUpdateFeedback }) {
+  if (!feedback) return null;
+  return <div role={feedback.type === 'success' ? 'status' : 'alert'} className={`mt-3 flex items-start gap-2 rounded-xl border p-3 text-sm ${feedback.type === 'success' ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border-rose-400/20 bg-rose-500/10 text-rose-200'}`}>
+    {feedback.type === 'success' ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+    <span>{feedback.message}</span>
+  </div>;
+}
+
+export function DeliveryShareControl({
+  loading,
+  feedback,
+  disabled,
+  onShare,
+}: {
+  loading: boolean;
+  feedback?: ScheduleUpdateFeedback;
+  disabled: boolean;
+  onShare: () => void;
+}) {
+  return <div>
+    <button type="button" onClick={onShare} disabled={disabled || loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-emerald-400/30 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50">
+      {loading ? <><LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />Sharing…</> : 'Share Delivery'}
+    </button>
+    <DeliveryInlineFeedback feedback={feedback} />
+  </div>;
+}
+
 function isSafeScheduleErrorMessage(message: string): boolean {
   const normalized = message.trim();
   return normalized.length > 0
@@ -96,6 +123,44 @@ function getScheduleErrorMessage(reason: unknown): string {
     return reason.message;
   }
   return 'Unable to update the delivery date. Please try again.';
+}
+
+function getShareErrorMessage(reason: unknown): string {
+  if (reason instanceof ApiError) {
+    if (reason.status === 401) return 'Your session has expired. Sign in again and retry.';
+    if (reason.status === 403) return 'You do not have permission to share this delivery.';
+  }
+  if (reason instanceof Error && (reason.name === 'TimeoutError' || /timed?\s*out/i.test(reason.message))) {
+    return 'The request timed out. Check your connection and try again.';
+  }
+  if (reason instanceof TypeError) {
+    return 'Unable to reach the server. Check your connection and try again.';
+  }
+  if (reason instanceof Error && isSafeScheduleErrorMessage(reason.message)) {
+    return reason.message;
+  }
+  return 'Unable to share delivery details. Please try again.';
+}
+
+export async function copyDeliveryShareLink(url: string): Promise<void> {
+  if (!navigator.clipboard?.writeText) {
+    throw new Error('Clipboard access is unavailable.');
+  }
+  await navigator.clipboard.writeText(url);
+}
+
+export async function runWithOrderRequestLock(
+  locks: Set<number>,
+  orderId: number,
+  operation: () => Promise<void>,
+): Promise<void> {
+  if (locks.has(orderId)) return;
+  locks.add(orderId);
+  try {
+    await operation();
+  } finally {
+    locks.delete(orderId);
+  }
 }
 
 export function DeliveryScheduleControl({
@@ -127,10 +192,7 @@ export function DeliveryScheduleControl({
         </button>
       </div>
       {!eligible ? <p className="mt-2 text-xs text-slate-400">The current order status is not eligible for scheduling.</p> : null}
-      {feedback ? <div role={feedback.type === 'success' ? 'status' : 'alert'} className={`mt-3 flex items-start gap-2 rounded-xl border p-3 text-sm ${feedback.type === 'success' ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border-rose-400/20 bg-rose-500/10 text-rose-200'}`}>
-        {feedback.type === 'success' ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
-        <span>{feedback.message}</span>
-      </div> : null}
+      <DeliveryInlineFeedback feedback={feedback} />
     </section>
   );
 }
@@ -3409,6 +3471,11 @@ export function VendorOrdersPage() {
   const [scheduleFeedbackByOrder, setScheduleFeedbackByOrder] = useState<Record<number, ScheduleUpdateFeedback | undefined>>({});
   const scheduleRequests = useRef(new Set<number>());
   const scheduleFeedbackTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const [shareLoadingOrderIds, setShareLoadingOrderIds] = useState<Set<number>>(() => new Set());
+  const [shareFeedbackByOrder, setShareFeedbackByOrder] = useState<Record<number, ScheduleUpdateFeedback | undefined>>({});
+  const [singleShareOrderId, setSingleShareOrderId] = useState<number | null>(null);
+  const shareRequests = useRef(new Set<number>());
+  const shareFeedbackTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const [feedback, setFeedback] = useState('');
   const [shareMode, setShareMode] = useState<'SINGLE' | 'DAY' | 'WEEK'>('SINGLE');
   const [shareDate, setShareDate] = useState('');
@@ -3422,6 +3489,7 @@ export function VendorOrdersPage() {
 
   useEffect(() => () => {
     scheduleFeedbackTimers.current.forEach((timer) => clearTimeout(timer));
+    shareFeedbackTimers.current.forEach((timer) => clearTimeout(timer));
   }, []);
 
   const isDeliveryEligible = (order: VendorOrderApiResponse) => ['CONFIRMED', 'PACKING', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(String(order.orderStatus ?? order.status ?? '').toUpperCase());
@@ -3595,6 +3663,7 @@ export function VendorOrdersPage() {
     setShareError('');
     setShare(null);
     setCopyFeedback('');
+    setSingleShareOrderId(null);
     try {
       setShare(await createDeliveryShare(request));
     } catch (reason) {
@@ -3604,13 +3673,68 @@ export function VendorOrdersPage() {
     }
   };
 
+  const updateShareFeedback = (orderId: number, nextFeedback?: ScheduleUpdateFeedback) => {
+    const priorTimer = shareFeedbackTimers.current.get(orderId);
+    if (priorTimer) clearTimeout(priorTimer);
+    shareFeedbackTimers.current.delete(orderId);
+    setShareFeedbackByOrder((current) => ({ ...current, [orderId]: nextFeedback }));
+    if (nextFeedback?.type === 'success') {
+      const timer = setTimeout(() => {
+        setShareFeedbackByOrder((current) => ({ ...current, [orderId]: undefined }));
+        shareFeedbackTimers.current.delete(orderId);
+      }, 5000);
+      shareFeedbackTimers.current.set(orderId, timer);
+    }
+  };
+
+  const createSingleOrderShare = async (order: VendorOrderApiResponse) => {
+    await runWithOrderRequestLock(shareRequests.current, order.id, async () => {
+      updateShareFeedback(order.id);
+      setShareLoadingOrderIds((current) => new Set(current).add(order.id));
+      setShareError('');
+      setCopyFeedback('');
+      setShare(null);
+      setSingleShareOrderId(null);
+      try {
+        const createdShare = await createDeliveryShare({ scope: 'SINGLE', orderId: order.id, expiresInHours: 48 });
+        setShare(createdShare);
+        setSingleShareOrderId(order.id);
+        updateShareFeedback(order.id, {
+          type: 'success',
+          message: `Delivery link created successfully for order ${formatOrderNumber(order)}. Copy the link below to share it.`,
+        });
+      } catch (reason) {
+        updateShareFeedback(order.id, { type: 'error', message: getShareErrorMessage(reason) });
+      } finally {
+        setShareLoadingOrderIds((current) => {
+          const next = new Set(current);
+          next.delete(order.id);
+          return next;
+        });
+      }
+    });
+  };
+
   const copyShareLink = async () => {
     if (!share) return;
     try {
-      await navigator.clipboard.writeText(share.shareUrl);
+      await copyDeliveryShareLink(share.shareUrl);
       setCopyFeedback('Delivery link copied.');
+      if (singleShareOrderId !== null) {
+        const order = orders.find((item) => item.id === singleShareOrderId);
+        updateShareFeedback(singleShareOrderId, {
+          type: 'success',
+          message: `Delivery details shared successfully for order ${order ? formatOrderNumber(order) : `BIDZO-${singleShareOrderId}`}.`,
+        });
+      }
     } catch {
       setCopyFeedback('Could not copy automatically. Select and copy the link above.');
+      if (singleShareOrderId !== null) {
+        updateShareFeedback(singleShareOrderId, {
+          type: 'error',
+          message: 'Unable to copy the delivery link. Please try again or select and copy it manually.',
+        });
+      }
     }
   };
 
@@ -3694,7 +3818,12 @@ export function VendorOrdersPage() {
                       onDateChange={(date) => setDeliveryDates((current) => ({ ...current, [order.id]: date }))}
                       onSubmit={() => { void scheduleSelectedOrder(); }}
                     />
-                    <button type="button" onClick={() => { void createShare({ scope: 'SINGLE', orderId: detail.id, expiresInHours: 48 }); }} disabled={!eligible || shareLoading} className="min-h-11 rounded-full border border-emerald-400/30 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50">{shareLoading ? 'Creating link...' : 'Share Delivery'}</button>
+                    <DeliveryShareControl
+                      loading={shareLoadingOrderIds.has(detail.id)}
+                      feedback={shareFeedbackByOrder[detail.id]}
+                      disabled={!eligible}
+                      onShare={() => { void createSingleOrderShare(detail); }}
+                    />
                   </div> : null}
                 </Card>;
               })}
@@ -3704,7 +3833,7 @@ export function VendorOrdersPage() {
           <Card className="mt-6 space-y-4 p-4 sm:p-5">
             <div><h2 className="text-lg font-semibold text-white">Share scheduled deliveries</h2><p className="mt-1 text-sm text-slate-400">The backend limits destinations to eligible orders scheduled for the selected date or week.</p></div>
             <div className="flex flex-wrap gap-2" role="group" aria-label="Delivery share scope">
-              {(['SINGLE', 'DAY', 'WEEK'] as const).map((mode) => <button key={mode} type="button" aria-pressed={shareMode === mode} onClick={() => { setShareMode(mode); setShare(null); setShareError(''); }} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${shareMode === mode ? 'border-blue-400 bg-blue-500/15 text-blue-100' : 'border-white/10 text-slate-300 hover:bg-white/5'}`}>{mode === 'SINGLE' ? 'Single order' : mode === 'DAY' ? 'Selected day' : 'Selected week'}</button>)}
+              {(['SINGLE', 'DAY', 'WEEK'] as const).map((mode) => <button key={mode} type="button" aria-pressed={shareMode === mode} onClick={() => { setShareMode(mode); setShare(null); setShareError(''); setSingleShareOrderId(null); }} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${shareMode === mode ? 'border-blue-400 bg-blue-500/15 text-blue-100' : 'border-white/10 text-slate-300 hover:bg-white/5'}`}>{mode === 'SINGLE' ? 'Single order' : mode === 'DAY' ? 'Selected day' : 'Selected week'}</button>)}
             </div>
             {shareMode === 'SINGLE' ? <p className="text-sm text-slate-300">Open an eligible order above and choose <span className="font-medium text-white">Share Delivery</span>.</p> : <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
               <label className="block text-sm text-slate-300">{shareMode === 'DAY' ? 'Delivery date' : 'Choose a date in the delivery week'}<input aria-label={shareMode === 'DAY' ? 'Delivery date' : 'Date in delivery week'} type="date" value={shareDate} onChange={(event) => setShareDate(event.target.value)} className="mt-1 block min-h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm text-white" /></label>
