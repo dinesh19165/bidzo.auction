@@ -25,6 +25,7 @@ import { DirectionsLink, hasVerifiedCoordinates } from '../../components/checkou
 import { formatOrderNumber, getOrderCustomer, getOrderProductName, getOrderStatus, getOrderTotal, getOrderType, getOrderVendor } from '../../utils/orderDisplay';
 import DeliveryAddressViewer from '../../components/orders/DeliveryAddressViewer';
 import DeliveryLocationPicker from '../../components/checkout/DeliveryLocationPicker';
+import { VendorPackingSlipActions } from '../../components/vendor/VendorPackingSlipActions';
 import { getVendorRevenue } from '../../api/vendorRevenueApi';
 import { getVendorVerificationStatus } from '../../api/vendorVerificationApi';
 import { updateVendorProfile, getVendorProfile, getVendorBankRecord, saveVendorBankRecord, type VendorProfileResponse, type VendorBankRecord } from '../../api/vendorApi';
@@ -35,6 +36,7 @@ import VideoUploadField from '../../components/forms/VideoUploadField';
 import { uploadToCloudinaryAsset } from '../../services/cloudinaryUpload';
 import { getTransactions, type TransactionResponse } from '../../api/walletApi';
 import { getInvoices, type InvoiceResponse } from '../../api/invoiceApi';
+import { InvoicePdfDownloadButton } from '../../components/invoices/InvoiceDocument';
 import { createSupportTicket, getSupportTickets, type SupportTicketResponse } from '../../api/supportApi';
 import { WishlistPage } from '../WishlistPage';
 import { KycApprovalRequiredModal, KycPublishWarning } from '../../components/common/Feedback';
@@ -2311,9 +2313,7 @@ export function CustomerOrderDetailPage() {
                 <button className="min-h-10 w-full rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20">
                   Contact Support
                 </button>
-                <button className="min-h-10 w-full rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20">
-                  Download Invoice
-                </button>
+                {order.id ? <InvoicePdfDownloadButton orderId={order.id} label="Download Invoice" /> : null}
               </div>
             </div>
           </div>
@@ -3794,6 +3794,9 @@ export function VendorOrdersPage() {
                     </div>
                     <button type="button" disabled={detailLoading || statusUpdatingOrderId !== null} onClick={() => { void loadOrderDetail(order); }} className="min-h-11 shrink-0 rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/5 disabled:opacity-50">{detailLoading && expanded ? 'Loading...' : expanded ? 'Hide delivery details' : 'Delivery details'}</button>
                     {nextVendorOrderStatus(detail) ? <button type="button" disabled={statusUpdatingOrderId !== null} onClick={() => { void updateOrderStatus(detail); }} className="min-h-11 shrink-0 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{statusUpdatingOrderId === order.id ? 'Updating...' : `Mark ${nextVendorOrderStatus(detail)?.replaceAll('_', ' ')}`}</button> : null}
+                  </div>
+                  <div className="mt-3">
+                    <VendorPackingSlipActions orderId={order.id} orderNumber={formatOrderNumber(order)} />
                   </div>
                   {scheduledDate ? <p className="mt-3 text-sm text-slate-300">Scheduled delivery: <span className="font-medium text-white">{scheduledDate}</span></p> : <p className="mt-3 text-sm text-amber-200">Delivery not scheduled</p>}
                   {expanded ? <div className="mt-4 space-y-4 border-t border-white/10 pt-4">

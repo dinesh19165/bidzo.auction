@@ -144,6 +144,50 @@ function getResponseErrorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
+function filenameFromContentDisposition(value: string | null, fallback: string): string {
+  const encoded = value?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plain = value?.match(/filename="?([^";]+)"?/i)?.[1];
+  let filename = fallback;
+  try {
+    filename = encoded ? decodeURIComponent(encoded) : plain || fallback;
+  } catch {
+    filename = plain || fallback;
+  }
+  filename = filename.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim();
+  return filename && filename !== '.' && filename !== '..' ? filename : fallback;
+}
+
+export async function fetchAuthenticatedPdf(path: string, fallbackFilename: string): Promise<{ blob: Blob; filename: string }> {
+  if (sessionExpirationHandled) throw new ApiError(401, 'Unauthorized');
+
+  const token = getStoredAuthToken();
+  if (token && isJwtExpired(token)) {
+    handleUnauthorized();
+    throw new ApiError(401, 'Unauthorized');
+  }
+  const headers = new Headers({ Accept: 'application/pdf, application/octet-stream' });
+  applyAuthHeaders(headers, token);
+  const response = await fetch(getApiUrl(path), { method: 'GET', headers });
+  if (response.status === 401) {
+    handleUnauthorized();
+    throw new ApiError(401, 'Unauthorized');
+  }
+
+  const body = response.ok ? null : await response.json().catch(() => null);
+  if (response.status === 403) {
+    throw new ApiError(403, getResponseErrorMessage(body, "You don't have permission to download this document."));
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, getResponseErrorMessage(body, response.statusText || 'Unable to download this document.'));
+  }
+
+  const blob = await response.blob();
+  if (await blob.slice(0, 5).text() !== '%PDF-') {
+    throw new Error('The server did not return a valid PDF document.');
+  }
+  return { blob, filename: filenameFromContentDisposition(response.headers.get('Content-Disposition'), fallbackFilename) };
+}
+
 export async function fetchJson<T>(path: string, init: RequestInit = {}, useAuth = true): Promise<T> {
   if (useAuth && sessionExpirationHandled) {
     throw new ApiError(401, 'Unauthorized');

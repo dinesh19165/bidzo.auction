@@ -1,4 +1,4 @@
-import { fetchJson } from './apiClient';
+import { fetchAuthenticatedPdf, fetchJson } from './apiClient';
 
 export interface VendorDeliveryAddress {
   addressLine1?: string;
@@ -92,4 +92,11 @@ export async function updateVendorOrderStatus(orderId: number, status: Extract<O
   if (response && typeof response === 'object' && 'success' in response && (response as ApiEnvelope<unknown>).success === false) {
     throw new Error((response as ApiEnvelope<unknown>).message || 'Unable to update the vendor order status.');
   }
+}
+
+export async function downloadVendorPackingSlip(orderId: number): Promise<{ blob: Blob; filename: string }> {
+  return fetchAuthenticatedPdf(
+    `/api/vendor/orders/${encodeURIComponent(String(orderId))}/packing-slip`,
+    `packing-slip-${orderId}.pdf`,
+  );
 }

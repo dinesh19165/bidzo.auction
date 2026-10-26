@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle2, CreditCard, Download, Info, Loader2, MapPin, PackageCheck, Printer, ShieldCheck, Star, WalletCards } from 'lucide-react';
+import { CheckCircle2, CreditCard, Info, Loader2, MapPin, PackageCheck, ShieldCheck, Star, WalletCards } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { useAuth } from '../../context/AuthContext';
 import { createRazorpayPayment, verifyRazorpayPayment } from '../../api/paymentApi';
@@ -17,6 +17,9 @@ import DeliveryAvailabilityCheck from '../../components/delivery/DeliveryAvailab
 import { OfferCheckoutSection, type AppliedOffer } from '../../components/checkout/OfferCheckoutSection';
 import type { AddressResponse } from '../../api/addressApi';
 import { hasVerifiedCoordinates } from '../../components/checkout/DeliveryLocationPicker';
+import { getInvoiceByOrderId, downloadInvoice, type InvoiceResponse } from '../../api/invoiceApi';
+import { InvoiceDocument, InvoicePdfDownloadButton } from '../../components/invoices/InvoiceDocument';
+import type { OrderResponseDto, PaymentResponseDto } from '../../types';
 
 function FlowTransitionScreen({ heading, message, detail }: { heading: string; message: string; detail?: string }) {
   return (
@@ -605,13 +608,7 @@ export function BuyNowOrderSuccessPage() {
           </div>
 
           <div className="mx-auto mt-6 grid w-full max-w-[680px] gap-3 sm:grid-cols-2">
-            <button
-              onClick={() => navigate(`/customer/buynow-invoice`)}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-blue-400/30 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
-            >
-              <Download className="h-4 w-4" />
-              Download Invoice
-            </button>
+            <InvoicePdfDownloadButton orderId={flowState.orderId} className="w-full" />
             <button
               onClick={() => {
                 clearBuyNowFlowState();
@@ -641,7 +638,10 @@ export function BuyNowOrderSuccessPage() {
 export function BuyNowInvoicePage() {
   const navigate = useNavigate();
   const flowState = readBuyNowFlowState();
-  const [invoice, setInvoice] = useState<any>(null);
+  const [order, setOrder] = useState<OrderResponseDto | null>(null);
+  const [invoice, setInvoice] = useState<InvoiceResponse | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState('Pending');
+  const [paymentDetails, setPaymentDetails] = useState<PaymentResponseDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
@@ -650,20 +650,20 @@ export function BuyNowInvoicePage() {
       if (!flowState.orderId) return;
       try {
         // Fetch invoice data for the order
-        const orderData = await getOrderById(flowState.orderId);
-        const paymentConfirmed = (flowState.paymentRequired === false || flowState.finalPayable === 0) && isConfirmedOrderStatus(orderData.orderStatus)
-          ? true
-          : (await getPaymentsForOrder(flowState.orderId)).some((payment) => isPaidStatus(payment.status));
+        const [orderData, invoiceData] = await Promise.all([
+          getOrderById(flowState.orderId),
+          getInvoiceByOrderId(flowState.orderId),
+        ]);
+        const noPaymentRequired = (flowState.paymentRequired === false || flowState.finalPayable === 0) && isConfirmedOrderStatus(orderData.orderStatus);
+        const successfulPayment = noPaymentRequired
+          ? null
+          : (await getPaymentsForOrder(flowState.orderId)).find((payment) => isPaidStatus(payment.status)) ?? null;
+        const paymentConfirmed = noPaymentRequired || successfulPayment !== null;
         if (!paymentConfirmed) throw new Error('Payment has not been confirmed for this order yet.');
-        setInvoice({
-          ...orderData,
-          orderId: orderData.id,
-          productTitle: orderData.items?.map((item) => item.productName || item.name).filter(Boolean).join(', ') || flowState.productTitle,
-          productPrice: orderData.totalAmount,
-          quantity: orderData.items?.reduce((sum, item) => sum + Number(item.quantity || 0), 0) || flowState.quantity || 1,
-          orderDate: orderData.orderDate || orderData.createdAt || new Date().toLocaleDateString(),
-          status: orderData.orderStatus,
-        });
+        setOrder(orderData);
+        setInvoice(invoiceData);
+        setPaymentDetails(successfulPayment);
+        setPaymentStatus(noPaymentRequired ? 'No payment required' : successfulPayment?.status || 'Paid');
       } catch (error) {
         setInvoiceError(error instanceof Error ? error.message : 'Unable to verify this order for invoicing.');
       } finally {
@@ -683,7 +683,7 @@ export function BuyNowInvoicePage() {
     );
   }
 
-  if (!invoice) {
+  if (!invoice || !order) {
     return (
       <SectionShell title="Order invoice" subtitle="Unable to prepare invoice">
         <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-200">
@@ -693,100 +693,29 @@ export function BuyNowInvoicePage() {
     );
   }
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleDownload = () => {
-    // Placeholder for PDF download logic
-    console.log('Downloading invoice...');
-  };
-
   return (
-    <SectionShell title="Order Invoice" subtitle={`Order #${invoice.orderId}`}>
-      <div className="mx-auto max-w-2xl">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-[24px] border border-white/10 bg-slate-900/70 p-8"
-        >
-          {/* Invoice Header */}
-          <div className="mb-8 border-b border-white/10 pb-8 text-center">
-            <h2 className="text-2xl font-bold text-white">INVOICE</h2>
-            <p className="mt-2 text-slate-400">Order #{invoice.orderId}</p>
-          </div>
-
-          {/* Invoice Details */}
-          <div className="mb-8 grid grid-cols-2 gap-8">
-            <div>
-              <p className="text-xs uppercase tracking-widest text-slate-400">Invoice Date</p>
-              <p className="mt-1 font-semibold text-white">{invoice.orderDate}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-slate-400">Status</p>
-              <p className="mt-1 font-semibold text-emerald-400">{invoice.status}</p>
-            </div>
-          </div>
-
-          {/* Line Items */}
-          <div className="mb-8 rounded-2xl border border-white/10 bg-white/5 p-6">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="pb-3 text-left text-xs uppercase text-slate-400">Description</th>
-                  <th className="pb-3 text-center text-xs uppercase text-slate-400">Qty</th>
-                  <th className="pb-3 text-right text-xs uppercase text-slate-400">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-white/10">
-                  <td className="py-3 text-white">{invoice.productTitle}</td>
-                  <td className="py-3 text-center text-white">{invoice.quantity}</td>
-                  <td className="py-3 text-right text-white">₹{invoice.productPrice.toLocaleString()}</td>
-                </tr>
-                <tr>
-                  <td colSpan={2} className="py-3 font-semibold text-white">Total</td>
-                  <td className="py-3 text-right font-semibold text-emerald-400">₹{invoice.productPrice.toLocaleString()}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Payment Info */}
-          <div className="mb-8 rounded-2xl border border-white/10 bg-white/5 p-6">
-            <p className="text-sm text-slate-400">Payment via Razorpay</p>
-            <p className="mt-2 font-semibold text-white">Amount Paid: ₹{invoice.productPrice.toLocaleString()}</p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              onClick={handlePrint}
-              className="flex-1 rounded-full border border-white/10 px-4 py-3 font-medium text-white transition hover:bg-white/5"
-            >
-              <Printer className="inline-block h-4 w-4 mr-2" />
-              Print
-            </button>
-            <button
-              onClick={handleDownload}
-              className="flex-1 rounded-full bg-blue-600 px-4 py-3 font-medium text-white transition hover:bg-blue-700"
-            >
-              <Download className="inline-block h-4 w-4 mr-2" />
-              Download PDF
-            </button>
-          </div>
-
-          <button
-            onClick={() => {
-              clearBuyNowFlowState();
-              navigate('/marketplace');
-            }}
-            className="mt-3 w-full rounded-full border border-white/10 px-4 py-3 font-medium text-white transition hover:bg-white/5"
-          >
-            Back to Marketplace
-          </button>
-        </motion.div>
-      </div>
+    <SectionShell title="Order Invoice" subtitle={`Order ${order.orderNumber || `#${order.id}`}`}>
+      <InvoiceDocument
+        order={order}
+        invoice={invoice}
+        paymentStatus={paymentStatus}
+        paymentDetails={paymentDetails ? {
+          amount: paymentDetails.amount,
+          method: paymentDetails.paymentMethod || paymentDetails.paymentMethodName || paymentDetails.method,
+          reference: paymentDetails.paymentRef || paymentDetails.paymentId || paymentDetails.razorpayPaymentId,
+          paidAt: paymentDetails.paidAt || paymentDetails.createdAt,
+        } : undefined}
+        onDownload={() => downloadInvoice(invoice.id)}
+      />
+      <button
+        onClick={() => {
+          clearBuyNowFlowState();
+          navigate('/marketplace');
+        }}
+        className="mt-4 min-h-11 rounded-full border border-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/5"
+      >
+        Back to Marketplace
+      </button>
     </SectionShell>
   );
 }

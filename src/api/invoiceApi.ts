@@ -1,4 +1,4 @@
-import { fetchJson } from './apiClient';
+import { fetchAuthenticatedPdf, fetchJson } from './apiClient';
 import type { ApiResponse } from '../types';
 
 export interface InvoiceResponse {
@@ -12,6 +12,13 @@ export interface InvoiceResponse {
   status: string;
   downloadUrl?: string;
   createdAt: string;
+  shippingAmount?: number;
+  shippingCharges?: number;
+}
+
+export interface InvoicePdfDownload {
+  blob: Blob;
+  filename: string;
 }
 
 export async function getInvoices(): Promise<InvoiceResponse[]> {
@@ -54,12 +61,10 @@ export async function getInvoiceByOrderId(orderId: number): Promise<InvoiceRespo
   return response.data;
 }
 
-export async function downloadInvoice(invoiceId: number): Promise<string> {
-  const response = await fetchJson<ApiResponse<{ downloadUrl: string }>>(`/api/customer/invoices/${invoiceId}/download`, {
-    method: 'GET',
-  });
-  if (!response?.data?.downloadUrl) {
-    throw new Error(response?.message || 'Failed to generate download URL');
-  }
-  return response.data.downloadUrl;
+export async function downloadInvoice(invoiceId: number): Promise<InvoicePdfDownload> {
+  return fetchAuthenticatedPdf(`/api/customer/invoices/${encodeURIComponent(String(invoiceId))}/download`, `invoice-${invoiceId}.pdf`);
+}
+
+export async function downloadInvoiceByOrderId(orderId: number): Promise<InvoicePdfDownload> {
+  return fetchAuthenticatedPdf(`/api/customer/invoices/order/${encodeURIComponent(String(orderId))}/download`, `invoice-order-${orderId}.pdf`);
 }

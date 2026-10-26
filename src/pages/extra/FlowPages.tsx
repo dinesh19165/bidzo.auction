@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, BadgeCheck, CheckCircle2, Clock3, CreditCard, Gavel, Heart, Loader2, MapPin, PackageCheck, Search, Share2, ShieldCheck, ShoppingBag, Sparkles, Truck, Wallet, Zap, CircleDollarSign, QrCode, Printer, Download, BadgeAlert, Radio, ChevronRight } from 'lucide-react';
+import { ArrowRight, BadgeCheck, CheckCircle2, Clock3, CreditCard, Gavel, Heart, Loader2, MapPin, PackageCheck, Search, Share2, ShieldCheck, ShoppingBag, Sparkles, Truck, Wallet, Zap, CircleDollarSign, BadgeAlert, Radio, ChevronRight } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { categoryLabel, getCategories, getCategoryFields, type CategoryFieldDefinition, type CategoryRecord } from '../../api/categoryApi';
 import ProductForm from '../../components/ProductForm';
@@ -29,6 +29,8 @@ import { addMockBid, advanceAuctionClock, beginFinalPayment, enterLiveAuctionRoo
 import { isVendorKycPublishRestrictionError } from '../../utils/vendorKycPublishRestriction';
 import { KycApprovalRequiredModal, KycPublishWarning } from '../../components/common/Feedback';
 import { showToast } from '../../components/ui/toast';
+import { getInvoiceByOrderId, downloadInvoice, type InvoiceResponse } from '../../api/invoiceApi';
+import { InvoiceDocument } from '../../components/invoices/InvoiceDocument';
 
 function FlowBreadcrumbs({ steps }: { steps: Array<{ label: string; to?: string }> }) {
   return (
@@ -1836,6 +1838,7 @@ export function CustomerInvoicePage() {
   const [flowState] = useState<AuctionFlowState>(() => readAuctionFlowState());
   const [order, setOrder] = useState<OrderResponseDto | null>(null);
   const [payment, setPayment] = useState<PaymentResponseDto | null>(null);
+  const [invoice, setInvoice] = useState<InvoiceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -1852,15 +1855,17 @@ export function CustomerInvoicePage() {
           return;
         }
 
-        const [orderData, payments] = await Promise.all([
+        const [orderData, payments, invoiceData] = await Promise.all([
           getOrderById(storedOrderId),
           getPaymentsForOrder(storedOrderId),
+          getInvoiceByOrderId(storedOrderId),
         ]);
 
         const successfulPayment = payments.find((item: PaymentResponseDto) => String(item.status).toUpperCase() === 'SUCCESS') ?? null;
         if (!active) return;
         setOrder(orderData);
         setPayment(successfulPayment);
+        setInvoice(invoiceData);
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Unable to load invoice data.');
       } finally {
@@ -1874,20 +1879,7 @@ export function CustomerInvoicePage() {
     };
   }, [flowState.auctionId]);
 
-  const orderNumber = order?.orderNumber || (order ? `#${order.id}` : '—');
-  const itemName = order?.items?.[0]?.productName || order?.items?.[0]?.name || flowState.auctionTitle || 'Auction item';
-  const paymentId = payment?.paymentRef || payment?.paymentId || payment?.razorpayPaymentId || payment?.id || '—';
   const paymentStatus = String(payment?.status ?? 'PENDING').toUpperCase() === 'SUCCESS' ? 'Paid' : String(payment?.status ?? 'Pending');
-  const amountPaid = Number(payment?.amount ?? order?.totalAmount ?? flowState.winningAmount ?? 0);
-  const paymentMethod = payment?.paymentMethod || payment?.paymentMethodName || payment?.method || 'Razorpay';
-  const paymentDate = payment?.paidAt || payment?.createdAt || order?.createdAt || new Date().toISOString();
-  const formattedDate = paymentDate ? new Date(paymentDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
-  const receiptUrl = payment?.receiptUrl || payment?.qrCodeUrl || '';
-  const qrUrl = receiptUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(receiptUrl)}` : '';
-
-  const handlePrintSavePdf = () => {
-    window.print();
-  };
 
   if (loading) {
     return (
@@ -1899,12 +1891,12 @@ export function CustomerInvoicePage() {
     );
   }
 
-  if (error || !order) {
+  if (error || !order || !invoice) {
     return (
       <SectionShell title="Invoice" subtitle="Official payment and order receipt">
         <div className="rounded-[24px] border border-red-500/20 bg-red-500/10 p-6 text-sm text-red-200">
           <p className="font-semibold">Invoice unavailable</p>
-          <p className="mt-1">{error || 'The order could not be found.'}</p>
+          <p className="mt-1">{error || 'The invoice could not be found for this order.'}</p>
           <Link to="/customer/order-success" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white">Back to order</Link>
         </div>
       </SectionShell>
@@ -1914,45 +1906,19 @@ export function CustomerInvoicePage() {
   return (
     <SectionShell title="Invoice" subtitle="Official payment and order receipt">
       <FlowBreadcrumbs steps={[{ label: 'Success', to: '/customer/order-success' }, { label: 'Invoice', to: '/customer/invoice' }, { label: 'Track', to: '/customer/track-order' }]} />
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="rounded-[24px] border border-white/10 bg-slate-900/70 p-6 text-sm text-slate-300">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-semibold text-white">Invoice {orderNumber}</p>
-            <p className="mt-2">Item: {itemName}</p>
-            <p className="mt-2">Amount paid: ₹{amountPaid.toLocaleString()}</p>
-          </div>
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-emerald-200">Payment status: {paymentStatus}</div>
-        </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-slate-400">Payment ID</p>
-            <p className="mt-1 font-semibold text-white">{paymentId}</p>
-            <p className="mt-3 text-slate-400">Razorpay Order ID</p>
-            <p className="mt-1 font-semibold text-white">{payment?.razorpayOrderId || 'Not available'}</p>
-            <p className="mt-3 text-slate-400">Payment method</p>
-            <p className="mt-1 font-semibold text-white">{paymentMethod}</p>
-            <p className="mt-3 text-slate-400">Paid on</p>
-            <p className="mt-1 font-semibold text-white">{formattedDate}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-white"><QrCode className="h-4 w-4 text-blue-300" /> Payment reference</div>
-            {qrUrl ? (
-              <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-slate-950/40 p-3">
-                <img src={qrUrl} alt="Payment receipt QR code" className="mx-auto h-32 w-32 rounded-xl bg-white p-2" />
-              </div>
-            ) : (
-              <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-slate-950/40 p-4 text-slate-300">
-                <p className="font-medium text-white">Payment reference</p>
-                <p className="mt-2 break-all">{paymentId}</p>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <button type="button" onClick={handlePrintSavePdf} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"><Download className="h-4 w-4" /> Print / Save as PDF</button>
-          <Link to="/customer/track-order" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200">Track order</Link>
-        </div>
-      </motion.div>
+      <InvoiceDocument
+        order={order}
+        invoice={invoice}
+        paymentStatus={paymentStatus}
+        paymentDetails={payment ? {
+          amount: payment.amount,
+          method: payment.paymentMethod || payment.paymentMethodName || payment.method,
+          reference: payment.paymentRef || payment.paymentId || payment.razorpayPaymentId,
+          paidAt: payment.paidAt || payment.createdAt,
+        } : undefined}
+        onDownload={() => downloadInvoice(invoice.id)}
+      />
+      <Link to="/customer/track-order" className="mt-4 inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Track order</Link>
     </SectionShell>
   );
 }

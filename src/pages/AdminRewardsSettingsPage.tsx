@@ -39,7 +39,7 @@ export function AdminRewardsSettingsPage() {
     try { await updateAdminRewardsSettings(form); await load(); setSuccess('Rewards settings saved.'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save rewards settings.'); } finally { setSaving(false); }
   };
 
-  return <AdminShell title="Enterprise admin" subtitle="Rewards and referral settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Rewards' }]} activePath="/admin/settings">
+  return <AdminShell title="BIDZO admin" subtitle="Rewards and referral settings" breadcrumbs={[{ label: 'Admin' }, { label: 'Settings', to: '/admin/settings' }, { label: 'Rewards' }]} activePath="/admin/settings">
     <Card className="p-4 sm:p-5">
       {loading ? <p className="text-sm text-slate-400">Loading rewards settings...</p> : error && !Object.keys(form).length ? <ErrorState title="Unable to load rewards settings" description={error} /> : <>
         {error ? <p className="mb-4 rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</p> : null}
