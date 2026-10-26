@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { ArrowRight, BadgeCheck, BellRing, CreditCard, Heart, MapPin, MessageCircleMore, PackageCheck, ReceiptText, Search, Settings, ShieldCheck, Sparkles, Store, Wallet2, ChevronLeft, X, Check, Clock, Eye, MessageSquare } from 'lucide-react';
+import { ArrowRight, BadgeCheck, BellRing, CreditCard, Heart, MapPin, MessageCircleMore, PackageCheck, ReceiptText, Search, Settings, ShieldCheck, Sparkles, Store, Wallet2, ChevronLeft, X, Check, Clock, Eye, MessageSquare, CheckCircle2, AlertCircle, LoaderCircle } from 'lucide-react';
 import { SectionShell } from '../../components/SectionShell';
 import { Card } from '../../components/common/Card';
 import { Table } from '../../components/common/Table';
@@ -69,6 +69,70 @@ function toMoney(value: number | string | null | undefined): string {
 
 function statusTone(status: string | null | undefined) {
   return status === 'COMPLETE' ? 'text-emerald-300' : 'text-amber-300';
+}
+
+type ScheduleUpdateFeedback = { type: 'success' | 'error'; message: string };
+
+function isSafeScheduleErrorMessage(message: string): boolean {
+  const normalized = message.trim();
+  return normalized.length > 0
+    && normalized.length <= 200
+    && !/[\r\n<>]/.test(normalized)
+    && !/(?:\bat\s+\S+|stack\s*trace|exception|traceback|sql|select\s+.+\s+from|password|token|secret|authorization|https?:\/\/|internal server error)/i.test(normalized);
+}
+
+function getScheduleErrorMessage(reason: unknown): string {
+  if (reason instanceof ApiError) {
+    if (reason.status === 401) return 'Your session has expired. Sign in again and retry.';
+    if (reason.status === 403) return 'You do not have permission to update this delivery date.';
+  }
+  if (reason instanceof Error && (reason.name === 'TimeoutError' || /timed?\s*out/i.test(reason.message))) {
+    return 'The request timed out. Check your connection and try again.';
+  }
+  if (reason instanceof TypeError) {
+    return 'Unable to reach the server. Check your connection and try again.';
+  }
+  if (reason instanceof Error && isSafeScheduleErrorMessage(reason.message)) {
+    return reason.message;
+  }
+  return 'Unable to update the delivery date. Please try again.';
+}
+
+export function DeliveryScheduleControl({
+  inputId,
+  selectedDate,
+  scheduledDate,
+  eligible,
+  loading,
+  feedback,
+  onDateChange,
+  onSubmit,
+}: {
+  inputId: string;
+  selectedDate: string;
+  scheduledDate?: string | null;
+  eligible: boolean;
+  loading: boolean;
+  feedback?: ScheduleUpdateFeedback;
+  onDateChange: (date: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      <label className="block text-sm font-medium text-slate-200" htmlFor={inputId}>{scheduledDate ? 'Update delivery date' : 'Schedule delivery date'}</label>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+        <input id={inputId} type="date" value={selectedDate} onChange={(event) => onDateChange(event.target.value)} disabled={!eligible} className="min-h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm text-white disabled:opacity-50" />
+        <button type="button" onClick={onSubmit} disabled={!eligible || loading || !selectedDate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">
+          {loading ? <><LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />Updating…</> : scheduledDate ? 'Update schedule' : 'Schedule delivery'}
+        </button>
+      </div>
+      {!eligible ? <p className="mt-2 text-xs text-slate-400">The current order status is not eligible for scheduling.</p> : null}
+      {feedback ? <div role={feedback.type === 'success' ? 'status' : 'alert'} className={`mt-3 flex items-start gap-2 rounded-xl border p-3 text-sm ${feedback.type === 'success' ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border-rose-400/20 bg-rose-500/10 text-rose-200'}`}>
+        {feedback.type === 'success' ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+        <span>{feedback.message}</span>
+      </div> : null}
+    </section>
+  );
 }
 
 export function CustomerProfilePage() {
@@ -3340,8 +3404,11 @@ export function VendorOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<VendorOrderApiResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [deliveryDate, setDeliveryDate] = useState('');
-  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [deliveryDates, setDeliveryDates] = useState<Record<number, string>>({});
+  const [scheduleLoadingOrderIds, setScheduleLoadingOrderIds] = useState<Set<number>>(() => new Set());
+  const [scheduleFeedbackByOrder, setScheduleFeedbackByOrder] = useState<Record<number, ScheduleUpdateFeedback | undefined>>({});
+  const scheduleRequests = useRef(new Set<number>());
+  const scheduleFeedbackTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const [feedback, setFeedback] = useState('');
   const [shareMode, setShareMode] = useState<'SINGLE' | 'DAY' | 'WEEK'>('SINGLE');
   const [shareDate, setShareDate] = useState('');
@@ -3352,6 +3419,10 @@ export function VendorOrdersPage() {
   const [revokeLoading, setRevokeLoading] = useState(false);
   const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<number | null>(null);
   const [statusError, setStatusError] = useState('');
+
+  useEffect(() => () => {
+    scheduleFeedbackTimers.current.forEach((timer) => clearTimeout(timer));
+  }, []);
 
   const isDeliveryEligible = (order: VendorOrderApiResponse) => ['CONFIRMED', 'PACKING', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(String(order.orderStatus ?? order.status ?? '').toUpperCase());
   const nextVendorOrderStatus = (order: VendorOrderApiResponse): Extract<OrderStatus, 'PACKING' | 'SHIPPED'> | null => {
@@ -3414,7 +3485,10 @@ export function VendorOrdersPage() {
     try {
       const detail = await getVendorOrder(order.id);
       setSelectedOrder(detail);
-      setDeliveryDate(orderDate(detail.scheduledDeliveryDate ?? order.scheduledDeliveryDate ?? detail.expectedDeliveryDate ?? order.expectedDeliveryDate));
+      setDeliveryDates((current) => ({
+        ...current,
+        [order.id]: current[order.id] ?? orderDate(detail.scheduledDeliveryDate ?? order.scheduledDeliveryDate ?? detail.expectedDeliveryDate ?? order.expectedDeliveryDate),
+      }));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load delivery details.');
       setSelectedOrder(null);
@@ -3424,28 +3498,54 @@ export function VendorOrdersPage() {
   };
 
   const scheduleSelectedOrder = async () => {
-    if (!selectedOrder || !isDeliveryEligible(selectedOrder)) {
-      setError('This order is not in an eligible status for delivery scheduling.');
+    const order = selectedOrder;
+    if (!order) return;
+    const selectedDate = deliveryDates[order.id] ?? '';
+    if (!isDeliveryEligible(order)) {
+      setScheduleFeedbackByOrder((current) => ({ ...current, [order.id]: { type: 'error', message: 'This order is not eligible for delivery scheduling.' } }));
       return;
     }
-    if (!deliveryDate) {
-      setError('Choose a delivery date before saving.');
+    if (!selectedDate) {
+      setScheduleFeedbackByOrder((current) => ({ ...current, [order.id]: { type: 'error', message: 'Choose a delivery date before saving.' } }));
       return;
     }
-    setScheduleLoading(true);
-    setError(null);
-    setFeedback('');
+    if (scheduleRequests.current.has(order.id)) return;
+    scheduleRequests.current.add(order.id);
+    const priorTimer = scheduleFeedbackTimers.current.get(order.id);
+    if (priorTimer) clearTimeout(priorTimer);
+    scheduleFeedbackTimers.current.delete(order.id);
+    setScheduleFeedbackByOrder((current) => ({ ...current, [order.id]: undefined }));
+    setScheduleLoadingOrderIds((current) => new Set(current).add(order.id));
     try {
-      await updateScheduledDeliveryDate(selectedOrder.id, deliveryDate);
-      setSelectedOrder({ ...selectedOrder, scheduledDeliveryDate: deliveryDate });
-      setOrders((current) => current.map((order) => order.id === selectedOrder.id
-        ? { ...order, scheduledDeliveryDate: deliveryDate }
-        : order));
-      setFeedback('Scheduled delivery date saved.');
+      await updateScheduledDeliveryDate(order.id, selectedDate);
+      setSelectedOrder((current) => current?.id === order.id
+        ? { ...current, scheduledDeliveryDate: selectedDate }
+        : current);
+      setOrders((current) => current.map((item) => item.id === order.id
+        ? { ...item, scheduledDeliveryDate: selectedDate }
+        : item));
+      setDeliveryDates((current) => ({ ...current, [order.id]: selectedDate }));
+      setScheduleFeedbackByOrder((current) => ({
+        ...current,
+        [order.id]: { type: 'success', message: `Delivery date updated successfully for order ${formatOrderNumber(order)}.` },
+      }));
+      const timer = setTimeout(() => {
+        setScheduleFeedbackByOrder((current) => ({ ...current, [order.id]: undefined }));
+        scheduleFeedbackTimers.current.delete(order.id);
+      }, 5000);
+      scheduleFeedbackTimers.current.set(order.id, timer);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to save the scheduled delivery date.');
+      setScheduleFeedbackByOrder((current) => ({
+        ...current,
+        [order.id]: { type: 'error', message: getScheduleErrorMessage(reason) },
+      }));
     } finally {
-      setScheduleLoading(false);
+      scheduleRequests.current.delete(order.id);
+      setScheduleLoadingOrderIds((current) => {
+        const next = new Set(current);
+        next.delete(order.id);
+        return next;
+      });
     }
   };
 
@@ -3575,23 +3675,25 @@ export function VendorOrdersPage() {
                   {expanded ? <div className="mt-4 space-y-4 border-t border-white/10 pt-4">
                     <section className="space-y-2">
                       <h3 className="text-sm font-semibold text-white">Delivery address</h3>
-                      {typeof detail.deliveryAddress === 'string' ? <p className="whitespace-pre-wrap text-sm text-slate-300">{detail.deliveryAddress}</p>
+                      {typeof detail.deliveryAddress === 'string' ? <div className="space-y-1"><p className="whitespace-pre-wrap text-sm text-slate-300">{detail.deliveryAddress}</p><p className="text-xs text-amber-200">Map directions are unavailable for this address.</p></div>
                         : address ? <div className="space-y-1 text-sm text-slate-300">
                           <p>{[address.addressLine1, address.addressLine2].filter(Boolean).join(', ') || 'Street address unavailable'}</p>
                           <p>{[address.city, address.state, address.postalCode].filter(Boolean).join(', ') || 'City, state, and postal code unavailable'}</p>
                           {address.country ? <p>{address.country}</p> : null}
-                          {hasCoordinates ? <p className="break-all text-xs text-slate-400">Latitude {address.latitude}, longitude {address.longitude}</p> : <p className="text-xs text-amber-200">Coordinates unavailable; verified map directions cannot be shown.</p>}
+                          {hasCoordinates ? <p className="break-all text-xs text-slate-400">Latitude {address.latitude}, longitude {address.longitude}</p> : <p className="text-xs text-amber-200">Map directions are unavailable for this address.</p>}
                           {hasCoordinates ? <DirectionsLink latitude={address.latitude} longitude={address.longitude} className="inline-flex min-h-11 items-center font-medium text-blue-300 underline" /> : null}
                         </div> : <p className="text-sm text-amber-200">Delivery address unavailable.</p>}
                     </section>
-                    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <label className="block text-sm font-medium text-slate-200" htmlFor={`delivery-date-${order.id}`}>{scheduledDate ? 'Update delivery date' : 'Schedule delivery date'}</label>
-                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                        <input id={`delivery-date-${order.id}`} type="date" value={deliveryDate} onChange={(event) => setDeliveryDate(event.target.value)} disabled={!eligible} className="min-h-11 rounded-xl border border-white/10 bg-slate-950 px-3 text-sm text-white disabled:opacity-50" />
-                        <button type="button" onClick={() => { void scheduleSelectedOrder(); }} disabled={!eligible || scheduleLoading || !deliveryDate} className="min-h-11 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">{scheduleLoading ? 'Saving...' : scheduledDate ? 'Update schedule' : 'Schedule delivery'}</button>
-                      </div>
-                      {!eligible ? <p className="mt-2 text-xs text-slate-400">The current order status is not eligible for scheduling.</p> : null}
-                    </section>
+                    <DeliveryScheduleControl
+                      inputId={`delivery-date-${order.id}`}
+                      selectedDate={deliveryDates[order.id] ?? orderDate(scheduledDate)}
+                      scheduledDate={scheduledDate}
+                      eligible={eligible}
+                      loading={scheduleLoadingOrderIds.has(order.id)}
+                      feedback={scheduleFeedbackByOrder[order.id]}
+                      onDateChange={(date) => setDeliveryDates((current) => ({ ...current, [order.id]: date }))}
+                      onSubmit={() => { void scheduleSelectedOrder(); }}
+                    />
                     <button type="button" onClick={() => { void createShare({ scope: 'SINGLE', orderId: detail.id, expiresInHours: 48 }); }} disabled={!eligible || shareLoading} className="min-h-11 rounded-full border border-emerald-400/30 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50">{shareLoading ? 'Creating link...' : 'Share Delivery'}</button>
                   </div> : null}
                 </Card>;
